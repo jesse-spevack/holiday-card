@@ -18,6 +18,7 @@ export default defineConfig(async () => {
         },
       }),
     ],
-    test: { setupFiles: ["./test/setup.ts"] },
+    // The e2e files under test/e2e run with node --test, not Vitest.
+    test: { include: ["test/*.test.ts"], setupFiles: ["./test/setup.ts"] },
   };
 });
