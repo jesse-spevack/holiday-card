@@ -1,3 +1,4 @@
+import { albumList, albumPhoto } from "./album";
 import { HttpError, field, json, limit, readJson } from "./http";
 import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./family-parser";
 import { lookUpAddress, suggestAddresses } from "./places";
@@ -37,7 +38,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       return sprite(request, env);
     case "GET /api/party":
       return party(request, env, ctx);
+    case "GET /album/list":
+      return albumList(env);
     default:
+      if (request.method === "GET" && url.pathname.startsWith("/album/")) return albumPhoto(env, url.pathname);
       throw new HttpError(404, "not_found");
   }
 }
