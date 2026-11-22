@@ -1,4 +1,6 @@
-import { Scene, HOSTS, HOST_LINES, ROOM_W, ROOM_H, loadImage, DREIDELS } from "./js/scene.js";
+import { Scene, HOSTS, HOST_LINES, loadImage } from "./js/scene.js";
+import { ROOM_W, ROOM_H, DREIDELS } from "./js/room.js";
+import { h } from "./js/dom.js";
 import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
 import { openPicker } from "./js/picker.js";
@@ -11,22 +13,28 @@ import { Night } from "./js/night.js";
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sound = new Sound();
-const scene = new Scene({ stage: $("stage"), world: $("world"), canvas: $("canvas"), overlay: $("overlay"), reducedMotion });
-const app = $("app");
-const dialog = $("dialog");
-const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => { scene.bookHidden = !on; } });
-scene.eggs = new Eggs({ scene, sound, reducedMotion, onFound: (egg) => markFound(egg) });
-const dreidel = new Dreidel({ sound, reducedMotion });
 // The hidden thing that each tap area finds, for the hosts' hints.
 const EGG_OF = { book: "album", lamp: "lamp", "dreidel-left": "dreidel", "dreidel-right": "dreidel", menorah: "menorah", window: "star" };
-scene.onHotspot = (id) => {
-  markFound(EGG_OF[id]);
-  if (id === "book") album.open();
-  else if (DREIDELS[id]) dreidel.open(() => scene.roomRect(DREIDELS[id]));
-  else scene.eggs.tap(id);
-};
-const night = new Night({ stage: $("stage"), reducedMotion });
-scene.onLayout = (view) => night.layout(view);
+// The modules make their random choices in this order (snow, the first Waymo, the dreidel's snow). Keep it.
+const scene = new Scene({
+  stage: $("stage"), world: $("world"), canvas: $("canvas"), overlay: $("overlay"), reducedMotion,
+  onTap: (sprite) => onTap(sprite),
+  onHover: (sprite) => onHover(sprite),
+  onHotspot: (id) => {
+    markFound(EGG_OF[id]);
+    if (id === "book") album.open();
+    else if (DREIDELS[id]) dreidel.open(() => scene.roomRect(DREIDELS[id]));
+    else eggs.tap(id);
+  },
+  onLayout: (view) => night.layout(view),
+});
+const app = $("app");
+const dialog = $("dialog");
+const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => scene.showBook(on) });
+const eggs = new Eggs({ scene, sound, reducedMotion, onFound: (egg) => markFound(egg) });
+scene.addLayer(eggs);
+const dreidel = new Dreidel({ sound, reducedMotion });
+const night = new Night({ stage: $("stage"), reducedMotion, clock: scene });
 const again = $("again");
 const TUCK_MS = 7000;
 const SAVED = "hc.families";
@@ -97,19 +105,6 @@ function turnstileToken() {
 
 function resetTurnstile() {
   if (turnstileWidget !== null) window.turnstile?.reset(turnstileWidget);
-}
-
-// ---------- tiny DOM helper ----------
-function h(tag, attrs = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v == null || v === false) continue;
-    if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === "class") el.className = v;
-    else el.setAttribute(k, v === true ? "" : v);
-  }
-  el.append(...children.flat().filter((c) => c != null && c !== false));
-  return el;
 }
 
 // ---------- host speech, typed out ----------
@@ -330,7 +325,7 @@ function stepConfirm() {
       h("span", { class: "end" }, btn("Yes, send it ▸", send, "btn", { id: "send" }))));
 }
 
-// The door opens and the family walks in while the Sheet saves.
+// The family walks into the room while the Sheet saves.
 async function send() {
   const button = $("send");
   button.disabled = true;
@@ -338,11 +333,10 @@ async function send() {
   try {
     const members = state.members || (await state.membersPromise);
     const family = scene.families.get("pending");
-    const sprites = scene.sprites.filter((s) => s.familyId === "pending");
     if (!family.entered) {
       family.entered = true;
-      sound.door();
-      const center = scene.enter(sprites);
+      sound.arrive();
+      const center = scene.enter(scene.familySprites("pending"));
       scene.focus(center.x, center.y - 12, 1);
     }
     const address = { ...state.address, unit: state.unit };
@@ -350,9 +344,7 @@ async function send() {
     const saved = { id, token, name: state.envelope, members, bubbles: [] };
     state.mine.push(saved);
     saveMine();
-    scene.families.delete("pending");
-    scene.families.set(id, { id, name: saved.name, mine: true });
-    sprites.forEach((s) => { s.familyId = id; s.mine = true; });
+    scene.renameFamily("pending", { id, name: saved.name, mine: true });
     resetTurnstile();
     go("done");
   } catch {
@@ -442,16 +434,16 @@ async function showPending(members) {
   scene.removeFamily("pending");
   scene.families.set("pending", { id: "pending", name: state.envelope });
   const sprites = await spritesFor("pending", members, { mine: true });
-  scene.placeAtDoor(sprites);
+  scene.placeAtEntrance(sprites);
   sound.pop();
 }
 
 // ---------- the party ----------
-async function addFamily(f, { fromDoor, mine = false }) {
+async function addFamily(f, { walkIn, mine = false }) {
   scene.families.set(f.id, { id: f.id, name: f.name, mine });
   const sprites = await spritesFor(f.id, f.members, { mine });
   sprites.forEach((s) => { s.bubble = f.bubbles?.[s.index] || ""; });
-  scene.enter(sprites, { fromDoor });
+  scene.enter(sprites, { walkIn });
   return sprites;
 }
 
@@ -467,11 +459,11 @@ async function loadParty(first) {
     const mine = !!mineById(f.id);
     if (scene.families.has(f.id)) {
       // keep bubbles fresh for everyone else's families
-      if (!mine) scene.sprites.filter((s) => s.familyId === f.id).forEach((s) => { s.bubble = f.bubbles?.[s.index] || ""; });
+      if (!mine) scene.familySprites(f.id).forEach((s) => { s.bubble = f.bubbles?.[s.index] || ""; });
       continue;
     }
     if (mine) continue;
-    await addFamily(f, { fromDoor: !first });
+    await addFamily(f, { walkIn: !first });
   }
   for (const id of [...scene.families.keys()]) {
     if (id !== "pending" && !seen.has(id) && !mineById(id) && !first) scene.removeFamily(id);
@@ -584,8 +576,6 @@ async function start() {
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
-  scene.onTap = onTap;
-  scene.onHover = onHover;
   api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
   // A new guest gets the first question at once. So the dialog has its real height before the room shows,
   // and the room does not jump when the question appears.
@@ -601,13 +591,14 @@ async function start() {
     scene.addHost(host, img);
   }
 
-  for (const f of state.mine) await addFamily(f, { fromDoor: false, mine: true });
+  for (const f of state.mine) await addFamily(f, { walkIn: false, mine: true });
   await loadParty(true);
-  setInterval(() => loadParty(false), POLL_MS);
+  // A hidden tab does not ask for the party. The next check after the guest comes back does.
+  setInterval(() => { if (!document.hidden) loadParty(false); }, POLL_MS);
   setInterval(cycleBubbles, 3500);
 
   if (state.mine.length) {
-    const last = scene.sprites.filter((s) => s.familyId === state.mine.at(-1).id);
+    const last = scene.familySprites(state.mine.at(-1).id);
     if (last.length) scene.focus(last[0].x, last[0].y - 12, 1);
     go("done");
   }
@@ -615,6 +606,6 @@ async function start() {
 
 // "?test" loads the test API for the end-to-end tests (public/js/test-api.js). A guest never loads it.
 if (new URLSearchParams(location.search).has("test")) {
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, dreidel, found }); });
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, found }); });
 }
 start();

@@ -3,6 +3,9 @@
 // The dreidel is a small 3D model: a square body with a letter on each side, a point, and a handle.
 // Each frame finds the color of each pixel from the spin angle and the tilt, so any pose looks hand-drawn.
 
+import { eachPixel } from "./pixels.js";
+import { PALETTE } from "./palette.js";
+
 export const W = 88;
 export const H = 72;
 // The sill top, where the point of the dreidel stands.
@@ -17,7 +20,7 @@ export const FACES = [
 ];
 
 // The four Hebrew letters, 12 rows tall, upright as they read on the side of a standing dreidel.
-export const LETTERS = {
+const LETTERS = {
   nun: [
     "..#####.",
     "..######",
@@ -369,29 +372,23 @@ const COIN = [
   "ocLLLLco",
   ".oooooo.",
 ];
+const COIN_COLORS = { o: C.coinEdge, S: C.coinShine, L: C.coinLight, c: C.coin };
 function drawCoin(px, x, y, top) {
-  COIN.forEach((row, j) => {
-    for (let i = 0; i < row.length; i++) {
-      const ch = row[i];
-      if (ch === ".") continue;
-      const X = x - 4 + i;
-      const Y = y - 3 + j;
-      if (X < 0 || X >= W || Y < 0 || Y >= H) continue;
-      let c = ch === "o" ? C.coinEdge : ch === "S" ? C.coinShine : ch === "L" ? C.coinLight : C.coin;
-      if (!top && j === 1) c = C.coin;
-      px[Y * W + X] = c;
-    }
+  eachPixel(COIN, COIN_COLORS, (i, j, color) => {
+    const X = x - 4 + i;
+    const Y = y - 3 + j;
+    if (X < 0 || X >= W || Y < 0 || Y >= H) return;
+    // A coin under another coin shows no shine: its middle row is plain gold.
+    px[Y * W + X] = !top && j === 1 ? C.coin : color;
   });
 }
 
 // The letter alone, for the result: ink on a clear background, at 1 pixel per cell.
-export function drawLetter(ctx, id, color = "#ffd27a") {
+export function drawLetter(ctx, id, color = PALETTE.gold) {
   const rows = LETTERS[id];
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.fillStyle = color;
   const ox = Math.floor((ctx.canvas.width - rows[0].length) / 2);
   const oy = Math.floor((ctx.canvas.height - rows.length) / 2);
-  rows.forEach((row, j) => {
-    for (let i = 0; i < row.length; i++) if (row[i] === "#") ctx.fillRect(ox + i, oy + j, 1, 1);
-  });
+  eachPixel(rows, { "#": color }, (i, j) => ctx.fillRect(ox + i, oy + j, 1, 1));
 }

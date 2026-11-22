@@ -30,24 +30,15 @@ export class Sound {
 
   tone(freq, { at = 0, dur = 0.08, type = "square", gain = 0.04, slide = 0 } = {}) {
     if (!this.ready()) return;
-    const t = this.ctx.currentTime + at;
-    const osc = this.ctx.createOscillator();
-    const amp = this.ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t);
-    if (slide) osc.frequency.linearRampToValueAtTime(freq + slide, t + dur);
-    amp.gain.setValueAtTime(gain, t);
-    amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(amp).connect(this.ctx.destination);
-    osc.start(t);
-    osc.stop(t + dur + 0.02);
+    tone(this.ctx, this.ctx.currentTime + at, freq, { dur, type, gain, slide });
   }
 
   blip() { this.tone(520 + Math.random() * 80, { dur: 0.035, gain: 0.025 }); }
   select() { this.tone(660, { dur: 0.06 }); this.tone(990, { at: 0.06, dur: 0.08 }); }
   pop() { this.tone(400, { dur: 0.1, slide: 500, gain: 0.035 }); }
   candle() { this.tone(1046, { dur: 0.3, type: "sine", gain: 0.06 }); this.tone(1568, { at: 0.08, dur: 0.4, type: "sine", gain: 0.04 }); }
-  door() {
+  // A family walks into the party.
+  arrive() {
     this.tone(180, { dur: 0.18, type: "triangle", gain: 0.08, slide: -60 });
     [523, 659, 784, 1046].forEach((f, i) => this.tone(f, { at: 0.25 + i * 0.09, dur: 0.18, type: "square", gain: 0.035 }));
   }
@@ -79,6 +70,10 @@ export class Sound {
         .then((buf) => { this.samples[name] = buf; })
         .catch(() => {});
     }
+  }
+
+  hasSample(name) {
+    return !!this.samples?.[name];
   }
 
   // Plays a random loaded recording from `names`, a little faster or slower each time.
@@ -138,10 +133,43 @@ const FLIPS = ["book-flip-1", "book-flip-2", "book-flip-3"];
 // Gelt coins for the dreidel game, from the same pack.
 const GELT = ["gelt-pile", "gelt-few"];
 
+// One oscillator note that starts at time t and dies away over dur seconds. slide moves the pitch by that many Hz.
+// attack is the seconds it takes to reach full gain. With no attack, it starts at full gain.
+// Every beep, chime, and coin ping on the page is one of these.
+export function tone(ctx, t, freq, { dur = 0.08, type = "square", gain = 0.04, slide = 0, attack = 0, out = ctx.destination } = {}) {
+  const osc = ctx.createOscillator();
+  const amp = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  if (slide) osc.frequency.linearRampToValueAtTime(freq + slide, t + dur);
+  if (attack) {
+    amp.gain.setValueAtTime(0, t);
+    amp.gain.linearRampToValueAtTime(gain, t + attack);
+  } else {
+    amp.gain.setValueAtTime(gain, t);
+  }
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(amp).connect(out);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+
+// One second of white noise for each audio context: the dreidel's whirr and knocks.
+const whiteNoises = new WeakMap();
+export function whiteNoise(ctx) {
+  let buf = whiteNoises.get(ctx);
+  if (buf) return buf;
+  buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  whiteNoises.set(ctx, buf);
+  return buf;
+}
+
 // One second of pink noise for each audio context. Every swish starts at a random place in it.
 // Pink noise has less hiss than white noise, so the swish sounds like soft paper.
 const noises = new WeakMap();
-function noise(ctx) {
+function pinkNoise(ctx) {
   let buf = noises.get(ctx);
   if (buf) return buf;
   buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -161,7 +189,7 @@ function noise(ctx) {
 // Plays noise into a filter and a gain, and returns both so the caller can shape them.
 function burst(ctx, out, t, dur, type) {
   const src = ctx.createBufferSource();
-  src.buffer = noise(ctx);
+  src.buffer = pinkNoise(ctx);
   src.playbackRate.value = 0.9 + Math.random() * 0.2;
   const filter = ctx.createBiquadFilter();
   filter.type = type;

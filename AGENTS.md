@@ -40,13 +40,15 @@ No build step. The browser loads ES modules as they are.
 | `public/index.html`, `public/style.css` | Markup and the main styles |
 | `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules |
 | `public/js/api.js` | Every call to the Worker |
+| `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter; the page colors |
 | `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test` |
-| `public/js/scene.js` | The room canvas, sprites, hosts and their lines (`HOST_LINES`), the door arrival, and the tap areas (`HOTSPOTS`) |
+| `public/js/room.js` | Every place in `room.png` that the code uses: the floor, the window, the fire, the menorah, the lamp, the book, the dreidels, and the tap areas (`HOTSPOTS`) |
+| `public/js/scene.js` | The room canvas, the frame loop, sprites, hosts and their lines (`HOST_LINES`), and the arrival from below the room. Layers (`addLayer`) draw over it, and `onFrame` listeners run each frame |
 | `public/js/picker.js` | The look picker. Ages and looks come from `public/assets/looks.json` |
 | `public/js/pets.js` | Hidden pet reactions |
-| `public/js/sound.js` | Sound effects with Web Audio, and the recorded sounds |
-| `public/js/night.js`, `public/night.css` | The snowy night, roof, and greeting around the room on a tall screen |
-| `public/js/eggs.js` | The Waymo, the shooting star, the menorah, and the floor lamp |
+| `public/js/sound.js` | Sound effects with Web Audio, and the recorded sounds. `tone()` and the noise buffers are shared with `dreidel-sound.js` |
+| `public/js/night.js`, `public/night.css` | The snowy night, roof, and greeting around the room on a tall screen. It runs on the scene's frames |
+| `public/js/eggs.js` | The Waymo, the shooting star, the menorah, and the floor lamp. A scene layer |
 | `public/js/album.js`, `public/js/album-art.js`, `public/album.css` | The hidden photo album |
 | `public/js/dreidel.js`, `public/js/dreidel-art.js`, `public/js/dreidel-sound.js`, `public/dreidel.css` | The hidden dreidel game |
 | `public/assets/` | `room.png`, `book.png`, `og.png`, `icon.png`, the look sprites in `looks/`, and the sounds in `sounds/` |

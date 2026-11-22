@@ -7,7 +7,7 @@ import os, sys
 from PIL import Image
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-# Where the book sits in the room (its top-left pixel). public/js/scene.js uses the same numbers.
+# Where the book sits in the room (its top-left pixel). BOOK in public/js/room.js uses the same numbers.
 AT = (43, 99)
 
 COLORS = {

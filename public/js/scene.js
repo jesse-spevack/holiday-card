@@ -2,37 +2,9 @@
 // which CSS scales up with crisp pixels. Bubbles and nametags are HTML on top.
 
 import { drawPet, drawPetMark } from "./pets.js";
+import { ROOM_W, ROOM_H, FLOOR, PLACES, ENTRANCE, ENTRANCE_WAIT, WINDOW, CANDLES, FIRE, BOOK, HOTSPOTS, isNight, roomPixels } from "./room.js";
+import { PALETTE } from "./palette.js";
 
-export const ROOM_W = 256;
-export const ROOM_H = 192;
-
-// Places in living-room.png, in room pixels.
-export const FLOOR = { x0: 98, x1: 180, y0: 100, y1: 168 };
-// Places on the open floor where the hosts like to stand.
-const PLACES = {
-  table: { x: 175, y: 126 },
-  rug: { x: 130, y: 136 },
-  fire: { x: 124, y: 103 },
-  presents: { x: 166, y: 105 },
-};
-const DOOR = { x: 127, y: 200 };
-const DOOR_WAIT = { x: 128, y: 182 };
-const WINDOW_PANES = [[167, 184], [190, 212], [217, 236]];
-const WINDOW_Y = [9, 44];
-export const FIRE = { x: 112, y: 44, w: 32, h: 24 };
-const CANDLES = { x0: 188, y0: 34, x1: 212, y1: 46 };
-// The photo album on the sofa (art/scripts/book.py). Its cover is the top 12x8 pixels.
-const BOOK = { x: 43, y: 99, w: 12, h: 8 };
-// Hidden things a tap finds. Each box is the thing as drawn, in room pixels.
-// The window is "back": it takes only the taps that no small thing in front of it takes.
-export const HOTSPOTS = [
-  { id: "book", x: 43, y: 99, w: 12, h: 12 },
-  { id: "lamp", x: 24, y: 28, w: 19, h: 50 },
-  { id: "dreidel-left", x: 183, y: 45, w: 11, h: 15 },
-  { id: "menorah", x: 194, y: 39, w: 17, h: 19 },
-  { id: "dreidel-right", x: 214, y: 45, w: 11, h: 15 },
-  { id: "window", x: 162, y: 6, w: 80, h: 38, back: true },
-];
 // A tap finds a thing from a little way off. Each thing gets this much screen (in CSS pixels) in each direction
 // where the room allows. A finger needs more than a mouse. Where two areas overlap, the nearer thing wins.
 export const TAP_PX = { touch: 44, mouse: 20 };
@@ -40,13 +12,7 @@ export const TAP_PX = { touch: 44, mouse: 20 };
 const TAP_PAD = 2;
 // The corners that show which thing a tap found.
 // Gold arms with a dark outline, so they show on the night glass, the wood, and the lamp light.
-const PRESS = { seconds: 0.45, gold: "#ffd27a", dark: "#2a1813", arm: 4, gap: 2 };
-
-// The two dreidels on the window sill, as drawn in room.png. The dreidel game grows from them.
-export const DREIDELS = {
-  "dreidel-left": { x: 183, y: 45, w: 10, h: 14 },
-  "dreidel-right": { x: 214, y: 45, w: 10, h: 14 },
-};
+const PRESS = { seconds: 0.45, gold: PALETTE.gold, dark: "#2a1813", arm: 4, gap: 2 };
 
 // Each host has a home spot and places to visit. Jess and Jesse also visit the guests. Eddie walks with Audrey.
 export const HOSTS = [
@@ -109,7 +75,9 @@ export function loadImage(src) {
 }
 
 export class Scene {
-  constructor({ stage, world, canvas, overlay, reducedMotion }) {
+  // onTap(sprite), onHover(sprite or null), and onHotspot(id) answer the guest's pointer.
+  // onLayout(view) runs each time the room moves on the stage or the stage changes size.
+  constructor({ stage, world, canvas, overlay, reducedMotion, onTap, onHover, onHotspot, onLayout }) {
     this.stage = stage;
     this.world = world;
     this.canvas = canvas;
@@ -123,12 +91,14 @@ export class Scene {
     this.camera = { scale: 2, x: 128, y: 120, target: null };
     this.last = performance.now();
     this.time = 0;
-    this.onTap = () => {};
-    this.onHover = () => {};
-    this.onHotspot = () => {};
-    this.eggs = null;
-    this.onLayout = () => {};
-    this.bookHidden = false;
+    this.onTap = onTap || (() => {});
+    this.onHover = onHover || (() => {});
+    this.onHotspot = onHotspot || (() => {});
+    this.onLayout = onLayout || (() => {});
+    // Layers (eggs.js) draw over the room image and over the sprites. Frame listeners (night.js) run at the start of each frame.
+    this.layers = [];
+    this.frameListeners = [];
+    this.bookShown = true;
     this.press = null;
     stage.addEventListener("pointerdown", (e) => this.handlePress(e));
     stage.addEventListener("pointercancel", () => { this.press = null; });
@@ -148,10 +118,28 @@ export class Scene {
     const pixels = roomPixels(this.room);
     this.flames = flamePixels(pixels);
     this.glass = glassMask(pixels);
-    this.eggs?.prepare(pixels);
+    for (const layer of this.layers) layer.prepare?.(pixels);
     loadImage("/assets/book.png").then((img) => { this.book = img; }, () => {});
     this.layout();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  // A layer is an object with any of these: prepare(pixels) once the room loads, update(dt) each frame,
+  // drawBack(g) over the room image, drawFront(g) over the sprites, and flame(i) for the state of candle i.
+  addLayer(layer) {
+    this.layers.push(layer);
+  }
+
+  // Runs fn(now) at the start of each frame, with the frame's time stamp. Returns a function that stops it.
+  onFrame(fn) {
+    this.frameListeners.push(fn);
+    return () => {
+      this.frameListeners = this.frameListeners.filter((f) => f !== fn);
+    };
+  }
+
+  showBook(on) {
+    this.bookShown = on;
   }
 
   // ---- camera ----
@@ -204,6 +192,20 @@ export class Scene {
     });
   }
 
+  familySprites(id) {
+    return this.sprites.filter((s) => s.familyId === id);
+  }
+
+  // Gives a family a new id, for the pending family once the save returns its id.
+  renameFamily(from, family) {
+    for (const s of this.familySprites(from)) {
+      s.familyId = family.id;
+      s.mine = family.mine;
+    }
+    this.families.delete(from);
+    this.families.set(family.id, family);
+  }
+
   removeFamily(id) {
     this.sprites = this.sprites.filter((s) => s.familyId !== id);
     this.families.delete(id);
@@ -247,7 +249,7 @@ export class Scene {
   besideGuests(host) {
     const ids = [...this.families.keys()].filter((id) => id !== "pending");
     const id = ids[Math.floor(Math.random() * ids.length)];
-    const members = this.sprites.filter((q) => q.familyId === id).map((q) => q.home || q);
+    const members = this.familySprites(id).map((q) => q.home || q);
     if (!members.length) return null;
     const xs = members.map((q) => q.x);
     const y = members.reduce((a, q) => a + q.y, 0) / members.length;
@@ -316,27 +318,27 @@ export class Scene {
     });
   }
 
-  // A family waiting in the doorway (during the form).
-  placeAtDoor(sprites) {
+  // A family waiting below the room's bottom edge (during the form).
+  placeAtEntrance(sprites) {
     const n = sprites.length;
     sprites.forEach((s, i) => {
-      s.x = DOOR_WAIT.x + (i - (n - 1) / 2) * 13;
-      s.y = DOOR_WAIT.y + (i % 2) * 5;
+      s.x = ENTRANCE_WAIT.x + (i - (n - 1) / 2) * 13;
+      s.y = ENTRANCE_WAIT.y + (i % 2) * 5;
       s.popAt = this.time + i * 0.12;
       s.wander = false;
     });
   }
 
-  // Walk in through the front door to a spot on the floor, then mill around.
-  enter(sprites, { fromDoor = true } = {}) {
+  // Walk in from below the room to a spot on the floor, then mill around. Without walkIn, the family is just there.
+  enter(sprites, { walkIn = true } = {}) {
     const center = this.randomSpot();
     this.arrange(sprites, center);
     sprites.forEach((s, i) => {
-      if (fromDoor && s.y < DOOR_WAIT.y - 10) {
-        s.x = DOOR.x + rand(-4, 4);
-        s.y = DOOR.y + i * 6;
+      if (walkIn && s.y < ENTRANCE_WAIT.y - 10) {
+        s.x = ENTRANCE.x + rand(-4, 4);
+        s.y = ENTRANCE.y + i * 6;
       }
-      if (this.reducedMotion || !fromDoor) {
+      if (this.reducedMotion || !walkIn) {
         s.x = s.home.x;
         s.y = s.home.y;
       } else {
@@ -349,10 +351,11 @@ export class Scene {
   }
 
   newFlake(anywhere = false) {
-    const pane = WINDOW_PANES[Math.floor(Math.random() * WINDOW_PANES.length)];
+    const { panes, y0, y1 } = WINDOW.snow;
+    const pane = panes[Math.floor(Math.random() * panes.length)];
     return {
       x: rand(pane[0], pane[1]),
-      y: anywhere ? rand(WINDOW_Y[0], WINDOW_Y[1]) : WINDOW_Y[0],
+      y: anywhere ? rand(y0, y1) : y0,
       pane,
       speed: rand(5, 11),
       drift: rand(-1.5, 1.5),
@@ -361,6 +364,8 @@ export class Scene {
 
   // ---- loop ----
   frame(now) {
+    // The listeners run before the scene's own update. Both make random choices, so this order keeps them the same.
+    for (const fn of [...this.frameListeners]) fn(now);
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     this.time += dt;
@@ -412,9 +417,9 @@ export class Scene {
     for (const f of this.flakes) {
       f.y += f.speed * dt;
       f.x += f.drift * dt;
-      if (f.y > WINDOW_Y[1] || f.x < f.pane[0] || f.x > f.pane[1]) Object.assign(f, this.newFlake());
+      if (f.y > WINDOW.snow.y1 || f.x < f.pane[0] || f.x > f.pane[1]) Object.assign(f, this.newFlake());
     }
-    this.eggs?.update(dt);
+    for (const layer of this.layers) layer.update?.(dt);
   }
 
   draw() {
@@ -423,7 +428,7 @@ export class Scene {
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
     g.drawImage(this.room, 0, 0);
-    this.eggs?.drawBack(g);
+    for (const layer of this.layers) layer.drawBack?.(g);
 
     // snow in the window, only on the glass, never over the frame or the menorah
     g.fillStyle = "#ffffff";
@@ -434,7 +439,7 @@ export class Scene {
     }
 
     this.drawGlow(g);
-    if (this.book && !this.bookHidden) g.drawImage(this.book, BOOK.x, BOOK.y);
+    if (this.book && this.bookShown) g.drawImage(this.book, BOOK.x, BOOK.y);
     this.drawFlames(g);
 
     // shadows, then sprites from back to front
@@ -463,7 +468,7 @@ export class Scene {
         g.drawImage(s.img, x, y);
       }
     }
-    this.eggs?.drawFront(g);
+    for (const layer of this.layers) layer.drawFront?.(g);
     for (const s of visible) if (s.react) drawPetMark(g, s, this.time, this.reducedMotion);
     this.drawPress(g);
   }
@@ -498,6 +503,12 @@ export class Scene {
     corners(0, PRESS.gold);
   }
 
+  // "lit", "new" (just lit), or "out", from the first layer that knows.
+  flameState(i) {
+    for (const layer of this.layers) if (layer.flame) return layer.flame(i);
+    return "lit";
+  }
+
   flicker() {
     return 0.5 + 0.5 * Math.sin(this.time * 9) * Math.sin(this.time * 5.3 + 1);
   }
@@ -520,7 +531,7 @@ export class Scene {
   // A flame that was just lit shows only a small dim core for a moment.
   drawFlames(g) {
     this.flames.forEach(({ x, y }, i) => {
-      const state = this.eggs?.flame(i) ?? "lit";
+      const state = this.flameState(i);
       if (state === "out") return;
       const wave = Math.sin(this.time * (7 + i) + i * 1.7) + Math.sin(this.time * 3.1 + i);
       g.fillStyle = state === "new" ? "#f6b74a" : wave > 0 ? "#fff4c2" : "#ffd36b";
@@ -696,7 +707,7 @@ export class Scene {
   }
 
   hotspotBoxAt(x, y, min = 0) {
-    const open = HOTSPOTS.filter((s) => s.id !== "book" || (this.book && !this.bookHidden));
+    const open = HOTSPOTS.filter((s) => s.id !== "book" || (this.book && this.bookShown));
     return pickSpot(open, x, y, min);
   }
 
@@ -745,9 +756,7 @@ export class Scene {
 
   // Where the book's cover is on the screen now.
   bookRect() {
-    const r = this.stage.getBoundingClientRect();
-    const v = this.view;
-    return new DOMRect(r.left + v.left + BOOK.x * v.scale, r.top + v.top + BOOK.y * v.scale, BOOK.w * v.scale, BOOK.h * v.scale);
+    return this.roomRect(BOOK);
   }
 
   handleTap(e) {
@@ -818,15 +827,6 @@ export function pickSpot(spots, x, y, min = 0) {
   return nearest(spots.filter((s) => !s.back), x, y, min, TAP_PAD) || spots.find((s) => s.back && inside(s, x, y)) || null;
 }
 
-function roomPixels(room) {
-  const canvas = document.createElement("canvas");
-  canvas.width = ROOM_W;
-  canvas.height = ROOM_H;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(room, 0, 0);
-  return ctx.getImageData(0, 0, ROOM_W, ROOM_H).data;
-}
-
 // The candle flames are the bright yellow pixels around the menorah.
 function flamePixels(data) {
   const flames = [];
@@ -839,15 +839,14 @@ function flamePixels(data) {
   return flames;
 }
 
-// The window glass is the dark blue night sky and the snow on it.
+// The window glass where snow falls: the dark blue night sky and the snow on it.
 function glassMask(data) {
   const glass = new Set();
-  for (let y = WINDOW_Y[0]; y < WINDOW_Y[1]; y++) {
-    for (const [x0, x1] of WINDOW_PANES) {
+  const { panes, y0, y1 } = WINDOW.snow;
+  for (let y = y0; y < y1; y++) {
+    for (const [x0, x1] of panes) {
       for (let x = x0; x <= x1; x++) {
-        const i = (y * ROOM_W + x) * 4;
-        const [r, gr, b] = [data[i], data[i + 1], data[i + 2]];
-        if (b > r + 10 || (r > 200 && gr > 200 && b > 200)) glass.add(y * ROOM_W + x);
+        if (isNight(data, (y * ROOM_W + x) * 4)) glass.add(y * ROOM_W + x);
       }
     }
   }

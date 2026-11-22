@@ -135,10 +135,10 @@ button, input { font: inherit; }
   border: 4px solid var(--ink);
   box-shadow: 0 0 0 4px var(--night);
   padding: 16px;
+  transition: opacity 250ms ease;
 }
 .dialog.small { min-height: 0; }
 /* After the thank-you, the dialog slides down out of view and the room takes its space. */
-.dialog { transition: opacity 250ms ease; }
 #app.tucked .dialog {
   min-height: 0; margin-bottom: 0; padding: 0; border-width: 0;
   overflow: hidden; opacity: 0; visibility: hidden;
@@ -233,7 +233,8 @@ button, input { font: inherit; }
   .turnstile { grid-area: turnstile; padding-bottom: 24px; }
 }
 
-/* ---------- look picker ---------- */
+/* ---------- look picker (public/js/picker.js) ----------
+   The album, the dreidel game, and the night load their own files (album.css, dreidel.css, night.css) when they first show. */
 .picker {
   --s: 2;
   position: fixed; inset: 0; z-index: 50;
@@ -342,7 +343,7 @@ button, input { font: inherit; }
 /* On the night sky, a dark outline in place of the box keeps the letters clear and lets the star show through. */
 .wish.sky {
   background: none;
-  text-shadow: -1px 0 #1b1a2e, 1px 0 #1b1a2e, 0 -1px #1b1a2e, 0 1px #1b1a2e, 0 0 6px rgba(27, 26, 46, 0.9);
+  text-shadow: -1px 0 var(--night), 1px 0 var(--night), 0 -1px var(--night), 0 1px var(--night), 0 0 6px rgba(27, 26, 46, 0.9);
 }
 @keyframes wish {
   0% { opacity: 0; }

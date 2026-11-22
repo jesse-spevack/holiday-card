@@ -98,7 +98,7 @@ Nothing on screen points to these.
   and string lights sits on the room. Snow falls below it, and a greeting shows there after the thank-you hides.
   A short band gets a smaller roof or a flat snowy eave. A wide desktop has no bands, so it shows the room only.
 - Phones first.
-- The party page polls for new families. It reads one version number and fetches the full party only when the version moves.
+- The party page asks for the party every 30 seconds while its tab shows. The Worker reads one version number and serves a cached party until the version moves.
 
 ## Art style settings (style B, chosen in a bake-off)
 

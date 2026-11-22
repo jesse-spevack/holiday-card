@@ -2,6 +2,8 @@
 // Nothing on the page points this out. A reaction is the field `react` on a sprite: { kind, at }.
 // scene.js draws a sprite with a reaction through drawPet, and its heart or flame through drawPetMark.
 
+import { eachPixel } from "./pixels.js";
+
 // The silly pets in looks.json each get their own reaction. Every other pet reacts as its type.
 const SILLY = { "dog-11": "robot", "dog-12": "dragon", "cat-07": "alien", "cat-08": "penguin" };
 const SOUND = { dog: "woof", cat: "mrrp", robot: "beep", dragon: "puff", alien: "warble", penguin: "waddle" };
@@ -91,13 +93,15 @@ export function drawPet(g, sprite, x, y, time, still) {
   g.restore();
 }
 
-const HEART = [".#.#.", "#####", ".###.", "..#.."];
+// A small heart with one light pixel.
+const HEART = [".#.#.", "#h###", ".###.", "..#.."];
+const HEART_COLORS = { "#": "#e8486a", h: "#ffb3c2" };
 
 function drawHeart(g, x, y) {
-  g.fillStyle = "#e8486a";
-  HEART.forEach((row, j) => [...row].forEach((c, i) => c === "#" && g.fillRect(x + i, y + j, 1, 1)));
-  g.fillStyle = "#ffb3c2";
-  g.fillRect(x + 1, y + 1, 1, 1);
+  eachPixel(HEART, HEART_COLORS, (i, j, color) => {
+    g.fillStyle = color;
+    g.fillRect(x + i, y + j, 1, 1);
+  });
 }
 
 // A small flame that puffs out of the dragon's mouth. It grows, flickers, and shrinks.
