@@ -1,28 +1,18 @@
-// Each sheet is 4 frames of 48x48: south, west, east, north. `feet` is the row where the sprite stands.
-const SHEETS = {
-  mom: { src: "/art/mom.png", feet: 40 },
-  dad: { src: "/art/dad.png", feet: 40 },
-  kid: { src: "/art/kid.png", feet: 40 },
-  dog: { src: "/art/dog.png", feet: 35 },
-};
+// Each look is one front-facing image, trimmed to the figure. A sprite stands with its feet on the bottom row.
+export const KIND_ORDER = ["adult", "kid", "baby", "dog", "cat"];
+export const HOST_IDS = ["jessica", "jesse", "daughter", "son"];
 
-const LOOKS = {
-  adult: ["mom", "dad"],
-  kid: ["kid"],
-  baby: ["kid"],
-  dog: ["dog"],
-  cat: ["dog"],
-};
+const looks = {};
+const hosts = {};
 
-export const FRAME = 48;
-export const DIRECTION = { south: 0, west: 1, east: 2, north: 3 };
-
-const images = {};
-
-export function loadSprites() {
-  return Promise.all(
-    Object.entries(SHEETS).map(([name, { src }]) => loadImage(src).then((img) => (images[name] = img))),
-  );
+export async function loadSprites() {
+  const manifest = await fetch("/art/looks.json").then((r) => r.json());
+  await Promise.all([
+    ...Object.entries(manifest).map(async ([kind, list]) => {
+      looks[kind] = await Promise.all(list.map((look) => loadImage(`/art/looks/${look.id}.png`)));
+    }),
+    ...HOST_IDS.map(async (id) => (hosts[id] = await loadImage(`/art/hosts/${id}.png`))),
+  ]);
 }
 
 export function loadImage(src) {
@@ -35,17 +25,26 @@ export function loadImage(src) {
 }
 
 export function lookCount(kind) {
-  return (LOOKS[kind] ?? LOOKS.adult).length;
+  return (looks[kind] ?? looks.adult ?? []).length;
 }
 
-export function spriteFor(kind, look) {
-  const names = LOOKS[kind] ?? LOOKS.adult;
-  const name = names[((look % names.length) + names.length) % names.length];
-  return { image: images[name], feet: SHEETS[name].feet };
+export function lookImage(kind, look) {
+  const list = looks[kind] ?? looks.adult ?? [];
+  if (!list.length) return null;
+  return list[((look % list.length) + list.length) % list.length];
 }
 
-export function drawSprite(ctx, kind, look, direction, x, y) {
-  const { image, feet } = spriteFor(kind, look);
+export function hostImage(id) {
+  return hosts[id] ?? null;
+}
+
+export function drawFigure(ctx, image, x, y, { flip = false } = {}) {
   if (!image) return;
-  ctx.drawImage(image, direction * FRAME, 0, FRAME, FRAME, Math.round(x - FRAME / 2), Math.round(y - feet), FRAME, FRAME);
+  const left = Math.round(x - image.width / 2);
+  const top = Math.round(y - image.height);
+  if (!flip) return ctx.drawImage(image, left, top);
+  ctx.save();
+  ctx.scale(-1, 1);
+  ctx.drawImage(image, -left - image.width, top);
+  ctx.restore();
 }

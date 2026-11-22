@@ -1,7 +1,7 @@
 # holiday-card
 
 Collects names and addresses for holiday cards at `hi.verynormal.dev`. Each family that signs up
-joins a pixel-art winter + Hanukkah cabin party.
+joins a pixel-art winter + Hanukkah living room party.
 
 - Scope: `docs/scope.md`
 - The Worker and its API: `src/`. The page: `public/`. The party database: `migrations/`.

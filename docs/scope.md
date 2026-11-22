@@ -1,7 +1,7 @@
 # Holiday card party: scope
 
 A site at `hi.verynormal.dev` that collects names and mailing addresses for our holiday cards.
-After a guest submits, their family arrives as pixel sprites at a cozy winter + Hanukkah cabin party.
+After a guest submits, their family arrives as pixel sprites at a cozy winter + Hanukkah living room party.
 
 ## Guest flow
 
@@ -12,8 +12,8 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
    - Mailing address (US only). Street suggestions come from Google Places, like Stripe Checkout. Apartment or unit is a separate field.
    - "Who's in your family?" as free text, for example "Me, Dana, our kids Mia and Leo, and Biscuit the corgi"
 3. One LLM call through OpenRouter turns the family text into members (adult, kid, baby, dog, cat). There is no fallback.
-4. Arrival moment: the family walks in through the cabin's front door, with a sound effect.
-5. The party: every family that has joined mills around the cabin.
+4. Arrival moment: the family walks in through the front door, with a sound effect.
+5. The party: every family that has joined mills around the living room. Jesse, Jessica, and their kids are always there as hosts.
 6. Surprise: tapping your own sprite lets you change its look or give it a chat bubble (about 40 characters, no filter).
    The browser remembers which sprites are yours.
 
@@ -48,11 +48,19 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
 - Art comes from PixelLab (characters, with 4 directions and animations) and Retro Diffusion (rooms and props).
   `art/scripts/generate.py` holds the prompts and settings.
 
-## Art style settings (locked after round 3)
+## Art style settings (style B, chosen in a bake-off)
 
-- Characters: PixelLab `create-character-with-4-directions`, 32px, `chibi` proportions,
-  `low top-down` view, single color black outline, basic shading, medium detail.
-- Room: Retro Diffusion `rd_pro__topdown`, 256x192, front door in the middle of the bottom wall.
+- Characters: PixelLab `generate-image-v2`, with a crop of the cabin as `style_image`. This makes the
+  figures match the room's warm light, soft shading and brown outline. Big heads, about 2 heads tall.
+  Frame sizes: adults 48px (about 36px tall), kids 40px (about 29px), small pets 24px (about 21px).
+  One call returns 25 variations. `art/scripts/characters.py` has the prompts.
+- Each figure gets a small drop shadow, and figures stand in groups, not in rows (`art/scripts/scene.py`).
+- Room: a cozy modern living room (cream walls, light oak floor, white fireplace, navy sofa and armchairs,
+  snowy window with the menorah, latke table on the right, rug in the middle, front door at the bottom).
+  Retro Diffusion `rd_pro__topdown`, 256x192. `art/assets/rooms/living-room.png`.
+- Rejected rooms: log cabins (too rustic), and a layout with a bookshelf along the bottom wall.
+- Rejected: PixelLab template characters (blank faces, sticker look), PixelLab Pro (muddy),
+  Retro Diffusion characters (too large and orange).
 
 ## Setup
 

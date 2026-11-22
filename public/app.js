@@ -3,7 +3,7 @@ import { attachAddressSuggestions } from "./address.js";
 import { myHouseholds, rememberHousehold, tokenFor } from "./households.js";
 import { Scene } from "./scene.js";
 import { playBlip, playDoorChime, setSoundEnabled, soundEnabled, unlockAudio } from "./sound.js";
-import { DIRECTION, drawSprite, lookCount } from "./sprites.js";
+import { drawFigure, lookCount, lookImage } from "./sprites.js";
 
 const POLL_MS = 5000;
 
@@ -24,11 +24,8 @@ const scene = new Scene({
   canvas: $("scene"),
   frame: $("scene-frame"),
   overlay: $("scene-overlay"),
-  onTapMine: (actor) => {
-    if (!tokenFor(actor.id)) return false;
-    openEditor(actor);
-    return true;
-  },
+  isMine: (memberId) => tokenFor(memberId) !== null,
+  onTapMine: (actor) => openEditor(actor),
 });
 
 let partyVersion;
@@ -61,7 +58,7 @@ async function poll(arrive) {
 function updateCaption() {
   const count = scene.familyCount();
   $("scene-caption").textContent =
-    count === 0 ? "The cabin is ready. Be the first family at the party." : `${count} ${count === 1 ? "family is" : "families are"} at the party.`;
+    count === 0 ? "The living room is ready. Be the first family at the party." : `${count} ${count === 1 ? "family is" : "families are"} at the party.`;
 }
 
 // Sound
@@ -255,5 +252,5 @@ function drawPreview() {
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawSprite(ctx, editing.kind, editing.look, DIRECTION.south, 24, 44);
+  drawFigure(ctx, lookImage(editing.kind, editing.look), canvas.width / 2, canvas.height - 3);
 }
