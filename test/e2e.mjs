@@ -211,6 +211,31 @@ try {
   await p3.getByLabel("Who lives at your house").press("Enter");
   await p3.waitForFunction(() => window.__hc.scene.sprites.filter((s) => s.familyId === "pending").length === 4);
 
+  // a wide screen shows the whole room, and a hover still finds the hosts
+  const desk = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, reducedMotion: "reduce" });
+  const p4 = await desk.newPage();
+  p4.on("pageerror", (e) => errors.push(String(e)));
+  await p4.route("**/api/**", fakeApi);
+  await p4.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+  await p4.goto(base);
+  await p4.waitForFunction(() => window.__hc.scene.sprites.filter((s) => s.host && s.img).length === 4);
+  const fit = await p4.evaluate(() => {
+    const st = document.getElementById("stage").getBoundingClientRect();
+    const wr = document.querySelector(".world").getBoundingClientRect();
+    return { st: { l: st.left, t: st.top, r: st.right, b: st.bottom }, wr: { l: wr.left, t: wr.top, r: wr.right, b: wr.bottom } };
+  });
+  assert.ok(fit.wr.l >= fit.st.l && fit.wr.t >= fit.st.t && fit.wr.r <= fit.st.r && fit.wr.b <= fit.st.b, JSON.stringify(fit));
+  assert.ok(fit.wr.b - fit.wr.t > fit.st.b - fit.st.t - 1 || fit.wr.r - fit.wr.l > fit.st.r - fit.st.l - 1, JSON.stringify(fit));
+  const deskHost = await p4.evaluate(() => {
+    const s = window.__hc.scene.sprites.find((x) => x.host && x.name === "Jesse");
+    const r = document.getElementById("stage").getBoundingClientRect();
+    const v = window.__hc.scene.view;
+    return { x: r.left + v.left + s.x * v.scale, y: r.top + v.top + (s.y - s.img.height / 2) * v.scale };
+  });
+  await p4.mouse.move(deskHost.x, deskHost.y);
+  await p4.locator(".tag", { hasText: "Eddie" }).waitFor();
+  await p4.screenshot({ path: `${OUT}/8-desktop.png` });
+
   assert.deepEqual(errors, []);
   console.log("e2e: all checks passed");
 } finally {
