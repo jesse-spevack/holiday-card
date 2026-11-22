@@ -1,5 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PartyFamily } from "../src/party";
 import { OPENROUTER, PLACES, SHEET, TURNSTILE, llmReply, stubOutbound } from "./outbound";
 
 const SUBMISSION = {
@@ -17,18 +18,23 @@ const SUBMISSION = {
 
 let ipCounter = 0;
 
-function request(path: string, init: RequestInit = {}) {
-  // A fresh IP per call keeps the per-IP rate limits out of these tests.
+// A fresh IP per call keeps the per-IP rate limits out of these tests.
+function freshIp() {
+  ++ipCounter;
+  return `10.0.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`;
+}
+
+function request(path: string, init: RequestInit = {}, ip = freshIp()) {
   return SELF.fetch(`https://hi.verynormal.dev${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", "CF-Connecting-IP": `10.0.${Math.floor(++ipCounter / 250)}.${ipCounter % 250}` },
+    headers: { "Content-Type": "application/json", "CF-Connecting-IP": ip },
   });
 }
 
-const post = (path: string, body: unknown) => request(path, { method: "POST", body: JSON.stringify(body) });
+const post = (path: string, body: unknown, ip?: string) => request(path, { method: "POST", body: JSON.stringify(body) }, ip);
 
 async function getParty() {
-  return (await (await request("/api/party")).json()) as any;
+  return (await (await request("/api/party")).json()) as { families: PartyFamily[] };
 }
 
 function savingServices() {
@@ -50,6 +56,43 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("routes", () => {
+  it("gives the page the Turnstile site key", async () => {
+    const response = await request("/api/config");
+
+    expect(await response.json()).toEqual({ turnstileSiteKey: env.TURNSTILE_SITE_KEY });
+  });
+
+  it.each([
+    ["GET", "/api/nope"],
+    ["GET", "/api/submit"],
+    ["POST", "/api/party"],
+    ["POST", "/album/list"],
+  ])("returns a JSON 404 for %s %s", async (method, path) => {
+    const response = await request(path, { method });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "not_found" });
+  });
+
+  it("rejects a body that is not a JSON object", async () => {
+    const response = await request("/api/household", { method: "POST", body: "[1, 2]" });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "bad_json" });
+  });
+
+  it("slows down one IP that sends too many writes", async () => {
+    savingServices();
+
+    const statuses = [];
+    for (let i = 0; i < 11; i++) statuses.push((await post("/api/submit", SUBMISSION, "10.9.9.9")).status);
+
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(201));
+    expect(statuses[10]).toBe(429);
+  });
 });
 
 describe("household", () => {
@@ -74,7 +117,7 @@ describe("household", () => {
   it("keeps at most 12 members", async () => {
     stubOutbound({ [OPENROUTER]: () => llmReply(Array.from({ length: 30 }, () => ({ type: "dog" }))) });
 
-    const { members } = (await (await post("/api/household", { text: "so many dogs" })).json()) as any;
+    const { members } = (await (await post("/api/household", { text: "so many dogs" })).json()) as { members: unknown[] };
 
     expect(members).toHaveLength(12);
   });
@@ -96,7 +139,7 @@ describe("submit", () => {
     const response = await post("/api/submit", SUBMISSION);
 
     expect(response.status).toBe(201);
-    const { id, token } = (await response.json()) as any;
+    const { id, token } = (await response.json()) as { id: string; token: string };
     expect(id).toBeTruthy();
     expect(token).toMatch(/^[\w-]{40,}$/);
     expect(JSON.parse(services.to(SHEET)[0].body)).toEqual({
@@ -152,6 +195,44 @@ describe("submit", () => {
     expect((await getParty()).families).toHaveLength(0);
   });
 
+  it.each([
+    ["is unreachable", () => Promise.reject(new TypeError("network down"))],
+    ["replies with an HTML error page", () => new Response("<html>Script error</html>", { status: 200 })],
+  ])("does not add the family when the Sheet %s", async (_, sheet) => {
+    stubOutbound({ [TURNSTILE]: () => Response.json({ success: true }), [SHEET]: sheet });
+
+    const response = await post("/api/submit", SUBMISSION);
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "sheet_failed" });
+    expect((await getParty()).families).toHaveLength(0);
+  });
+
+  it("keeps the Sheet row when the party write fails after it", async () => {
+    const services = savingServices();
+    await env.DB.exec("CREATE TRIGGER fail_family BEFORE INSERT ON families BEGIN SELECT RAISE(ABORT, 'down'); END;");
+
+    try {
+      const response = await post("/api/submit", SUBMISSION);
+
+      expect(response.status).toBe(500);
+      expect(services.to(SHEET)).toHaveLength(1);
+    } finally {
+      await env.DB.exec("DROP TRIGGER fail_family;");
+    }
+    expect((await getParty()).families).toHaveLength(0);
+  });
+
+  it("fails with 502 and writes nothing when Turnstile cannot answer", async () => {
+    const services = stubOutbound({ [TURNSTILE]: () => new Response("bad gateway", { status: 502 }) });
+
+    const response = await post("/api/submit", SUBMISSION);
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "turnstile_unavailable" });
+    expect(services.to(SHEET)).toHaveLength(0);
+  });
+
   it("rejects a failed Turnstile check before it writes anything", async () => {
     const services = stubOutbound({ [TURNSTILE]: () => Response.json({ success: false }) });
 
@@ -175,6 +256,7 @@ describe("submit", () => {
     [{ household: "" }, "missing_household"],
     [{ address: { street: "" } }, "missing_street"],
     [{ members: [] }, "missing_members"],
+    [{ turnstileToken: "" }, "missing_turnstileToken"],
   ])("rejects %o with %s and calls no service", async (change, code) => {
     const services = stubOutbound({});
 
@@ -210,6 +292,39 @@ describe("sprite", () => {
 
     expect(response.status).toBe(403);
     expect((await getParty()).families[0].bubbles[0]).toBe("");
+  });
+
+  it("rejects the token of another family", async () => {
+    const first = await submitFamily();
+    const second = await submitFamily();
+
+    const response = await post("/api/sprite", { id: first.id, token: second.token, index: 0, bubble: "hacked" });
+
+    expect(response.status).toBe(403);
+    expect((await getParty()).families.map((f) => f.bubbles[0])).toEqual(["", ""]);
+  });
+
+  it("returns 404 for a family that is not there", async () => {
+    const { token } = await submitFamily();
+
+    const response = await post("/api/sprite", { id: crypto.randomUUID(), token, index: 0, bubble: "hi" });
+
+    expect(response.status).toBe(404);
+  });
+
+  it.each([
+    [{ index: -1 }, "bad_index"],
+    [{ index: 1.5 }, "bad_index"],
+    [{ index: "0" }, "bad_index"],
+    [{ look: "../adult-01" }, "bad_look"],
+    [{ look: 3 }, "bad_look"],
+  ])("rejects %o with %s", async (change, code) => {
+    const { id, token } = await submitFamily();
+
+    const response = await post("/api/sprite", { id, token, index: 0, ...change });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: code });
   });
 
   it("rejects an index past the family", async () => {
@@ -249,6 +364,15 @@ describe("party", () => {
     expect((await getParty()).families).toHaveLength(0);
   });
 
+  it("shows a change at once, even after the edge cached the party", async () => {
+    const { id, token } = await submitFamily();
+    expect((await getParty()).families[0].bubbles[0]).toBe("");
+
+    await post("/api/sprite", { id, token, index: 0, bubble: "Happy holidays!" });
+
+    expect((await getParty()).families[0].bubbles[0]).toBe("Happy holidays!");
+  });
+
   it("tells the browser not to cache the party", async () => {
     const response = await request("/api/party");
 
@@ -285,7 +409,7 @@ describe("places", () => {
     });
     const services = stubOutbound({ [PLACES]: () => Response.json({ suggestions: [1, 2, 3, 4, 5, 6].map(prediction) }) });
 
-    const { suggestions } = (await (await request("/api/places?q=1428%20Maple&session=s1")).json()) as any;
+    const { suggestions } = (await (await request("/api/places?q=1428%20Maple&session=s1")).json()) as { suggestions: unknown[] };
 
     expect(suggestions).toHaveLength(5);
     expect(suggestions[0]).toEqual({ id: "p1", main: "1 Maple Ave", secondary: "Evanston, IL, USA" });
@@ -299,6 +423,19 @@ describe("places", () => {
 
     expect(await response.json()).toEqual({ suggestions: [] });
     expect(services.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ["is over its quota", () => new Response("quota", { status: 429 }), 429],
+    ["fails", () => new Response("boom", { status: 500 }), 502],
+    ["is unreachable", () => Promise.reject(new TypeError("network down")), 502],
+  ])("tells the page when Google %s", async (_, places, status) => {
+    stubOutbound({ [PLACES]: places });
+
+    const response = await request("/api/places?q=1428%20Maple&session=s1");
+
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ error: "places_failed" });
   });
 
   it("rejects a place id that could change the Google URL", async () => {
@@ -326,6 +463,7 @@ describe("album", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/json");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
     expect(await response.json()).toEqual(LIST);
   });
 

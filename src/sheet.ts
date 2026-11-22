@@ -1,4 +1,4 @@
-import { HttpError } from "./http";
+import { HttpError, callService } from "./http";
 
 export type Contact = {
   name: string;
@@ -11,15 +11,16 @@ export type Contact = {
 };
 
 export async function addContact(env: Env, contact: Contact): Promise<void> {
-  const response = await fetch(env.SHEET_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ secret: env.SHEET_SECRET, ...contact }),
-    signal: AbortSignal.timeout(20_000),
-  });
-  const result = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-  if (!result.ok) {
-    console.error("sheet_failed", response.status, result.error);
+  const reply = await callService(
+    "sheet_failed",
+    env.SHEET_URL,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ secret: env.SHEET_SECRET, ...contact }) },
+    20_000,
+  );
+  // Apps Script answers 200 even on a script error, so only its `ok` flag counts.
+  const result = reply.data as { ok?: boolean; error?: string } | undefined;
+  if (!result?.ok) {
+    console.error("sheet_failed", reply.status, result?.error ?? reply.text.slice(0, 200));
     throw new HttpError(502, "sheet_failed");
   }
 }

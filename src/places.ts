@@ -1,10 +1,10 @@
-import { HttpError } from "./http";
+import { HttpError, callService, type ServiceReply } from "./http";
 
 const BASE = "https://places.googleapis.com/v1";
 const MAX_SUGGESTIONS = 5;
 
-export type Suggestion = { id: string; main: string; secondary: string };
-export type Address = { street: string; city: string; state: string; zip: string; formatted: string };
+type Suggestion = { id: string; main: string; secondary: string };
+type Address = { street: string; city: string; state: string; zip: string; formatted: string };
 
 type Prediction = {
   placePrediction?: {
@@ -17,7 +17,7 @@ type Prediction = {
 type Component = { longText?: string; shortText?: string; types?: string[] };
 
 export async function suggestAddresses(env: Env, input: string, sessionToken: string): Promise<Suggestion[]> {
-  const response = await fetch(`${BASE}/places:autocomplete`, {
+  const reply = await callService("places_failed", `${BASE}/places:autocomplete`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Goog-Api-Key": env.GOOGLE_PLACES_KEY },
     body: JSON.stringify({
@@ -27,9 +27,7 @@ export async function suggestAddresses(env: Env, input: string, sessionToken: st
       includedPrimaryTypes: ["street_address", "premise", "subpremise"],
     }),
   });
-  if (!response.ok) throw placesError(response.status, await response.text());
-
-  const { suggestions = [] } = (await response.json()) as { suggestions?: Prediction[] };
+  const { suggestions = [] } = placesData(reply) as { suggestions?: Prediction[] };
   return suggestions
     .flatMap(({ placePrediction: p }) =>
       p
@@ -42,16 +40,14 @@ export async function suggestAddresses(env: Env, input: string, sessionToken: st
 export async function lookUpAddress(env: Env, placeId: string, sessionToken: string): Promise<Address> {
   if (!/^[\w-]{1,300}$/.test(placeId)) throw new HttpError(400, "bad_place_id");
   const query = sessionToken ? `?sessionToken=${encodeURIComponent(sessionToken)}` : "";
-  const response = await fetch(`${BASE}/places/${placeId}${query}`, {
+  const reply = await callService("places_failed", `${BASE}/places/${placeId}${query}`, {
     headers: { "X-Goog-Api-Key": env.GOOGLE_PLACES_KEY, "X-Goog-FieldMask": "addressComponents,formattedAddress" },
   });
-  if (!response.ok) throw placesError(response.status, await response.text());
-
-  const place = (await response.json()) as { addressComponents?: Component[]; formattedAddress?: string };
+  const place = placesData(reply) as { addressComponents?: Component[]; formattedAddress?: string };
   return toAddress(place.addressComponents ?? [], place.formattedAddress ?? "");
 }
 
-export function toAddress(components: Component[], formatted: string): Address {
+function toAddress(components: Component[], formatted: string): Address {
   const find = (type: string, form: "longText" | "shortText" = "longText") =>
     components.find((c) => c.types?.includes(type))?.[form] ?? "";
   const street = [find("street_number"), find("route", "shortText") || find("route")].filter(Boolean).join(" ");
@@ -64,7 +60,8 @@ export function toAddress(components: Component[], formatted: string): Address {
   };
 }
 
-function placesError(status: number, body: string): HttpError {
-  console.error("places_failed", status, body.slice(0, 300));
-  return new HttpError(status === 429 ? 429 : 502, "places_failed");
+function placesData(reply: ServiceReply): object {
+  if (reply.ok && reply.data && typeof reply.data === "object") return reply.data;
+  console.error("places_failed", reply.status, reply.text.slice(0, 300));
+  throw new HttpError(reply.status === 429 ? 429 : 502, "places_failed");
 }

@@ -1,4 +1,4 @@
-import { HttpError } from "./http";
+import { HttpError, callService } from "./http";
 
 export const KINDS = ["adult", "kid", "baby", "dog", "cat"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -47,29 +47,33 @@ export async function parseHousehold(env: Env, note: string): Promise<{ type: Ki
 }
 
 async function requestMembers(env: Env, note: string): Promise<{ type: Kind }[]> {
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "X-Title": "Holiday card party",
+  const reply = await callService(
+    "household_failed",
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "X-Title": "Holiday card party",
+      },
+      body: JSON.stringify({
+        model: env.OPENROUTER_MODEL,
+        temperature: 0,
+        max_tokens: 300,
+        messages: [
+          { role: "system", content: INSTRUCTIONS },
+          { role: "user", content: note },
+        ],
+        response_format: { type: "json_schema", json_schema: { name: "household", strict: true, schema: SCHEMA } },
+      }),
     },
-    body: JSON.stringify({
-      model: env.OPENROUTER_MODEL,
-      temperature: 0,
-      max_tokens: 300,
-      messages: [
-        { role: "system", content: INSTRUCTIONS },
-        { role: "user", content: note },
-      ],
-      response_format: { type: "json_schema", json_schema: { name: "household", strict: true, schema: SCHEMA } },
-    }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) throw new Error(`openrouter ${response.status}: ${(await response.text()).slice(0, 200)}`);
+    15_000,
+  );
+  if (!reply.ok) throw new Error(`openrouter ${reply.status}: ${reply.text.slice(0, 200)}`);
 
-  const completion = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-  const { members } = JSON.parse(completion.choices?.[0]?.message?.content ?? "") as { members: { type: string }[] };
+  const completion = reply.data as { choices?: { message?: { content?: string } }[] } | undefined;
+  const { members } = JSON.parse(completion?.choices?.[0]?.message?.content ?? "") as { members: { type: string }[] };
   const valid = members
     .filter((m): m is { type: Kind } => KINDS.includes(m.type as Kind))
     .map(({ type }) => ({ type }))
