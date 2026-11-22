@@ -12,9 +12,9 @@ describe("the form", { concurrency: true }, () => {
     const spriteCalls = () => calls.filter((c) => c.path === "/api/sprite");
 
     await said(page, "Whose name goes on the envelope?");
-    // the hosts sign as "Jesse & Jess"
-    assert.equal(await page.title(), "Holiday cards from Jesse & Jess");
-    assert.equal(await page.locator("#dialog .speaker").innerText(), "Jesse & Jess");
+    // the hosts sign as "Jesse, Jess, Eddie & Audrey Spevack"
+    assert.equal(await page.title(), "Holiday cards from Jesse, Jess, Eddie & Audrey Spevack");
+    assert.equal(await page.locator("#dialog .speaker").innerText(), "Jesse, Jess, Eddie & Audrey Spevack");
     // a phone shows the whole room, wall to wall
     await page.waitForFunction(() => window.__hc.loaded().room);
     await assertWholeRoom(page, "phone, step 1");
@@ -72,7 +72,7 @@ describe("the form", { concurrency: true }, () => {
     assert.ok(night.sky && night.aboveRoom, JSON.stringify(night));
     assert.deepEqual(night.gable, [0x34, 0x40, 0x5f], `the gable wall sits above the room: ${JSON.stringify(night)}`);
     assert.ok(night.sky0.every((c, i) => Math.abs(c - [0x1b, 0x1a, 0x2e][i]) <= 6), `the sky starts at the page color: ${JSON.stringify(night)}`);
-    assert.equal(night.greeting, "Happy holidays from Jesse, Jess, Audrey & Eddie");
+    assert.equal(night.greeting, "Happy holidays from Jesse, Jess, Eddie & Audrey Spevack");
     assert.ok(night.greetingBelowRoom, JSON.stringify(night));
     await assertWholeRoom(page, "phone, with the night around the room");
     await page.screenshot({ path: `${OUT}/5-tucked.png` });

@@ -8,7 +8,7 @@ import { h, loadCss, dialogRoot, PageBehind } from "./dom.js";
 
 const CSS = "/album.css";
 const TITLE = "Our 2026";
-const FAMILY = "Jesse, Jess, Audrey & Eddie";
+const FAMILY = "Jesse, Jess, Eddie & Audrey Spevack";
 const FLY_MS = 480;
 const OPEN_MS = 650;
 const TURN_MS = 420;

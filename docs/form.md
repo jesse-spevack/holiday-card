@@ -7,7 +7,7 @@ The code map is in `AGENTS.md`. The form steps are in `public/app.js`, and the A
 
 ## Flow
 
-The hosts ("Jesse & Jess") ask one question at a time in a dialog box.
+The hosts ("Jesse, Jess, Eddie & Audrey Spevack") ask one question at a time in a dialog box.
 
 1. **Envelope name** (`f-envelope`), required. Example: The Garcia Family.
 2. **Household** (`f-household`), required, free text. Example: Sofia, Dan, Mia, and Biscuit the corgi.
@@ -19,7 +19,7 @@ The hosts ("Jesse & Jess") ask one question at a time in a dialog box.
    "Yes, send it" starts the door arrival at once and calls `POST /api/submit` during it. On failure, the button works again.
 5. **Done**: the browser saves `{id, token, name, members, bubbles}` in localStorage key `hc.families`. A return visit goes straight to the party.
    After 7 seconds, the thank-you slides away and the camera shows the whole room. "Add another address" in the top bar brings back step 1.
-   On a tall screen, the room then sits under a snowy roof in a night sky, with "Happy holidays from Jesse, Jess, Audrey & Eddie" below it.
+   On a tall screen, the room then sits under a snowy roof in a night sky, with "Happy holidays from Jesse, Jess, Eddie & Audrey Spevack" below it.
 
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 
@@ -69,7 +69,7 @@ The Worker checks Turnstile, then writes the contact to the Sheet, then writes t
 
 ## Copy
 
-The party is not an invitation. The hosts speak as "Jesse & Jess".
+The party is not an invitation. The hosts speak as "Jesse, Jess, Eddie & Audrey Spevack".
 
 ### Steps
 
