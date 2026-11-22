@@ -1,23 +1,19 @@
 """Red wine on the dining table, drawn by hand pixel by pixel.
 
-Usage (from the repo root): python3 art/scripts/table_wine.py [A|B|C]
-  A: a bottle and two tall glasses, seen from the side
-  B: a bottle and two glasses, seen from slightly above
-  C: a bottle and a cheese board
-Paints public/assets/room.png and copies it to art/assets/rooms/living-room.png.
+Usage (from the repo root): python3 art/scripts/table_wine.py
+Paints a bottle and two tall glasses, seen from the side, on public/assets/room.png.
 Each prop sits on bare table top, so a second run gives the same image.
+Run art/scripts/og.py after a change, so the link preview shows it.
 """
 import os
-import shutil
-import sys
 from PIL import Image
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ROOM = f"{REPO}/public/assets/room.png"
-ROOM_ART = f"{REPO}/art/assets/rooms/living-room.png"
 TABLE = (160, 118, 88)
 
 # The room palette, plus three wine reds. "." is clear.
+# A bake-off also tried glasses seen from above and a cheese board. Git history has them (commit 166a89c).
 INK = {
     "o": (9, 1, 0),        # outline
     "O": (27, 8, 4),       # soft outline
@@ -54,7 +50,7 @@ BOTTLE = [
     "..sss.",
 ]
 
-# A: a tulip glass from the side. Clear glass on top, wine below.
+# A tulip glass from the side. Clear glass on top, wine below.
 SIDE_GLASS = [
     "xccx.",
     "xicx.",
@@ -67,36 +63,8 @@ SIDE_GLASS = [
     ".sss.",
 ]
 
-# B: a glass from slightly above. The rim ellipse shows the wine surface.
-TOP_GLASS = [
-    ".xix..",
-    "xWWRx.",
-    "oRRro.",
-    ".oro..",
-    "..x...",
-    "..x...",
-    ".xxxs.",
-    "..sss.",
-]
-
-# C: a small slate board with crackers, a cheese wedge, and grapes.
-CHEESE_BOARD = [
-    ".oooooooooo..",
-    "okLLkkYkkWRo.",
-    "okLLkYYykRro.",
-    "okkkYYYyykko.",
-    "oEEEEEEEEEEos",
-    ".ooooooooooss",
-    "..sssssssssss",
-]
-
 # (sprite, left x, top y) in room pixels
-OPTIONS = {
-    "A": [(BOTTLE, 238, 109), (SIDE_GLASS, 228, 112), (SIDE_GLASS, 233, 113)],
-    "B": [(BOTTLE, 238, 109), (TOP_GLASS, 226, 113), (TOP_GLASS, 232, 114)],
-    "C": [(BOTTLE, 238, 109), (CHEESE_BOARD, 224, 113)],
-}
-SHIPPED = "A"
+PROPS = [(BOTTLE, 238, 109), (SIDE_GLASS, 228, 112), (SIDE_GLASS, 233, 113)]
 
 
 def paint(room, sprite, x0, y0):
@@ -110,14 +78,9 @@ def paint(room, sprite, x0, y0):
         room.putpixel((x, y), (*ink, 255))
 
 
-def paint_option(room, name):
-    for sprite, x0, y0 in OPTIONS[name]:
-        paint(room, sprite, x0, y0)
-    return room
-
-
 if __name__ == "__main__":
-    room = paint_option(Image.open(ROOM).convert("RGBA"), sys.argv[1] if len(sys.argv) > 1 else SHIPPED)
+    room = Image.open(ROOM).convert("RGBA")
+    for sprite, x0, y0 in PROPS:
+        paint(room, sprite, x0, y0)
     room.save(ROOM)
-    shutil.copyfile(ROOM, ROOM_ART)
-    print("wrote room.png and living-room.png")
+    print("wrote room.png")

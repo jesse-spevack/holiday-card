@@ -100,20 +100,31 @@ Nothing on screen points to these.
   Google, Sheet, and Turnstile secrets. It calls the LLM and Places, writes contacts to the Sheet, and keeps the party in D1.
 - The party page checks for changes every 5 seconds. It reads one version row and fetches the full party only when the version moves.
 - Turnstile protects the sign-up form.
-- Art comes from PixelLab (characters, with 4 directions and animations) and Retro Diffusion (rooms and props).
-  `art/scripts/generate.py` holds the prompts and settings.
+- Art comes from PixelLab (figures and props) and Retro Diffusion (the room). Later room changes are drawn by hand.
 
 ## Art style settings (style B, chosen in a bake-off)
 
 - Characters: PixelLab `generate-image-v2`, with a crop of the cabin as `style_image`. This makes the
   figures match the room's warm light, soft shading and brown outline. Big heads, about 2 heads tall.
   Frame sizes: adults 48px (about 36px tall), kids 40px (about 29px), small pets 24px (about 21px).
-  One call returns 25 variations. `art/scripts/characters.py` has the prompts.
-- Each figure gets a small drop shadow, and figures stand in groups, not in rows (`art/scripts/scene.py`).
+  One call returns 25 variations. `art/scripts/looks.py` has the prompts and the picks.
+- Each figure gets a small drop shadow, and figures stand in groups, not in rows (`art/scripts/og.py` draws the link preview this way).
 - Room: a cozy modern living room (cream walls, light oak floor, white fireplace, navy sofa and armchairs,
   snowy window with the menorah, latke table on the right, rug in the middle, front door at the bottom).
-  Retro Diffusion `rd_pro__topdown`, 256x192. `art/assets/rooms/living-room.png`.
+  Retro Diffusion `rd_pro__topdown`, 256x192. `public/assets/room.png` is the only copy. The first room prompt is in git history (`art/scripts/generate.py` at 16e0ec2).
 - Rejected rooms: log cabins (too rustic), and a layout with a bookshelf along the bottom wall.
+- The scripts in `art/scripts` (run each from the repo root; the docstring at the top tells how):
+
+  | Script | Makes |
+  |---|---|
+  | `looks.py` | The guest looks and the host sprites: prompts, picks, and `looks.json` |
+  | `props.py` | Prop variations (presents, dreidel) to paint into the room by hand |
+  | `table_wine.py` | The wine bottle and glasses on the dining table, in `room.png` |
+  | `book.py` | The photo album sprite on the sofa |
+  | `og.py` | The link preview, `og.png`. Run it after each change to the room or the hosts |
+  | `album.py` | The album photos in Workers KV, from `~/Pictures`. Photos never go in git |
+  | `pixellab.py` | The PixelLab calls, the key, and the sprite cleanup that `looks.py` and `props.py` share |
+
 - Rejected: PixelLab template characters (blank faces, sticker look), PixelLab Pro (muddy),
   Retro Diffusion characters (too large and orange).
 
