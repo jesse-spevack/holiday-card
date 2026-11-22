@@ -69,19 +69,6 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
-// ---------- candles ----------
-function candles(lit) {
-  const box = $("candles");
-  box.setAttribute("aria-label", lit >= 4 ? "All 4 candles lit" : `${lit} of 4 candles lit`);
-  box.innerHTML = "";
-  for (let i = 0; i < 4; i++) {
-    const on = i < lit;
-    box.insertAdjacentHTML("beforeend", on
-      ? '<svg aria-hidden="true" width="10" height="24" viewBox="0 0 10 24"><rect x="4" y="0" width="2" height="2" fill="#fff2c4"/><rect x="3" y="2" width="4" height="5" fill="#ffd27a"/><rect x="2" y="8" width="6" height="16" fill="#a9c4e6"/></svg>'
-      : '<svg aria-hidden="true" width="10" height="24" viewBox="0 0 10 24"><rect x="4" y="5" width="2" height="3" fill="#5a5468"/><rect x="2" y="8" width="6" height="16" fill="#4a4e7a"/></svg>');
-  }
-}
-
 // ---------- host speech, typed out ----------
 let typing = null;
 function typeOut(el, text) {
@@ -119,9 +106,12 @@ function frame(sayText, ...body) {
   if (input && !matchMedia("(pointer: coarse)").matches) input.focus();
 }
 
+// Password managers show their icons in any text field unless told not to.
+const NO_PASSWORD_MANAGER = { "data-1p-ignore": true, "data-lpignore": "true", "data-bwignore": true, "data-form-type": "other" };
+
 function answer({ id, label, value, placeholder, maxlength = 120, autocomplete, onEnter, onInput }) {
   const input = h("input", {
-    id, value, placeholder, maxlength, autocomplete: autocomplete || "off",
+    id, value, placeholder, maxlength, autocomplete: autocomplete || "off", ...NO_PASSWORD_MANAGER,
     enterkeyhint: "next", spellcheck: "false",
     onKeydown: (e) => { if (e.key === "Enter") { e.preventDefault(); onEnter?.(); } },
     onInput,
@@ -144,8 +134,6 @@ function showError(text) {
 function go(step) {
   state.step = step;
   scene.closePop();
-  const lit = { 1: 1, 2: 2, 3: 3, unit: 3, 4: 4, done: 4 }[step] ?? 0;
-  candles(lit);
   ({ 1: stepEnvelope, 2: stepHousehold, 3: stepAddress, unit: stepUnit, 4: stepConfirm, done: stepDone }[step])();
 }
 
@@ -158,7 +146,7 @@ function stepEnvelope() {
     go(2);
   };
   frame("We're sending holiday cards! Whose name goes on the envelope?",
-    answer({ id: "f-envelope", label: "Name on the envelope", value: state.envelope, placeholder: "The Garcia Family", autocomplete: "family-name", onEnter: next }),
+    answer({ id: "f-envelope", label: "Name on the envelope", value: state.envelope, placeholder: "The Garcia Family", onEnter: next }),
     h("p", { class: "hint" }, "Write it how you'd like it on the envelope."),
     errorLine(),
     h("div", { class: "spacer" }),
@@ -176,7 +164,7 @@ function stepHousehold() {
   };
   frame("Who lives at your house?",
     answer({ id: "f-household", label: "Who lives at your house", value: state.household, placeholder: "Sofia, Dan, Mia, and Biscuit the corgi", maxlength: 300, onEnter: next }),
-    h("p", { class: "hint" }, "Pets count. Everyone gets a little sprite at our party."),
+    h("p", { class: "hint" }, "Pets count. I guess."),
     errorLine(),
     h("div", { class: "spacer" }),
     h("div", { class: "actions" }, btn("Back", () => go(1), "btn ghost"), h("span", { class: "end" }, btn("Next ▸", next))));
@@ -255,7 +243,7 @@ function stepAddress() {
   frame("Where should we mail your card?",
     answer({
       id: "f-address", label: "Street address", value: state.addressQuery, placeholder: "Start typing your street",
-      autocomplete: "street-address", onInput: search, onEnter: () => list.querySelector("button")?.click(),
+      onInput: search, onEnter: () => list.querySelector("button")?.click(),
     }),
     list, manual, errorLine(), h("div", { class: "spacer" }), credit,
     h("div", { class: "actions" }, btn("Back", () => go(2), "btn ghost")));
@@ -269,7 +257,7 @@ function stepUnit() {
     go(4);
   };
   frame("Apartment or unit?",
-    answer({ id: "f-unit", label: "Apartment or unit", value: state.unit, placeholder: "Apt 2B", maxlength: 40, autocomplete: "address-line2", onEnter: () => next(false) }),
+    answer({ id: "f-unit", label: "Apartment or unit", value: state.unit, placeholder: "Apt 2B", maxlength: 40, onEnter: () => next(false) }),
     h("div", { class: "spacer" }),
     h("div", { class: "actions" }, btn("Back", () => go(3), "btn ghost"),
       h("span", { class: "end" }, btn("Skip", () => next(true), "btn ghost"), btn("Next ▸", () => next(false)))));
@@ -315,7 +303,6 @@ async function send() {
     scene.families.delete("pending");
     scene.families.set(id, { id, name: saved.name, mine: true });
     sprites.forEach((s) => { s.familyId = id; s.mine = true; });
-    scene.setTag(id, saved.name, { mine: true });
     resetTurnstile();
     go("done");
   } catch {
@@ -386,7 +373,6 @@ async function addFamily(f, { fromDoor, mine = false }) {
   const sprites = await spritesFor(f.id, f.members, { mine });
   sprites.forEach((s) => { s.bubble = f.bubbles?.[s.index] || ""; });
   scene.enter(sprites, { fromDoor });
-  if (mine) scene.setTag(f.id, f.name, { mine: true });
   return sprites;
 }
 
@@ -419,10 +405,25 @@ function cycleBubbles() {
   if (s) scene.say(s, s.bubble, 4);
 }
 
+const hostSprites = () => scene.sprites.filter((s) => s.host);
+
+// On a computer, hovering over a family shows its name, and hovering over the hosts shows each of their names.
+let hovered = null;
+function onHover(sprite) {
+  const key = !sprite ? null : sprite.host ? "hosts" : sprite.familyId === "pending" ? null : sprite.familyId;
+  if (key === hovered) return;
+  if (hovered === "hosts") scene.hideNames(hostSprites());
+  else if (hovered) scene.hideTag(hovered);
+  hovered = key;
+  if (key === "hosts") scene.showNames(hostSprites());
+  else if (key) scene.setTag(key, scene.families.get(key)?.name ?? "");
+}
+
 function onTap(sprite) {
   sound.wake();
   if (sprite.host) {
     sound.select();
+    scene.showNames(hostSprites(), 3);
     scene.say(sprite, HOST_LINES[Math.floor(Math.random() * HOST_LINES.length)], 3);
     return;
   }
@@ -438,7 +439,7 @@ function onTap(sprite) {
 
 function openEditor(sprite, saved) {
   sound.select();
-  const input = h("input", { id: "f-bubble", maxlength: 40, value: saved.bubbles[sprite.index] || "", placeholder: "Say something", "aria-label": "Say something" });
+  const input = h("input", { id: "f-bubble", autocomplete: "off", ...NO_PASSWORD_MANAGER, maxlength: 40, value: saved.bubbles[sprite.index] || "", placeholder: "Say something", "aria-label": "Say something" });
   const save = async () => {
     const text = input.value.trim().slice(0, 40);
     saved.bubbles[sprite.index] = text;
@@ -479,6 +480,7 @@ async function start() {
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
   scene.onTap = onTap;
+  scene.onHover = onHover;
   api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
   const [looks] = await Promise.all([
     fetch("/assets/looks.json").then((r) => r.json()).catch(() => ({})),
@@ -488,7 +490,7 @@ async function start() {
 
   for (const host of HOSTS) {
     const img = await image(`/assets/hosts/${host.id}.png`);
-    scene.addSprite({ img, x: host.x, y: host.y, host: true, familyId: "hosts" });
+    scene.addSprite({ img, x: host.x, y: host.y, host: true, name: host.name, familyId: "hosts" });
   }
 
   for (const f of state.mine) await addFamily(f, { fromDoor: false, mine: true });

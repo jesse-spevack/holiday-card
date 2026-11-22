@@ -11,15 +11,22 @@ const DOOR_WAIT = { x: 128, y: 182 };
 const WINDOW_PANES = [[167, 184], [190, 212], [217, 236]];
 const WINDOW_Y = [9, 44];
 const FIRE = { x: 112, y: 44, w: 32, h: 24 };
-const CANDLES = { x: 193, y: 37, w: 15, h: 6 };
+const CANDLES = { x0: 188, y0: 34, x1: 212, y1: 46 };
 
 export const HOSTS = [
-  { id: "jessica", x: 172, y: 132 },
-  { id: "jesse", x: 187, y: 130 },
-  { id: "daughter", x: 98, y: 160 },
-  { id: "son", x: 114, y: 162 },
+  { id: "jessica", name: "Jess", x: 172, y: 132 },
+  { id: "jesse", name: "Jesse", x: 187, y: 130 },
+  { id: "daughter", name: "Audrey", x: 98, y: 160 },
+  { id: "son", name: "Eddie", x: 114, y: 162 },
 ];
-export const HOST_LINES = ["Pass the latkes!", "Who's winning at dreidel?", "Happy Hanukkah!", "Mind the gelt!", "So glad you're here."];
+export const HOST_LINES = [
+  "Happy holidays!",
+  "Happy New Year!",
+  "We're so glad you're in our lives.",
+  "Thank you for being here.",
+  "We're grateful for you.",
+  "So happy to see you!",
+];
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -49,12 +56,23 @@ export class Scene {
     this.last = performance.now();
     this.time = 0;
     this.onTap = () => {};
+    this.onHover = () => {};
     stage.addEventListener("pointerup", (e) => this.handleTap(e));
+    // Hover labels are for a mouse only. A phone shows them on tap.
+    stage.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse") return;
+      const p = this.toRoom(e.clientX, e.clientY);
+      this.onHover(this.spriteAt(p.x, p.y));
+    });
+    stage.addEventListener("pointerleave", () => this.onHover(null));
     new ResizeObserver(() => this.layout()).observe(stage);
   }
 
   async load(roomSrc) {
     this.room = await loadImage(roomSrc);
+    const pixels = roomPixels(this.room);
+    this.flames = flamePixels(pixels);
+    this.glass = glassMask(pixels);
     this.layout();
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -240,9 +258,13 @@ export class Scene {
     g.globalAlpha = 1;
     g.drawImage(this.room, 0, 0);
 
-    // snow in the window
+    // snow in the window, only on the glass, never over the frame or the menorah
     g.fillStyle = "#ffffff";
-    for (const f of this.flakes) g.fillRect(Math.round(f.x), Math.round(f.y), 1, 1);
+    for (const f of this.flakes) {
+      const x = Math.round(f.x);
+      const y = Math.round(f.y);
+      if (this.glass.has(y * ROOM_W + x)) g.fillRect(x, y, 1, 1);
+    }
 
     // fire and candle flicker
     const flicker = 0.5 + 0.5 * Math.sin(this.time * 9) * Math.sin(this.time * 5.3 + 1);
@@ -254,11 +276,19 @@ export class Scene {
     g.beginPath();
     g.ellipse(128, 88, 34, 9, 0, 0, Math.PI * 2);
     g.fill();
-    g.globalAlpha = 0.1 + 0.12 * (0.5 + 0.5 * Math.sin(this.time * 13));
-    g.fillStyle = "#ffe08a";
-    g.fillRect(CANDLES.x, CANDLES.y, CANDLES.w, CANDLES.h);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
+
+    // each candle flame flickers on its own: a bright core and a tip that comes and goes
+    this.flames.forEach(({ x, y }, i) => {
+      const wave = Math.sin(this.time * (7 + i) + i * 1.7) + Math.sin(this.time * 3.1 + i);
+      g.fillStyle = wave > 0 ? "#fff4c2" : "#ffd36b";
+      g.fillRect(x, y, 1, 1);
+      if (wave > -0.6) {
+        g.fillStyle = wave > 0.8 ? "#ffe9a0" : "#f6b74a";
+        g.fillRect(x, y - 1, 1, 1);
+      }
+    });
 
     // shadows, then sprites from back to front
     const visible = this.sprites.filter((s) => s.img && this.time >= s.popAt);
@@ -295,6 +325,7 @@ export class Scene {
   updateOverlay() {
     for (const s of this.sprites) {
       if (s.bubbleEl) this.pin(s.bubbleEl, s.x, s.y - (s.img?.height || 30) - 3);
+      if (s.nameEl) this.pin(s.nameEl, s.x, s.y + 3 + (s.nameRow || 0) * 9);
     }
     for (const fam of this.families.values()) {
       if (!fam.tagEl) continue;
@@ -325,23 +356,51 @@ export class Scene {
     }
   }
 
-  setTag(familyId, name, { mine = false, seconds = 0 } = {}) {
+  // A name label under a family. It shows on hover or for a few seconds after a tap.
+  setTag(familyId, name, { seconds = 0 } = {}) {
     const fam = this.families.get(familyId);
     if (!fam) return;
     if (!fam.tagEl) {
       fam.tagEl = document.createElement("div");
-      fam.tagEl.className = mine ? "tag" : "tag other";
+      fam.tagEl.className = "tag";
       this.overlay.append(fam.tagEl);
     }
-    fam.tagEl.textContent = name.toUpperCase();
+    fam.tagEl.textContent = name;
     clearTimeout(fam.tagTimer);
-    if (seconds) {
-      fam.tagTimer = setTimeout(() => {
-        fam.tagEl?.remove();
-        fam.tagEl = null;
-      }, seconds * 1000);
+    if (seconds) fam.tagTimer = setTimeout(() => this.hideTag(familyId), seconds * 1000);
+    this.updateOverlay();
+  }
+
+  hideTag(familyId) {
+    const fam = this.families.get(familyId);
+    if (!fam) return;
+    clearTimeout(fam.tagTimer);
+    fam.tagEl?.remove();
+    fam.tagEl = null;
+  }
+
+  // One name under each sprite, for the hosts. Neighbors take turns on two rows so their names never overlap.
+  showNames(sprites, seconds = 0) {
+    [...sprites].sort((a, b) => a.x - b.x).forEach((s, i) => (s.nameRow = i % 2));
+    for (const s of sprites) {
+      if (!s.nameEl) {
+        s.nameEl = document.createElement("div");
+        s.nameEl.className = "tag";
+        s.nameEl.textContent = s.name;
+        this.overlay.append(s.nameEl);
+      }
+      clearTimeout(s.nameTimer);
+      if (seconds) s.nameTimer = setTimeout(() => this.hideNames([s]), seconds * 1000);
     }
     this.updateOverlay();
+  }
+
+  hideNames(sprites) {
+    for (const s of sprites) {
+      clearTimeout(s.nameTimer);
+      s.nameEl?.remove();
+      s.nameEl = null;
+    }
   }
 
   openPop(sprite, el) {
@@ -381,4 +440,40 @@ export class Scene {
     }
     this.onTap(sprite);
   }
+}
+
+function roomPixels(room) {
+  const canvas = document.createElement("canvas");
+  canvas.width = ROOM_W;
+  canvas.height = ROOM_H;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(room, 0, 0);
+  return ctx.getImageData(0, 0, ROOM_W, ROOM_H).data;
+}
+
+// The candle flames are the bright yellow pixels around the menorah.
+function flamePixels(data) {
+  const flames = [];
+  for (let y = CANDLES.y0; y < CANDLES.y1; y++) {
+    for (let x = CANDLES.x0; x < CANDLES.x1; x++) {
+      const i = (y * ROOM_W + x) * 4;
+      if (data[i] > 220 && data[i + 1] > 170 && data[i + 2] < 160) flames.push({ x, y });
+    }
+  }
+  return flames;
+}
+
+// The window glass is the dark blue night sky and the snow on it.
+function glassMask(data) {
+  const glass = new Set();
+  for (let y = WINDOW_Y[0]; y < WINDOW_Y[1]; y++) {
+    for (const [x0, x1] of WINDOW_PANES) {
+      for (let x = x0; x <= x1; x++) {
+        const i = (y * ROOM_W + x) * 4;
+        const [r, gr, b] = [data[i], data[i + 1], data[i + 2]];
+        if (b > r + 10 || (r > 200 && gr > 200 && b > 200)) glass.add(y * ROOM_W + x);
+      }
+    }
+  }
+  return glass;
 }

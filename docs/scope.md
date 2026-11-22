@@ -1,7 +1,7 @@
 # Holiday card party: scope
 
 A site at `hi.verynormal.dev` that collects names and mailing addresses for our holiday cards.
-After a guest submits, their family arrives as pixel sprites at a cozy winter + Hanukkah living room party.
+After a guest submits, their family arrives as pixel sprites at a cozy winter holiday party in our living room.
 
 ## Guest flow
 
@@ -35,7 +35,12 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
 
 - A bright, cheerful 16-bit handheld RPG look, with original art only. No copied assets from any real game.
 - The room fills the screen, and the hosts talk in a pixel-art dialog box under it, like a handheld RPG.
-- The theme is cozy winter + Hanukkah: menorah, dreidels, latkes, cocoa, snow, blue and white bunting. No Christmas imagery.
+- The theme is cozy winter holidays with a feeling of gratitude. The hosts say things like "Happy holidays!",
+  "Happy New Year!", and "We're so glad you're in our lives." No Hanukkah lines.
+- Details in the room: a menorah and dreidels on the window sill, wrapped presents under the window, latkes and cocoa,
+  snow, blue and white bunting. No Christmas imagery.
+- Hovering over a family shows its envelope name. Hovering over the hosts shows Eddie, Audrey, Jess, and Jesse.
+  A tap shows them for a few seconds.
 - Extras: sound effects, and ambient details such as falling snow, a fire, and flickering candles. No music.
 - Phones first.
 

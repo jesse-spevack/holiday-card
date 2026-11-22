@@ -75,7 +75,9 @@ try {
 
   const say = page.locator("#say");
   await assert.doesNotReject(say.filter({ hasText: "Whose name goes on the envelope?" }).waitFor());
-  assert.equal(await page.locator("#candles").getAttribute("aria-label"), "1 of 4 candles lit");
+  // password managers stay out of the dialog
+  assert.equal(await page.getByLabel("Name on the envelope").getAttribute("data-1p-ignore"), "");
+  assert.equal(await page.getByLabel("Name on the envelope").getAttribute("autocomplete"), "off");
 
   // blank answer
   await page.getByRole("button", { name: "Next" }).click();
@@ -108,7 +110,6 @@ try {
   await say.filter({ hasText: "We'll mail your card to:" }).waitFor();
   const lines = await page.locator(".address").innerText();
   assert.equal(lines, "The Garcia Family\n1428 Maple Ave, Apt 2B\nEvanston, IL 60201");
-  assert.equal(await page.locator("#candles").getAttribute("aria-label"), "All 4 candles lit");
   await page.screenshot({ path: `${OUT}/4-confirm.png` });
 
   // first save fails, retry works
@@ -124,7 +125,32 @@ try {
   assert.deepEqual(submitted.members.map((m) => m.type), ["adult", "adult", "kid", "dog"]);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("hc.families")));
   assert.equal(saved[0].id, "fam12345");
-  assert.equal(await page.locator(".tag").first().innerText(), "THE GARCIA FAMILY");
+  // the family's name shows only on hover
+  assert.equal(await page.locator(".tag").count(), 0);
+  const garcia = await page.evaluate(() => {
+    const s = window.__hc.scene.sprites.find((x) => x.familyId === "fam12345");
+    const r = document.getElementById("stage").getBoundingClientRect();
+    const v = window.__hc.scene.view;
+    return { x: r.left + v.left + s.x * v.scale, y: r.top + v.top + (s.y - s.img.height / 2) * v.scale };
+  });
+  await page.mouse.move(garcia.x, garcia.y);
+  await page.locator(".tag", { hasText: "The Garcia Family" }).waitFor();
+  await page.mouse.move(2, 2);
+  await page.locator(".tag").waitFor({ state: "detached" });
+
+  // hovering over the hosts shows each of their names (zoom back out first: the camera follows the new family)
+  await page.evaluate(() => window.__hc.scene.focus(128, 120, 0));
+  await page.waitForTimeout(100);
+  const host = await page.evaluate(() => {
+    const s = window.__hc.scene.sprites.find((x) => x.host && x.name === "Jesse");
+    const r = document.getElementById("stage").getBoundingClientRect();
+    const v = window.__hc.scene.view;
+    return { x: r.left + v.left + s.x * v.scale, y: r.top + v.top + (s.y - s.img.height / 2) * v.scale };
+  });
+  await page.mouse.move(host.x, host.y);
+  await page.locator(".tag", { hasText: "Eddie" }).waitFor();
+  assert.deepEqual((await page.locator(".tag").allInnerTexts()).sort(), ["Audrey", "Eddie", "Jess", "Jesse"]);
+  await page.mouse.move(2, 2);
   await page.screenshot({ path: `${OUT}/5-done.png` });
 
   // tap your own sprite, say something

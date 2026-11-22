@@ -1,7 +1,7 @@
 # holiday-card
 
 Collects names and addresses for holiday cards at `hi.verynormal.dev`. Each family that signs up
-joins a pixel-art winter + Hanukkah living room party.
+joins a pixel-art winter holiday party in our living room.
 
 - Scope: `docs/scope.md`
 - The form and its API contract: `docs/form.md`. Copy: `docs/copy.md`.

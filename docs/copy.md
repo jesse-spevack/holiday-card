@@ -5,8 +5,6 @@ It is not an invitation. The hosts speak as "Jesse & Jessica".
 
 ## Steps
 
-Each step lights one of four menorah candles.
-
 | Step | Host asks | Typing hint | Button |
 |---|---|---|---|
 | 1. Envelope name | We're sending holiday cards! Whose name goes on the envelope? | The Garcia Family | Next ▸ |
@@ -18,7 +16,7 @@ Each step lights one of four menorah candles.
 Hints under the answer line:
 
 - Step 1: Write it how you'd like it on the envelope.
-- Step 2: Pets count. Everyone gets a little sprite at our party.
+- Step 2: Pets count. I guess.
 
 ## After confirm
 
