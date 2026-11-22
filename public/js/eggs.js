@@ -58,8 +58,12 @@ for (const car of Object.values(CARS)) car.w = car.rows[0].length;
 // With reduced motion, a car stays this many seconds. After a car goes, the next car waits this many seconds or more.
 const PARKED_SECONDS = 5;
 const ROAD_CLEAR = 3;
-// Eddie calls out the Cybertruck once it shows in the window. If he talks already, he calls out after that, while the truck still shows.
-const SHOUT = { host: "son", text: "Cybertruck!", seconds: 4 };
+// A kid calls out each car once it shows in the window: Eddie the Cybertruck, and Audrey the Waymo.
+// If the kid talks already, the kid calls out after that, while the car still shows.
+const SHOUTS = {
+  cybertruck: { host: "son", text: "Cybertruck!", seconds: 4 },
+  waymo: { host: "daughter", text: "Waymo!", seconds: 4 },
+};
 
 const STAR = { tail: 14, seconds: 1, fade: 0.4, still: 1.4 };
 // Words that show for a moment, centered on x with their top at y, in room pixels.
@@ -139,13 +143,14 @@ export class Eggs {
     return c.x + c.car.w - 1 >= PANES[0][0] && c.x <= PANES[2][1];
   }
 
-  // Eddie calls out the Cybertruck, once for each pass, when he does not talk already.
+  // A kid calls out the car, once for each pass, when the kid does not talk already.
   shout() {
     const c = this.car;
-    if (c.kind !== "cybertruck" || c.shouted || !this.carInSight()) return;
-    const eddie = this.scene.sprites.find((s) => s.id === SHOUT.host && s.img);
-    if (!eddie || eddie.bubbleEl) return;
-    this.scene.say(eddie, SHOUT.text, SHOUT.seconds);
+    const shout = SHOUTS[c.kind];
+    if (!shout || c.shouted || !this.carInSight()) return;
+    const kid = this.scene.sprites.find((s) => s.id === shout.host && s.img);
+    if (!kid || kid.bubbleEl) return;
+    this.scene.say(kid, shout.text, shout.seconds);
     c.shouted = true;
   }
 

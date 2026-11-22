@@ -126,6 +126,27 @@ describe("the Cybertruck", { concurrency: true }, () => {
     assert.deepEqual(sent, [{ id: GARCIA.id, token: GARCIA.token, egg: "cybertruck" }]);
   });
 
+  test("Audrey calls out the Waymo once it shows in the window", async () => {
+    const { page, hc } = await env.open({ viewport: { width: 390, height: 844 }, wait: "eggs" });
+    await hc.sendWaymo();
+    const said = await page.evaluate(() => new Promise((done) => {
+      const hc = window.__hc;
+      const t0 = hc.time();
+      const heard = new Set();
+      const tick = () => {
+        const audrey = hc.sprite({ host: true, name: "Audrey" }).bubble;
+        if (audrey) heard.add(audrey);
+        if (hc.eggs().car === null && hc.time() - t0 > 1) done({ heard: [...heard], eddie: hc.sprite({ host: true, name: "Eddie" }).bubble });
+        else if (hc.time() - t0 > 30) done({ heard: [...heard], timeout: true });
+        else requestAnimationFrame(tick);
+      };
+      tick();
+    }));
+    assert.ok(!said.timeout, "the Waymo drives out of sight");
+    assert.ok(said.heard.includes("Waymo!"), `Audrey says Waymo!: ${said.heard}`);
+    assert.notEqual(said.eddie, SHOUT, "Eddie does not call out the Waymo");
+  });
+
   // For the PR: the truck in the window, on a phone and on a computer, and a close view of the window.
   // With reduced motion, the truck stops in the right pane, so each screenshot shows the same frame.
   for (const [name, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
