@@ -522,6 +522,94 @@ try {
     await ctx.close();
   }
 
+  // the hidden room extras: the window, the menorah, the floor lamp, and the passing Waymo
+  for (const reduce of ["no-preference", "reduce"]) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, reducedMotion: reduce });
+    const pe = await ctx.newPage();
+    pe.on("pageerror", (e) => errors.push(String(e)));
+    await pe.route("**/api/**", fakeApi);
+    await pe.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+    await pe.goto(base);
+    await pe.waitForFunction(() => window.__hc.scene.eggs.glassLayer && window.__hc.scene.sprites.some((s) => s.familyId === "other1" && s.img));
+    // count the extras' sounds, and still play them
+    await pe.evaluate(() => {
+      const { sound } = window.__hc;
+      window.__sounds = [];
+      for (const name of ["sparkle", "chime", "snuff", "click"]) {
+        const play = sound[name].bind(sound);
+        sound[name] = (...args) => { window.__sounds.push(args.length ? `${name}:${args[0]}` : name); play(...args); };
+      }
+    });
+    const sounds = () => pe.evaluate(() => window.__sounds.splice(0));
+    const eggs = (fn) => pe.evaluate(fn);
+    const tapRoom = async (x, y) => {
+      const pt = await pe.evaluate(([x, y]) => {
+        const v = window.__hc.scene.view;
+        const r = document.getElementById("stage").getBoundingClientRect();
+        return { x: r.left + v.left + x * v.scale, y: r.top + v.top + y * v.scale };
+      }, [x, y]);
+      await pe.touchscreen.tap(pt.x, pt.y);
+    };
+    const spot = (id) => pe.evaluate(async (id) => {
+      const { HOTSPOTS } = await import("/js/scene.js");
+      const s = HOTSPOTS.find((h) => h.id === id);
+      return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+    }, id);
+
+    // a tap on a dreidel or the wall does nothing
+    await tapRoom(188, 53);
+    await tapRoom(219, 53);
+    await tapRoom(100, 20);
+    assert.equal(await pe.locator(".wish").count(), 0);
+    assert.deepEqual(await sounds(), []);
+
+    // the window: a shooting star and "Make a wish" for about 2 seconds
+    const win = await spot("window");
+    await tapRoom(win.x, win.y);
+    await pe.locator(".wish", { hasText: "Make a wish" }).waitFor();
+    assert.ok(await eggs(() => !!window.__hc.scene.eggs.star));
+    assert.deepEqual(await sounds(), ["sparkle"]);
+    await pe.locator(".wish").waitFor({ state: "detached", timeout: 3000 });
+
+    // the menorah: the flames go out, then light one by one with a rising chime each
+    const total = await eggs(() => window.__hc.scene.flames.length);
+    assert.ok(total >= 7, `flames: ${total}`);
+    const menorah = await spot("menorah");
+    await tapRoom(menorah.x, menorah.y);
+    assert.ok(await eggs(() => window.__hc.scene.eggs.menorahLit < 2));
+    await pe.waitForFunction((n) => window.__hc.scene.eggs.menorahLit > 1 && window.__hc.scene.eggs.menorahLit < n, total);
+    if (reduce === "no-preference") await pe.screenshot({ path: `${OUT}/egg-menorah.png` });
+    await pe.waitForFunction(() => !window.__hc.scene.eggs.lighting, null, { timeout: 6000 });
+    assert.deepEqual(await sounds(), ["snuff", ...Array.from({ length: total }, (_, i) => `chime:${i}`)]);
+    assert.equal(await pe.locator(".wish").count(), 0, "the menorah never sends a star");
+
+    // the floor lamp: off, then on again, with a click each time
+    const lamp = await spot("lamp");
+    await tapRoom(lamp.x, lamp.y);
+    assert.equal(await eggs(() => window.__hc.scene.eggs.lampOn), false);
+    if (reduce === "no-preference") await pe.screenshot({ path: `${OUT}/egg-lamp.png` });
+    await tapRoom(lamp.x, lamp.y);
+    assert.equal(await eggs(() => window.__hc.scene.eggs.lampOn), true);
+    assert.deepEqual(await sounds(), ["click", "click"]);
+
+    // the Waymo: it drives past the window, or with reduced motion it waits there, then goes
+    assert.equal(await eggs(() => window.__hc.scene.eggs.car), null);
+    await eggs(() => window.__hc.scene.eggs.waymo());
+    const x0 = await eggs(() => window.__hc.scene.eggs.car.x);
+    await pe.waitForTimeout(500);
+    const x1 = await eggs(() => window.__hc.scene.eggs.car.x);
+    if (reduce === "reduce") assert.equal(x1, x0);
+    else assert.ok(Math.abs(x1 - x0) > 3, `the car moves: ${x0} to ${x1}`);
+    await pe.waitForFunction(() => !window.__hc.scene.eggs.car, null, { timeout: 15000 });
+    assert.ok(await eggs(() => window.__hc.scene.eggs.nextCar - window.__hc.scene.time >= 39));
+
+    // a guest sprite still wins over the room behind it
+    const lee = await pointOn(pe, { familyId: "other1", index: 0 });
+    await pe.touchscreen.tap(lee.x, lee.y);
+    await pe.locator(".tag", { hasText: "The Lees" }).waitFor();
+    await ctx.close();
+  }
+
   assert.deepEqual(errors, []);
   console.log("e2e: all checks passed");
 } finally {

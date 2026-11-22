@@ -311,3 +311,22 @@ button, input { font: inherit; }
   }
   .picker-body { padding: 4px 16px 24px; }
 }
+
+/* "Make a wish" under the window, after a shooting star. */
+.wish {
+  position: absolute;
+  transform: translate(-50%, 0);
+  white-space: nowrap;
+  pointer-events: none;
+  font-size: 14px;
+  color: var(--gold);
+  background: rgba(27, 26, 46, 0.82);
+  padding: 2px 8px 3px;
+  border-radius: 3px;
+  animation: wish 2200ms ease both;
+}
+@keyframes wish {
+  0% { opacity: 0; }
+  20%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
