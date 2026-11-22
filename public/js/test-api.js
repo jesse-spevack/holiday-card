@@ -1,0 +1,146 @@
+// The page's test API. app.js loads it only when the address has "?test", and puts it on window.__hc.
+// The end-to-end tests use only this API, so a change inside the page modules changes this one file, not the tests.
+// Each function takes and returns plain data, so a test can call it through page.evaluate.
+
+import { HOTSPOTS, DREIDELS, FLOOR, HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
+
+export function testApi({ scene, sound, dreidel, found }) {
+  // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
+  const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
+  const one = (want) => {
+    const s = find(want)[0];
+    if (!s) throw new Error(`no sprite ${JSON.stringify(want)}`);
+    return s;
+  };
+  const rect = (r) => ({ x: r.x, y: r.y, width: r.width, height: r.height, left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+  const plain = (s) => ({
+    familyId: s.familyId, index: s.index, type: s.type, look: s.look, host: !!s.host, id: s.id, name: s.name, mine: !!s.mine,
+    mingle: !!s.mingle, x: s.x, y: s.y, flip: s.flip, bob: s.bob, path: s.path ? { ...s.path } : null, home: s.home ? { ...s.home } : null,
+    w: s.img?.width ?? 0, h: s.img?.height ?? 0,
+    react: s.react ? { kind: s.react.kind, ago: scene.time - s.react.at } : null,
+    bubble: s.bubbleEl?.textContent ?? null,
+    bubbleBox: s.bubbleEl ? rect(s.bubbleEl.getBoundingClientRect()) : null,
+    nameBox: s.nameEl ? rect(s.nameEl.getBoundingClientRect()) : null,
+  });
+  const toScreen = (x, y) => {
+    const r = scene.stage.getBoundingClientRect();
+    const v = scene.view;
+    return { x: r.left + v.left + x * v.scale, y: r.top + v.top + y * v.scale };
+  };
+  const center = (r) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+  let hits = null;
+  const heard = [];
+  const spy = (target, names, label) => {
+    for (const name of names) {
+      const play = target[name].bind(target);
+      target[name] = (...args) => {
+        heard.push(label(name, args));
+        return play(...args);
+      };
+    }
+  };
+
+  return {
+    // What has loaded: the room, the book, the masks for the hidden extras, and the sprites with their images.
+    loaded: () => ({
+      room: !!scene.room, book: !!scene.book, eggs: !!scene.eggs?.glassLayer,
+      hosts: scene.sprites.filter((s) => s.host && s.img).length,
+      families: Object.fromEntries([...scene.families.keys()].map((id) => [id, scene.sprites.filter((s) => s.familyId === id && s.img).length])),
+    }),
+    time: () => scene.time,
+    scale: () => scene.view.scale,
+
+    // ---- sprites ----
+    sprites: (want) => find(want).map(plain),
+    sprite: (want) => plain(one(want)),
+    // A screen point that the scene resolves to the sprite that matches `want`, even when another sprite stands close.
+    pointOn: (want) => {
+      const s = one(want);
+      const h = s.img.height;
+      const dys = [];
+      for (let dy = Math.round(h / 2); dy < h; dy++) dys.push(dy, h - dy);
+      for (const dy of dys) {
+        for (const dx of [0, -3, 3, -6, 6]) {
+          const p = { x: s.x + dx, y: s.y - dy };
+          if (scene.spriteAt(p.x, p.y) === s) return { ...toScreen(p.x, p.y), look: s.look };
+        }
+      }
+      throw new Error(`no clear point on ${JSON.stringify(want)}`);
+    },
+    // Puts a sprite on a spot in room pixels and keeps it there.
+    place: (want, x, y) => {
+      for (const s of find(want)) Object.assign(s, { x, y, home: { x, y }, path: null, bob: 0, wander: false });
+    },
+    // Sends the hosts home and stops them, so a tap lands where a test aims.
+    stillHosts: () => {
+      for (const s of find({ host: true })) Object.assign(s, { x: s.home.x, y: s.home.y, path: null, bob: 0, wander: false });
+    },
+    // Stops every guest where it stands.
+    stillGuests: () => {
+      for (const s of scene.sprites.filter((q) => !q.host)) Object.assign(s, { wander: false, path: null, bob: 0 });
+    },
+
+    // ---- the room ----
+    toScreen,
+    roomCenter: (box) => center(scene.roomRect(box)),
+    bookCenter: () => center(scene.bookRect()),
+    bookHidden: () => !!scene.bookHidden,
+    spotCenter: (id) => {
+      const s = HOTSPOTS.find((h) => h.id === id);
+      return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+    },
+    // The id of the thing that shows the press corners, or the name of the sprite.
+    pressed: () => scene.press?.box?.id ?? scene.press?.sprite?.name ?? null,
+    // From now on a tap on a hidden thing notes its id and opens nothing. hotspotHits() returns the ids since the last call.
+    catchHotspots: () => {
+      hits = [];
+      scene.onHotspot = (id) => hits.push(id);
+    },
+    hotspotHits: () => hits.splice(0),
+    // The share of the screen, in CSS pixels, that each hidden thing takes through its center.
+    hotspotAreas: (px) => {
+      const scale = scene.view.scale;
+      const min = px / scale;
+      const out = {};
+      for (const h of HOTSPOTS) {
+        const cx = h.x + h.w / 2;
+        const cy = h.y + h.h / 2;
+        const reach = (dx, dy) => {
+          let d = 0;
+          while (pickSpot(HOTSPOTS, cx + dx * (d + 0.25), cy + dy * (d + 0.25), min)?.id === h.id) d += 0.25;
+          return d;
+        };
+        out[h.id] = { w: (reach(-1, 0) + reach(1, 0)) * scale, h: (reach(0, -1) + reach(0, 1)) * scale };
+      }
+      return out;
+    },
+    constants: () => ({ HOTSPOTS, DREIDELS, FLOOR, HOSTS, HOST_LINES, TAP_PX }),
+
+    // ---- the hidden extras ----
+    eggs: () => {
+      const e = scene.eggs;
+      return {
+        star: !!e.star, lampOn: e.lampOn, car: e.car ? e.car.x : null, lighting: !!e.lighting,
+        menorahLit: e.menorahLit, flames: scene.flames.length, nextCarIn: e.nextCar - scene.time,
+      };
+    },
+    sendWaymo: () => scene.eggs.waymo(),
+    found: (...eggs) => { for (const egg of eggs) found.add(egg); },
+
+    // ---- the dreidel game ----
+    // { face, speed }: the side to land on and how much faster the clock runs.
+    rigDreidel: (rig) => { dreidel.rig = rig; },
+    dreidelSpins: () => dreidel.spins,
+    // The game is open and takes taps. Right after it opens, it ignores taps for a moment, so a double tap does not spin it.
+    dreidelReady: () => dreidel.isOpen && !dreidel.busy && performance.now() >= dreidel.ignoreClicksUntil,
+
+    // ---- sounds ----
+    // Notes each call to the named sounds and still plays them. sounds() returns the calls since the last call.
+    spySounds: (names) => spy(sound, names, (name, args) => (args.length ? `${name}:${args[0]}` : name)),
+    spyDreidelSounds: (names) => spy(dreidel.sound, names, (name, args) => (name === "result" ? `result:${args[0]}` : name)),
+    sounds: () => heard.splice(0),
+    samplesLoaded: () => Object.keys(sound.samples ?? {}).length,
+    // The Sound object itself, for the checks that listen to what a sound plays.
+    sound,
+  };
+}

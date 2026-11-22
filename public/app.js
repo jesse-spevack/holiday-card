@@ -613,5 +613,8 @@ async function start() {
   }
 }
 
-if (new URLSearchParams(location.search).has("test")) window.__hc = { scene, state, sound, dreidel, found };
+// "?test" loads the test API for the end-to-end tests (public/js/test-api.js). A guest never loads it.
+if (new URLSearchParams(location.search).has("test")) {
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, dreidel, found }); });
+}
 start();
