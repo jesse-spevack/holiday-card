@@ -39,6 +39,7 @@ export const HOST_LINES = {
     "Happy holidays!",
     "Happy New Year!",
     "We're so glad you're in our lives.",
+    "I'm normal.",
     hint("album", "Our whole year fits in one little book."),
     hint("lamp", "This room is cozier with the lights low."),
     hint("waymo", "Watch the street. Some cars drive themselves."),
