@@ -101,6 +101,11 @@ const pointOn = (pg, want) => pg.evaluate((w) => {
   throw new Error(`no clear point on ${JSON.stringify(w)}`);
 }, want);
 
+// The hosts walk around. A test that taps near them sends them home first and stops them.
+const stillHosts = (pg) => pg.evaluate(() => {
+  for (const s of window.__hc.scene.sprites.filter((q) => q.host)) Object.assign(s, { x: s.home.x, y: s.home.y, path: null, bob: 0, wander: false });
+});
+
 // The whole room shows: the room's box sits inside the stage, and it touches two opposite edges.
 const wholeRoom = (pg) => pg.evaluate(() => {
   const st = document.getElementById("stage").getBoundingClientRect();
@@ -414,6 +419,16 @@ try {
   await p4.mouse.move(deskHost.x, deskHost.y);
   await p4.locator(".tag", { hasText: "Eddie" }).waitFor();
   await p4.screenshot({ path: `${OUT}/8-desktop.png` });
+  // with reduced motion, the hosts stay at home
+  await p4.waitForFunction(() => window.__hc.scene.time > 5);
+  const stillAtHome = await p4.evaluate(async () => {
+    const { HOSTS } = await import("/js/scene.js");
+    return window.__hc.scene.sprites.filter((s) => s.host).map((s) => {
+      const home = HOSTS.find((h) => h.name === s.name);
+      return { name: s.name, home: s.x === home.x && s.y === home.y && !s.path };
+    });
+  });
+  assert.deepEqual(stillAtHome.filter((h) => !h.home), []);
 
   // on a return visit to a wide screen, the dialog column hides too and the room grows into it
   const deskStage = (await wholeRoom(p4)).stage[2];
@@ -707,6 +722,7 @@ try {
     assert.ok(await eggs(() => window.__hc.scene.eggs.nextCar - window.__hc.scene.time >= 39));
 
     // a guest sprite still wins over the room behind it
+    await stillHosts(pe);
     const lee = await pointOn(pe, { familyId: "other1", index: 0 });
     await pe.touchscreen.tap(lee.x, lee.y);
     await pe.locator(".tag", { hasText: "The Lees" }).waitFor();
@@ -735,6 +751,9 @@ try {
       if (spot) Object.assign(s, { x: spot[0], y: spot[1], home: { x: spot[0], y: spot[1] } });
       Object.assign(s, { wander: false, path: null, bob: 0 });
     });
+  });
+  await stillHosts(pp);
+  await pp.evaluate(() => {
     const { sound } = window.__hc;
     window.__sounds = [];
     for (const name of ["woof", "mrrp", "select"]) {
@@ -941,11 +960,72 @@ try {
     await album.waitFor();
     await pd.keyboard.press("Escape");
     await album.waitFor({ state: "hidden" });
+    await stillHosts(pd);
     const lee = await pointOn(pd, { familyId: "other1", index: 0 });
     await at(lee.x, lee.y);
     await pd.locator(".tag", { hasText: "The Lees" }).waitFor();
     await ctx.close();
   }
+
+  // the hosts walk around the room, face the way they walk, and stay on the open floor
+  const walkCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const pw = await walkCtx.newPage();
+  pw.on("pageerror", (e) => errors.push(String(e)));
+  await pw.route("**/api/**", fakeApi);
+  await pw.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+  await pw.goto(base);
+  await pw.waitForFunction(() => window.__hc.scene.sprites.filter((s) => s.host && s.img).length === 4);
+  const FLOOR = await pw.evaluate(async () => (await import("/js/scene.js")).FLOOR);
+  const hostsNow = () => pw.evaluate(() => window.__hc.scene.sprites.filter((s) => s.host).map((s) => ({ name: s.name, x: s.x, y: s.y, flip: s.flip, path: s.path })));
+  const homes = await hostsNow();
+  await pw.screenshot({ path: `${OUT}/hosts-walk-1.png` });
+  const moved = new Set();
+  for (let i = 0; i < 48 && (moved.size < 4 || i < 16); i++) {
+    await pw.waitForTimeout(250);
+    for (const h of await hostsNow()) {
+      assert.ok(h.x >= FLOOR.x0 && h.x <= FLOOR.x1 && h.y >= FLOOR.y0 && h.y <= FLOOR.y1, `${h.name} stays on the floor: ${h.x}, ${h.y}`);
+      if (h.path && Math.abs(h.path.x - h.x) > 2) assert.equal(h.flip, h.path.x < h.x, `${h.name} faces the way they walk`);
+      const home = homes.find((q) => q.name === h.name);
+      if (Math.hypot(h.x - home.x, h.y - home.y) > 3) moved.add(h.name);
+    }
+  }
+  assert.deepEqual([...moved].sort(), ["Audrey", "Eddie", "Jess", "Jesse"]);
+  await pw.screenshot({ path: `${OUT}/hosts-walk-2.png` });
+  // Audrey and Eddie walk together
+  await pw.waitForFunction(() => window.__hc.scene.sprites.filter((s) => s.host && !s.mingle).every((s) => !s.path), null, { timeout: 15000 });
+  const kids = (await hostsNow()).filter((h) => h.name === "Audrey" || h.name === "Eddie");
+  assert.ok(Math.hypot(kids[0].x - kids[1].x, kids[0].y - kids[1].y) < 24, `the kids stand together: ${JSON.stringify(kids)}`);
+  // a hover on a walking host shows the names, and they follow the hosts without overlapping
+  const walker = await pointOn(pw, { host: true, name: "Jesse" });
+  await pw.mouse.move(walker.x, walker.y);
+  await pw.locator(".tag", { hasText: "Eddie" }).waitFor();
+  for (let i = 0; i < 6; i++) {
+    await pw.waitForTimeout(300);
+    const labels = await pw.evaluate(() => {
+      const { scene } = window.__hc;
+      const r = document.getElementById("stage").getBoundingClientRect();
+      return scene.sprites.filter((s) => s.host).map((s) => {
+        const box = s.nameEl.getBoundingClientRect();
+        return { name: s.name, at: r.left + scene.view.left + s.x * scene.view.scale, box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom } };
+      });
+    });
+    for (const l of labels) assert.ok(Math.abs((l.box.left + l.box.right) / 2 - l.at) < 1.5, `${l.name}'s name follows them`);
+    for (const a of labels) {
+      for (const b of labels) {
+        if (a === b) continue;
+        const overlap = a.box.left < b.box.right && b.box.left < a.box.right && a.box.top < b.box.bottom && b.box.top < a.box.bottom;
+        assert.ok(!overlap, `the names ${a.name} and ${b.name} overlap`);
+      }
+    }
+  }
+  await pw.screenshot({ path: `${OUT}/hosts-walk-names.png` });
+  // a tap on a host stops them to talk
+  await pw.mouse.move(2, 2);
+  const talker = await pointOn(pw, { host: true, name: "Jess" });
+  await pw.mouse.click(talker.x, talker.y);
+  await pw.locator(".bubble").waitFor();
+  assert.equal(await pw.evaluate(() => window.__hc.scene.sprites.find((s) => s.name === "Jess").path), null);
+  await walkCtx.close();
 
   assert.deepEqual(errors, []);
   console.log("e2e: all checks passed");

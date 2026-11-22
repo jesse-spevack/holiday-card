@@ -480,6 +480,7 @@ function onTap(sprite) {
   sound.wake();
   if (sprite.host) {
     sound.select();
+    scene.pause(sprite, 3);
     scene.showNames(hostSprites(), 3);
     scene.say(sprite, HOST_LINES[Math.floor(Math.random() * HOST_LINES.length)], 3);
     return;
@@ -552,7 +553,7 @@ async function start() {
 
   for (const host of HOSTS) {
     const img = await image(`/assets/hosts/${host.id}.png`);
-    scene.addSprite({ img, x: host.x, y: host.y, host: true, name: host.name, familyId: "hosts" });
+    scene.addHost(host, img);
   }
 
   for (const f of state.mine) await addFamily(f, { fromDoor: false, mine: true });

@@ -7,7 +7,14 @@ export const ROOM_W = 256;
 export const ROOM_H = 192;
 
 // Places in living-room.png, in room pixels.
-const FLOOR = { x0: 98, x1: 180, y0: 100, y1: 168 };
+export const FLOOR = { x0: 98, x1: 180, y0: 100, y1: 168 };
+// Places on the open floor where the hosts like to stand.
+const PLACES = {
+  table: { x: 175, y: 126 },
+  rug: { x: 130, y: 136 },
+  fire: { x: 124, y: 103 },
+  presents: { x: 166, y: 105 },
+};
 const DOOR = { x: 127, y: 200 };
 const DOOR_WAIT = { x: 128, y: 182 };
 const WINDOW_PANES = [[167, 184], [190, 212], [217, 236]];
@@ -33,11 +40,12 @@ export const DREIDELS = {
   "dreidel-right": { x: 214, y: 45, w: 10, h: 14 },
 };
 
+// Each host has a home spot and places to visit. Jess and Jesse also visit the guests. Eddie walks with Audrey.
 export const HOSTS = [
-  { id: "jessica", name: "Jess", x: 153, y: 130 },
-  { id: "jesse", name: "Jesse", x: 171, y: 130 },
-  { id: "daughter", name: "Audrey", x: 98, y: 160 },
-  { id: "son", name: "Eddie", x: 114, y: 162 },
+  { id: "jessica", name: "Jess", x: 153, y: 130, places: ["table", "rug", "fire"], mingle: true },
+  { id: "jesse", name: "Jesse", x: 171, y: 130, places: ["table", "rug", "fire"], mingle: true },
+  { id: "daughter", name: "Audrey", x: 98, y: 160, places: ["rug", "fire", "presents", "table"] },
+  { id: "son", name: "Eddie", x: 114, y: 162, follow: "daughter" },
 ];
 export const HOST_LINES = [
   "Happy holidays!",
@@ -47,6 +55,8 @@ export const HOST_LINES = [
   "We're grateful for you.",
   "So happy to see you!",
 ];
+
+const WALK_SPEED = 22;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -146,6 +156,13 @@ export class Scene {
     return sprite;
   }
 
+  addHost({ x, y, ...host }, img) {
+    return this.addSprite({
+      ...host, img, x, y, home: { x, y }, host: true, familyId: "hosts",
+      wander: !host.follow, nextMove: this.time + rand(1.5, 4),
+    });
+  }
+
   removeFamily(id) {
     this.sprites = this.sprites.filter((s) => s.familyId !== id);
     this.families.delete(id);
@@ -153,6 +170,79 @@ export class Scene {
 
   walkTo(sprite, x, y) {
     sprite.path = { x, y };
+  }
+
+  // Home now and then, else a new place, or a guest family for Jess and Jesse.
+  hostMove(s) {
+    const away = s.away || 0;
+    let place;
+    if (away && Math.random() < 0.2 + 0.25 * away) {
+      place = { name: "home", ...s.home, reach: 4 };
+    } else {
+      // Two hosts do not go to the same place at once.
+      const taken = this.sprites.filter((q) => q.host && q !== s).map((q) => q.place);
+      const open = s.places.filter((n) => n !== s.place && !taken.includes(n) && Math.hypot(PLACES[n].x - s.x, PLACES[n].y - s.y) > 20);
+      const names = open.length ? open : s.places.filter((n) => n !== s.place);
+      const guests = s.mingle && !taken.includes("guests") && Math.random() < 0.35 ? this.besideGuests(s) : null;
+      const name = names[Math.floor(Math.random() * names.length)];
+      place = guests ? { name: "guests", ...guests, reach: 3 } : { name, ...PLACES[name], reach: 8 };
+    }
+    s.place = place.name;
+    s.away = place.name === "home" ? 0 : away + 1;
+    const kids = this.sprites.filter((q) => q.follow === s.id);
+    const goal = this.openSpot(place, [s, ...kids]);
+    this.walkTo(s, goal.x, goal.y);
+    for (const kid of kids) {
+      const dx = kid.home.x - s.home.x;
+      const side = goal.x + dx > FLOOR.x1 ? -1 : 1;
+      this.walkTo(kid, clamp(goal.x + dx * side, FLOOR.x0, FLOOR.x1), clamp(goal.y + kid.home.y - s.home.y, FLOOR.y0, FLOOR.y1));
+    }
+    const walk = Math.hypot(goal.x - s.x, goal.y - s.y) / WALK_SPEED;
+    s.nextMove = this.time + walk + (s.mingle ? rand(5, 11) : rand(4, 9));
+  }
+
+  // A spot next to a random guest family, on the side nearer the host.
+  besideGuests(host) {
+    const ids = [...this.families.keys()].filter((id) => id !== "pending");
+    const id = ids[Math.floor(Math.random() * ids.length)];
+    const members = this.sprites.filter((q) => q.familyId === id).map((q) => q.home || q);
+    if (!members.length) return null;
+    const xs = members.map((q) => q.x);
+    const y = members.reduce((a, q) => a + q.y, 0) / members.length;
+    const sides = [Math.min(...xs) - 18, Math.max(...xs) + 18].filter((x) => x >= FLOOR.x0 && x <= FLOOR.x1);
+    if (!sides.length) return null;
+    sides.sort((a, b) => Math.abs(a - host.x) - Math.abs(b - host.x));
+    return { x: sides[0], y: clamp(y, FLOOR.y0, FLOOR.y1) };
+  }
+
+  // The spot near a place that is farthest from everyone else, so hosts do not stand on top of people.
+  openSpot(place, skip) {
+    const others = this.sprites.filter((q) => q.img && !skip.includes(q)).map((q) => q.path || q);
+    let best = null;
+    let bestGap = -1;
+    for (let i = 0; i < 8; i++) {
+      const p = {
+        x: clamp(place.x + rand(-place.reach, place.reach), FLOOR.x0, FLOOR.x1),
+        y: clamp(place.y + rand(-place.reach, place.reach) * 0.6, FLOOR.y0, FLOOR.y1),
+      };
+      const gap = others.length ? Math.min(...others.map((q) => Math.hypot(q.x - p.x, (q.y - p.y) * 1.5))) : 0;
+      if (gap > bestGap) {
+        best = p;
+        bestGap = gap;
+      }
+    }
+    return best;
+  }
+
+  // A tapped host stops to talk. Audrey and Eddie stop together.
+  pause(sprite, seconds) {
+    const lead = sprite.follow ? this.sprites.find((q) => q.id === sprite.follow) : sprite;
+    for (const q of this.sprites) {
+      if (q !== lead && q.follow !== lead.id) continue;
+      q.path = null;
+      q.bob = 0;
+    }
+    lead.nextMove = Math.max(lead.nextMove, this.time + seconds);
   }
 
   // Pick the open spot farthest from the people already in the room.
@@ -255,7 +345,7 @@ export class Scene {
         const dx = s.path.x - s.x;
         const dy = s.path.y - s.y;
         const d = Math.hypot(dx, dy);
-        const step = 22 * dt;
+        const step = WALK_SPEED * dt;
         if (d <= step) {
           s.x = s.path.x;
           s.y = s.path.y;
@@ -268,9 +358,13 @@ export class Scene {
           s.bob = Math.abs(Math.sin(this.time * 12)) > 0.5 ? 1 : 0;
         }
       } else if (s.wander && this.time > s.nextMove && !this.reducedMotion) {
-        const home = s.home || { x: s.x, y: s.y };
-        this.walkTo(s, clamp(home.x + rand(-12, 12), FLOOR.x0, FLOOR.x1), clamp(home.y + rand(-6, 6), FLOOR.y0, FLOOR.y1));
-        s.nextMove = this.time + rand(5, 12);
+        if (s.host) {
+          this.hostMove(s);
+        } else {
+          const home = s.home || { x: s.x, y: s.y };
+          this.walkTo(s, clamp(home.x + rand(-12, 12), FLOOR.x0, FLOOR.x1), clamp(home.y + rand(-6, 6), FLOOR.y0, FLOOR.y1));
+          s.nextMove = this.time + rand(5, 12);
+        }
       }
     }
     for (const f of this.flakes) {
@@ -374,8 +468,8 @@ export class Scene {
   updateOverlay() {
     for (const s of this.sprites) {
       if (s.bubbleEl) this.pin(s.bubbleEl, s.x, s.y - (s.img?.height || 30) - 3);
-      if (s.nameEl) this.pin(s.nameEl, s.x, s.y + 3 + (s.nameRow || 0) * 9);
     }
+    this.placeNames();
     for (const fam of this.families.values()) {
       if (!fam.tagEl) continue;
       const members = this.sprites.filter((s) => s.familyId === fam.id);
@@ -441,15 +535,34 @@ export class Scene {
     fam.tagEl = null;
   }
 
-  // One name under each sprite, for the hosts. Neighbors take turns on two rows so their names never overlap.
+  // A name moves down one row while it covers another name. Names go in order of their last row, so they do not jump.
+  placeNames() {
+    const named = this.sprites.filter((s) => s.nameEl).sort((a, b) => a.nameRow - b.nameRow || a.x - b.x);
+    const scale = this.view.scale;
+    const placed = [];
+    for (const s of named) {
+      const w = s.nameSize.w / scale;
+      const h = s.nameSize.h / scale;
+      const rowH = Math.max(9, h + 1);
+      const clashes = (row) => placed.some((p) => Math.abs(p.x - s.x) < (p.w + w) / 2 + 1 && Math.abs(p.top - (s.y + 3 + row * rowH)) < Math.max(p.h, h));
+      let row = 0;
+      while (row < 3 && clashes(row)) row++;
+      s.nameRow = row;
+      placed.push({ x: s.x, w, h, top: s.y + 3 + row * rowH });
+      this.pin(s.nameEl, s.x, s.y + 3 + row * rowH);
+    }
+  }
+
+  // One name under each sprite, for the hosts.
   showNames(sprites, seconds = 0) {
-    [...sprites].sort((a, b) => a.x - b.x).forEach((s, i) => (s.nameRow = i % 2));
     for (const s of sprites) {
       if (!s.nameEl) {
         s.nameEl = document.createElement("div");
         s.nameEl.className = "tag";
         s.nameEl.textContent = s.name;
         this.overlay.append(s.nameEl);
+        s.nameSize = { w: s.nameEl.offsetWidth, h: s.nameEl.offsetHeight };
+        s.nameRow = 0;
       }
       clearTimeout(s.nameTimer);
       if (seconds) s.nameTimer = setTimeout(() => this.hideNames([s]), seconds * 1000);
