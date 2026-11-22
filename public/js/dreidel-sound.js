@@ -42,27 +42,34 @@ export class DreidelSound {
     const level = curve((s) => 0.02 + 0.3 * Math.min(1, s / top));
     level[0] = 0;
     amp.gain.setValueCurveAtTime(level, t, seconds);
+    // A soft low hum under the noise, the body of the wood, that drops in pitch as it slows.
+    const hum = ctx.createOscillator();
+    hum.type = "triangle";
+    hum.frequency.setValueCurveAtTime(curve((s) => 95 + 30 * s), t, seconds);
+    const humLevel = ctx.createGain();
+    humLevel.gain.value = 0.3;
     // A gate after the level curve, so a stop can fade out in the middle of the curve.
     const gate = ctx.createGain();
-    src.connect(filter).connect(flutter).connect(amp).connect(gate).connect(ctx.destination);
+    src.connect(filter).connect(flutter);
+    hum.connect(humLevel).connect(flutter);
+    flutter.connect(amp).connect(gate).connect(ctx.destination);
     src.start(t, Math.random() * 0.5);
     lfo.start(t);
-    src.stop(t + seconds + 0.05);
-    lfo.stop(t + seconds + 0.05);
-    this.spin = { src, lfo, gate };
+    hum.start(t);
+    for (const node of [src, lfo, hum]) node.stop(t + seconds + 0.05);
+    this.spin = { nodes: [src, lfo, hum], gate };
   }
 
   // Stops the whirr at once, for a close in the middle of a spin.
   stop() {
     if (!this.spin) return;
-    const { src, lfo, gate } = this.spin;
+    const { nodes, gate } = this.spin;
     this.spin = null;
     try {
       const t = this.ctx.currentTime;
       gate.gain.setValueAtTime(1, t);
       gate.gain.linearRampToValueAtTime(0, t + 0.04);
-      src.stop(t + 0.05);
-      lfo.stop(t + 0.05);
+      for (const node of nodes) node.stop(t + 0.05);
     } catch {}
   }
 
