@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "holiday-card",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "public",
+    "run_worker_first": ["/api/*"]
+  },
+  "routes": [{ "pattern": "hi.verynormal.dev", "custom_domain": true }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "holiday-card",
+      "database_id": "004f55fd-cb2c-4786-90e3-774604a1578a",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ratelimits": [
+    { "name": "PLACES_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "WRITE_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "vars": {
+    "OPENROUTER_MODEL": "anthropic/claude-haiku-5.5",
+    "SHEET_URL": "https://script.google.com/macros/s/AKfycbweRjFcUK4fq9j8vZ5HBGFMBd1duKAya3Tq7nhEC8xm6dRWGRPnzKP-DpycDaQ5xgVMFA/exec",
+    // Cloudflare's always-pass test key until the real widget exists.
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
+  }
+}
