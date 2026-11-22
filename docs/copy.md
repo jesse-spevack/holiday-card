@@ -1,7 +1,7 @@
 # Form copy
 
 The page collects mailing addresses for holiday cards. The living room party is decoration and a thank-you.
-It is not an invitation. The hosts speak as "Jesse & Jessica".
+It is not an invitation. The hosts speak as "Jesse & Jess".
 
 ## Steps
 

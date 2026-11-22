@@ -140,6 +140,9 @@ try {
 
   const say = page.locator("#say");
   await assert.doesNotReject(say.filter({ hasText: "Whose name goes on the envelope?" }).waitFor());
+  // the hosts sign as "Jesse & Jess"
+  assert.equal(await page.title(), "Holiday cards from Jesse & Jess");
+  assert.equal(await page.locator("#dialog .speaker").innerText(), "Jesse & Jess");
   // a phone shows the whole room, wall to wall
   await page.waitForFunction(() => window.__hc.scene.room);
   await assertWholeRoom(page, "phone, step 1");

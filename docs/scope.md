@@ -13,7 +13,7 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter ho
    - A confirm step before the address is sent
 3. One LLM call through OpenRouter turns the family text into members (adult, kid, baby, dog, cat). There is no fallback.
 4. Arrival moment: the family walks in through the front door, with a sound effect.
-5. The party: every family that has joined mills around the living room. Jesse, Jessica, and their kids are always there as hosts.
+5. The party: every family that has joined mills around the living room. Jesse, Jess, and their kids are always there as hosts.
 6. Surprise: tapping your own sprite lets you change its look or give it a chat bubble (about 40 characters, no filter).
    The browser remembers which sprites are yours.
 

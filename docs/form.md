@@ -24,7 +24,7 @@ The pixel-art living room party is decoration and a thank-you.
 
 ## Flow
 
-The hosts ("Jesse & Jessica") ask one question at a time in a dialog box.
+The hosts ("Jesse & Jess") ask one question at a time in a dialog box.
 
 1. **Envelope name** (`f-envelope`), required. Example: The Garcia Family.
 2. **Household** (`f-household`), required, free text. Example: Sofia, Dan, Mia, and Biscuit the corgi.
