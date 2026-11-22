@@ -39,24 +39,33 @@ No build step. The browser loads ES modules as they are.
 | File | Owns |
 |---|---|
 | `public/index.html`, `public/style.css` | Markup and the main styles |
-| `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules. `markFound(egg)` is the hook for each interaction with a hidden extra (see "Track a hidden extra") |
+| `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules. It names no hidden extra |
 | `public/js/api.js` | Every call to the Worker |
 | `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter; the page colors |
-| `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test` |
-| `public/js/room.js` | Every place in `room.png` that the code uses: the floor, the window, the fire, the menorah, the lamp, the book, the dreidels, the wine, the plants, the presents, and the tap areas (`HOTSPOTS`) |
-| `public/js/scene.js` | The room canvas, the frame loop, sprites, hosts and their lines (`HOST_LINES`), and the arrival from below the room. Layers (`addLayer`) draw over it, and `onFrame` listeners run each frame |
+| `public/js/masks.js`, `public/js/words.js` | Shared helpers for the extras: room-sized masks and the sky behind the window glass; the words that show on the room for a moment |
+| `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test`. Each extra adds its own part (its `test`) |
+| `public/js/room.js` | Every place in `room.png` that the code uses: the floor, the window, the fire, the menorah, the lamp, the book, the dreidels, the wine, the plants, the presents, and the tap boxes of the extras |
+| `public/js/scene.js` | The room canvas, the frame loop, sprites, bubbles, names, the camera, taps, and the arrival from below the room. Layers (`addLayer`) draw over it, and `onFrame` listeners run each frame |
+| `public/js/ambience.js` | The room's own motions: the snow in the window, the fire glow, and the candle flames |
+| `public/js/hosts.js` | The hosts (`HOSTS`) and their lines (`HOST_LINES`): the thanks, and the hints from the extras |
+| `public/js/registry.js` | The registry of the hidden extras: the shape of an extra, the tap areas (`HOTSPOTS`), the taps, the hints, and the test hooks |
+| `public/js/found.js` | The extras this browser found, and the record of each interaction (`POST /api/interaction`) |
 | `public/js/picker.js` | The look picker. Ages and looks come from `public/assets/looks.json` |
-| `public/js/pets.js` | Hidden pet reactions |
 | `public/js/sound.js` | Sound effects with Web Audio, and the recorded sounds. `tone()` and the noise buffers are shared with `dreidel-sound.js` |
 | `public/js/night.js`, `public/night.css` | The snowy night, roof, and greeting around the room on a tall screen. It runs on the scene's frames |
-| `public/js/eggs.js` | The Waymo and the Cybertruck (one car on the road at a time, and Eddie calls out the truck), the shooting star, the menorah, and the floor lamp. A scene layer |
-| `public/js/hanukkah.js` | The night of Hanukkah 2026 in the guest's own time. The menorah burns one candle for each night |
-| `public/js/fire.js` | The fire: a tap on the fireplace gives a crackle, a flare, and a burst of sparks up the chimney. A scene layer |
-| `public/js/toast.js` | The toast: a tap on the wine, and the whole party raises a cup (wine for grown-ups, cocoa for kids). A scene layer that draws a cup in each hand (`drawOn`) |
-| `public/js/plants.js` | The plants: a tap on a potted plant makes it bloom, and when every plant blooms, petals fall over the room. A scene layer. The plants are `PLANTS` in `room.js` |
-| `public/js/presents.js` | The presents: a tap, and Eddie, then Audrey, says a holiday message. A scene layer for its clock |
-| `public/js/album.js`, `public/js/album-art.js`, `public/album.css` | The hidden photo album |
-| `public/js/dreidel.js`, `public/js/dreidel-art.js`, `public/js/dreidel-sound.js`, `public/dreidel.css` | The hidden dreidel game |
+| `public/js/extras/index.js` | The list of the hidden extras. Its order is the draw order. See "Add a hidden extra" |
+| `public/js/extras/album.js`, `album-art.js`, `public/album.css` | The photo album: a tap on the book on the sofa |
+| `public/js/extras/lamp.js` | The floor lamp: a tap turns it off, and the room goes dark blue |
+| `public/js/extras/waymo.js`, `cybertruck.js`, `road.js` | The cars that drive past the window. `road.js` is not an extra: it keeps one car on the road at a time, and a host calls out each car |
+| `public/js/extras/star.js` | The shooting star: a tap on the window |
+| `public/js/extras/menorah.js`, `hanukkah.js` | The menorah: a tap lights tonight's candles again. `hanukkah.js` gives the night of Hanukkah 2026 in the guest's own time |
+| `public/js/extras/toast.js` | The toast: a tap on the wine, and the whole party raises a cup (wine for grown-ups, cocoa for kids). It draws a cup in each hand (`drawOn`) |
+| `public/js/extras/plants.js` | The plants: a tap on a potted plant makes it bloom, and when every plant blooms, petals fall over the room |
+| `public/js/extras/fire.js` | The fire: a tap on the fireplace gives a crackle, a flare, and a burst of sparks up the chimney |
+| `public/js/extras/presents.js` | The presents: a tap, and Eddie, then Audrey, says a holiday message |
+| `public/js/extras/dreidel.js`, `dreidel-art.js`, `dreidel-sound.js`, `public/dreidel.css` | The dreidel game: a tap on a dreidel on the sill |
+| `public/js/extras/pets.js` | The pet reactions: a tap on a dog or a cat. A layer that draws the pet in its pose (`drawSprite`) |
+| `public/js/extras/silly.js` | The silly looks: a guest dresses their own family in a silly look |
 | `public/assets/` | `room.png`, `book.png`, `og.png`, `icon.png`, the look sprites in `looks/`, and the sounds in `sounds/` |
 
 ### Art (`art/`)
@@ -82,10 +91,11 @@ Python scripts with Pillow, run from the repo root. The docstring at the top of 
 - `migrations/`: the D1 schema. The tables are `families`, `members`, `party_version`, and `interactions`.
 - `apps-script/`: the Apps Script that adds a row to the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
 - `test/api.test.ts`: Worker tests in the Workers runtime, with fake outbound calls in `test/outbound.ts`.
+  `test/extras.test.ts` checks that `EGGS` holds the name of each extra in `public/js/extras/index.js`, and no other name.
 - `test/e2e/`: the page in Google Chrome against a fake API. It needs no Cloudflare.
   `harness.mjs` holds the server, the fake API, the test looks, and the helpers. Each `*.test.mjs` file covers one feature.
-  The tests read and drive the page's state only through `public/js/test-api.js` (`window.__hc`). After a change inside a page module, change that file, not the tests.
-  A few checks also import the pure functions in `pets.js` and `sound.js`.
+  The tests read and drive the page's state only through `window.__hc`. After a change inside a page module, change `public/js/test-api.js`
+  or the `test` of the extra, not the tests. A few checks also import the pure functions in `extras/pets.js`, `extras/hanukkah.js`, and `sound.js`.
 - `scripts/`: `preview.sh`, `deploy.sh`, and the deploy hook `no-direct-deploy.mjs`.
 
 ## Commands
@@ -107,17 +117,34 @@ pnpm run deploy     # main only. See "Deploy".
 For `pnpm dev`, copy `.dev.vars.example` to `.dev.vars` and fill in the secrets. The Turnstile values in the example are Cloudflare's test values, which always pass.
 To make the local D1 tables, run `pnpm exec wrangler d1 migrations apply holiday-card --local`.
 
-## Track a hidden extra
+## Add a hidden extra
 
-The page records each interaction with a hidden extra in D1, for the family that this browser signed up last.
-A new hidden extra needs two changes:
+A hidden extra is one module in `public/js/extras/` and one line in a list. No other page file names it.
 
-1. Call `markFound("<egg>")` in `public/app.js` on each interaction, not only the first.
-2. Add `"<egg>"` to `EGGS` in `src/interactions.ts`. The Worker rejects other names with 400.
+1. Write `public/js/extras/<name>.js`. Its default export is `{ name, spots, hints, fits, setup }`.
+   The shape is at the top of `public/js/registry.js`. `public/js/extras/presents.js` is a short example.
+2. Import it in `public/js/extras/index.js` and add it to `EXTRAS`. The list order is the draw order of the layers.
+3. Add the name to `EGGS` in `src/interactions.ts`. `pnpm test` fails until the two lists agree.
+4. If the extra has a tap area, add its box to `public/js/room.js`, next to the other places in `room.png`.
 
-`markFound` sends `POST /api/interaction` through `track()`, and drops the hosts' hint for that egg.
-A browser with no family sends nothing. The page sends at most one call for each egg in 5 seconds. A failed call stays silent.
-The Waymo and the Cybertruck count each drive-by while the page shows, because a guest cannot tap them.
+What the registry does for an extra:
+
+- Taps: a tap on one of its `spots` calls its `tap(id)`. A tap on a guest calls `tapSprite(sprite)`, and a new look calls `look(sprite, look)`.
+- Tracking: the registry records each tap of a spot, and each `tapSprite` or `look` that returns true.
+  For a thing with no tap, such as a car that drives past, the extra calls `ctx.found()` itself.
+  A record goes to `POST /api/interaction` for the family that this browser signed up last (`found.js`).
+  A browser with no family sends nothing. The page sends at most one call for each extra in 5 seconds. A failed call stays silent.
+- Hints: each `{ host, text }` in `hints` becomes a line of that host (`HOST_LINES` in `hosts.js`).
+  A host stops a hint after this browser finds the extra. `fits(ctx)` can hide the hints for a guest, for example with no pet at the party.
+- Layers: the `layer` from `setup` goes on the scene. Its hooks are in `Scene.addLayer` in `scene.js`.
+- Other extras: `ctx.extra(name)` gives the runtime of an extra earlier in the list, for example `ctx.extra("lamp").dark`.
+
+To test an extra:
+
+- Give the runtime a `test(helpers)` that returns its functions for `window.__hc`, for example `fire: () => fire.state()`.
+  `eggs`, `constants`, and `loaded` join the objects of every extra.
+- Add `test/e2e/<name>.test.mjs`. Find its tap area with `hc.spotCenter(id)` and tap with `tapRoom`.
+- Run `pnpm test`, `pnpm typecheck`, and `pnpm e2e`.
 
 ## Check a branch: preview
 
