@@ -9,6 +9,9 @@
     "run_worker_first": ["/api/*", "/album/*"]
   },
   "routes": [{ "pattern": "hi.verynormal.dev", "custom_domain": true }],
+  // No <name>.workers.dev URL for production. Each branch gets a preview URL instead: pnpm preview (see AGENTS.md).
+  "workers_dev": false,
+  "preview_urls": true,
   "d1_databases": [
     {
       "binding": "DB",
