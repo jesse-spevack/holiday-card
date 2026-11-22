@@ -34,10 +34,10 @@ function contactsTab() {
   return tab;
 }
 
-// A leading quote stops the Sheet from running guest text as a formula.
+// A leading quote keeps guest input as text: no formulas, and zip 02139 keeps its zero.
 function text(value) {
   const s = String(value ?? "").trim();
-  return /^[=+\-@]/.test(s) ? "'" + s : s;
+  return s ? "'" + s : "";
 }
 
 function reply(data) {

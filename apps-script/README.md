@@ -22,3 +22,16 @@ clasp deploy -i AKfycbweRjFcUK4fq9j8vZ5HBGFMBd1duKAya3Tq7nhEC8xm6dRWGRPnzKP-Dpyc
 ```
 
 Deploy with `-i` to keep the same web app URL.
+
+## Maintain the Sheet
+
+The service account `holiday-card-sheet@very-normal.iam.gserviceaccount.com` has Editor access to the Sheet.
+It has no key. Get a short-lived token as Jesse:
+
+```sh
+gcloud auth print-access-token \
+  --impersonate-service-account=holiday-card-sheet@very-normal.iam.gserviceaccount.com \
+  --scopes=https://www.googleapis.com/auth/spreadsheets
+```
+
+Use the token with the Sheets API to read rows, fix rows, or delete rows.
