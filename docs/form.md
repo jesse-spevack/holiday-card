@@ -3,28 +3,7 @@
 The guest form at `hi.verynormal.dev`. It collects mailing addresses for holiday cards.
 The pixel-art living room party is decoration and a thank-you.
 
-- Copy (every line, hints, errors): `docs/copy.md`
-- Screenshots of the live form: `docs/form/*.png`
-
-## Where the code is
-
-| Part | File |
-|---|---|
-| Steps, address suggestions, confirm, send | `public/app.js` (`stepEnvelope`, `stepHousehold`, `stepAddress`, `stepUnit`, `stepConfirm`, `send`, `stepDone`) |
-| API calls from the page | `public/js/api.js` |
-| Room, sprites, door arrival, taps | `public/js/scene.js` |
-| Hidden pet reactions (a tap on a dog or a cat) | `public/js/pets.js`, with the sounds in `public/js/sound.js` |
-| Look picker ("New look") | `public/js/picker.js`, with ages in `public/assets/looks.json` |
-| Sound effects | `public/js/sound.js` |
-| Snowy night around the room (sky, roof, greeting) | `public/js/night.js`, `public/night.css` |
-| Hidden photo album (the book on the sofa) | `public/js/album.js`, `public/album.css`, `src/album.ts` |
-| Hidden dreidel game (the dreidels on the window sill) | `public/js/dreidel.js`, `public/js/dreidel-art.js`, `public/js/dreidel-sound.js`, `public/dreidel.css` |
-| Hidden room extras (Waymo, shooting star, menorah, floor lamp) | `public/js/eggs.js`, with the tap areas in `HOTSPOTS` in `public/js/scene.js` |
-| Markup and styles | `public/index.html`, `public/style.css` |
-| Server (Cloudflare Worker) | `src/worker.ts` and the files next to it |
-| Party database (D1) | `migrations/` |
-| Contact list Sheet writer | `apps-script/Code.js` |
-| Tests | `test/api.test.ts` (`pnpm test`), `test/e2e.mjs` (`pnpm e2e`, needs Google Chrome) |
+The code map is in `AGENTS.md`. The form steps are in `public/app.js`, and the API is in `src/worker.ts`.
 
 ## Flow
 
@@ -45,12 +24,12 @@ The hosts ("Jesse & Jess") ask one question at a time in a dialog box.
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 
 After that, a tap on one of your own sprites opens a small editor. "Say something" sets a speech bubble.
-"New look" opens the look picker (`docs/form/look-picker-*.png`). A person sees every person look, from the oldest to the youngest, then the silly looks.
+"New look" opens the look picker. A person sees every person look, from the oldest to the youngest, then the silly looks.
 A pet sees the dogs, then the cats, then the silly pets. Each person look in `looks.json` has an `age`: `older`, `adult`, `teen`, `kid`, or `baby`.
 
 ## API contract
 
-All under `/api/`, JSON, handled by `src/worker.ts`.
+JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles all of them.
 
 | Call | Request | Response |
 |---|---|---|
@@ -61,6 +40,8 @@ All under `/api/`, JSON, handled by `src/worker.ts`.
 | `POST /api/submit` | see below | `201 { "id", "token" }` |
 | `POST /api/sprite` | `{ "id", "token", "index", "look"?, "bubble"? }` (bubble at most 40 characters) | `{ "ok": true }` |
 | `GET /api/party` | | `{ "families": [{ "id", "name", "members": [{"type","look"}], "bubbles": ["..."] }] }` |
+| `GET /album/list` | | The album pages and captions, from KV |
+| `GET /album/<hash>.jpg` | | One album photo, from KV |
 
 `POST /api/submit` body:
 
@@ -86,7 +67,40 @@ The Worker checks Turnstile, then writes the contact to the Sheet, then writes t
 - To hide a bubble or a family until the admin page exists, set `bubble_hidden` or `hidden` to 1 in D1.
 - `/api/party` reads one version row on each call. The edge caches the full party per version, so a change shows at once.
 
-## Secrets
+## Copy
 
-`OPENROUTER_API_KEY`, `GOOGLE_PLACES_KEY`, `SHEET_SECRET`, `TURNSTILE_SECRET` (Cloudflare secrets, or `.dev.vars` locally).
-The model is the `OPENROUTER_MODEL` var in `wrangler.jsonc`. The Sheet URL is the `SHEET_URL` var.
+The party is not an invitation. The hosts speak as "Jesse & Jess".
+
+### Steps
+
+| Step | Host asks | Typing hint | Button |
+|---|---|---|---|
+| 1. Envelope name | We're sending holiday cards! Whose name goes on the envelope? | The Garcia Family | Next ▸ |
+| 2. Household | Who lives at your house? | Sofia, Dan, Mia, and Biscuit the corgi | Next ▸ |
+| 3. Address | Where should we mail your card? | Start typing your street | (pick a suggestion) |
+| 3b. Unit | Apartment or unit? | Apt 2B | Skip / Next ▸ |
+| 4. Confirm | We'll mail your card to: *[full address]*. Look right? | | Yes, send it ▸ / Fix it |
+
+Hints under the answer line:
+
+- Step 1: Write it how you'd like it on the envelope.
+- Step 2: Pets count. I guess.
+
+### After confirm
+
+- Thank you. You mean a lot to us.
+- Your family is at our party now. Tap them to change a look or say something. Then poke around the room. A few things in here might surprise you.
+
+No card timing anywhere.
+
+### Errors
+
+- Blank answer: We need something here.
+- No address match: We can't find that one. Type the full address and we'll use it as written.
+- Save failed: Something went wrong. Try again?
+
+### Timing behind the scenes
+
+- The household text goes to the LLM right after step 2, while the guest types the address.
+- "Yes, send it" starts the arrival animation at once. The Sheet write happens during it (about 2 seconds).
+- Sprites come from a ready-made library, never generated at submit.

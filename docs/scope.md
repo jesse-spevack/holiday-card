@@ -1,12 +1,13 @@
-# Holiday card party: scope
+# Holiday card party: what guests see
 
 A site at `hi.verynormal.dev` that collects names and mailing addresses for our holiday cards.
 After a guest submits, their family arrives as pixel sprites at a cozy winter holiday party in our living room.
+The code map, the data rules, and the commands are in `AGENTS.md`.
 
 ## Guest flow
 
 1. The guest opens one shared link. There is no passcode and no per-person link.
-2. The hosts ask one question at a time (see `docs/form.md` and `docs/copy.md`):
+2. The hosts ask one question at a time (see `docs/form.md`):
    - The name for the envelope, for example "The Garcia Family"
    - "Who lives at your house?" as free text, for example "Sofia, Dan, Mia, and Biscuit the corgi"
    - Mailing address (US only). Street suggestions come from Google Places. Apartment or unit is a separate step.
@@ -69,14 +70,7 @@ Nothing on screen points to these.
 - The party shows the household name only.
 - Addresses and family member names are never shown.
 - Jesse can hide any chat bubble. Until the admin page exists, Claude sets `bubble_hidden` in D1.
-
-## Data
-
-- The Google Sheet is the contact list only: name, household, and mailing address.
-  An Apps Script on the Sheet adds one row for each sign-up. See `apps-script/`.
-- Party data (family members, sprite looks, chat bubbles) lives in Cloudflare D1, not in the Sheet.
-- Later: an admin page at `hi.verynormal.dev/admin` to view and change the data.
-- Duplicates are kept. Jesse cleans them up.
+- Duplicate sign-ups stay. Jesse cleans them up in the Sheet.
 
 ## Look
 
@@ -93,17 +87,12 @@ Nothing on screen points to these.
   and string lights sits on the room. Snow falls below it, and a greeting shows there after the thank-you hides.
   A short band gets a smaller roof or a flat snowy eave. A wide desktop has no bands, so it shows the room only.
 - Phones first.
-
-## Stack
-
-- A Cloudflare Worker serves the static page and the API at `hi.verynormal.dev`. It holds the OpenRouter,
-  Google, Sheet, and Turnstile secrets. It calls the LLM and Places, writes contacts to the Sheet, and keeps the party in D1.
-- The party page checks for changes every 5 seconds. It reads one version row and fetches the full party only when the version moves.
-- Turnstile protects the sign-up form.
-- Art comes from PixelLab (figures and props) and Retro Diffusion (the room). Later room changes are drawn by hand.
+- The party page polls for new families. It reads one version number and fetches the full party only when the version moves.
 
 ## Art style settings (style B, chosen in a bake-off)
 
+- Art comes from PixelLab (figures and props) and Retro Diffusion (the room). Later room changes are drawn by hand,
+  pixel by pixel (`art/scripts/book.py`, `art/scripts/table_wine.py`).
 - Characters: PixelLab `generate-image-v2`, with a crop of the cabin as `style_image`. This makes the
   figures match the room's warm light, soft shading and brown outline. Big heads, about 2 heads tall.
   Frame sizes: adults 48px (about 36px tall), kids 40px (about 29px), small pets 24px (about 21px).
@@ -113,30 +102,14 @@ Nothing on screen points to these.
   snowy window with the menorah, latke table on the right, rug in the middle, front door at the bottom).
   Retro Diffusion `rd_pro__topdown`, 256x192. `public/assets/room.png` is the only copy. The first room prompt is in git history (`art/scripts/generate.py` at 16e0ec2).
 - Rejected rooms: log cabins (too rustic), and a layout with a bookshelf along the bottom wall.
-- The scripts in `art/scripts` (run each from the repo root; the docstring at the top tells how):
-
-  | Script | Makes |
-  |---|---|
-  | `looks.py` | The guest looks and the host sprites: prompts, picks, and `looks.json` |
-  | `props.py` | Prop variations (presents, dreidel) to paint into the room by hand |
-  | `table_wine.py` | The wine bottle and glasses on the dining table, in `room.png` |
-  | `book.py` | The photo album sprite on the sofa |
-  | `og.py` | The link preview, `og.png`. Run it after each change to the room or the hosts |
-  | `album.py` | The album photos in Workers KV, from `~/Pictures`. Photos never go in git |
-  | `pixellab.py` | The PixelLab calls, the key, and the sprite cleanup that `looks.py` and `props.py` share |
-
 - Rejected: PixelLab template characters (blank faces, sticker look), PixelLab Pro (muddy),
   Retro Diffusion characters (too large and orange).
-
-## Setup
-
-- Done: the Worker, D1, the `hi` custom domain, the secrets, the Sheet, and Places with a key limited to Places.
-- Places has hard daily limits in Google Cloud: 500 suggestions and 200 address lookups.
-- Jesse: make a Turnstile widget for `hi.verynormal.dev`. The site uses Cloudflare's test key until then.
+- The art scripts are listed in `AGENTS.md`.
 
 ## Out of scope
 
 - Chat bubble moderation
+- An admin page (later, at `hi.verynormal.dev/admin`)
 - A fallback when the LLM call fails
 - Midjourney (it has no official API)
 - Music
