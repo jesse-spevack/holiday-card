@@ -9,8 +9,8 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 A = f"{REPO}/public/assets"
 # feet positions (x center, y feet) in room pixels
 CAST = {
-    "hosts/jessica": (172, 132), "hosts/jesse": (187, 130), "hosts/daughter": (98, 160), "hosts/son": (114, 162),
-    "looks/adult-11": (112, 112), "looks/adult-12": (130, 110), "looks/kid-07": (120, 124), "looks/dog-06": (146, 124),
+    "hosts/jessica": (153, 130), "hosts/jesse": (171, 130), "hosts/daughter": (98, 160), "hosts/son": (114, 162),
+    "looks/adult-11": (112, 112), "looks/adult-12": (130, 110), "looks/kid-07": (120, 124), "looks/dog-06": (137, 126),
 }
 # 240 x 126 room pixels at 5x is exactly 1200 x 630, so every pixel stays square and even.
 CROP, SCALE = (8, 39, 248, 165), 5
