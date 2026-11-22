@@ -17,7 +17,7 @@ const HTML = new URL("../../public/index.html", import.meta.url).pathname;
 // 240 x 126 room pixels at 5x is exactly 1200 x 630. The crop starts high enough to show the window and the shelf plants.
 const CROP = { x: 8, y: 4, w: 240, h: 126 };
 const SCALE = 5;
-// A local time on the eighth night of Hanukkah 2026 (public/js/hanukkah.js).
+// A local time on the eighth night of Hanukkah 2026 (public/js/extras/hanukkah.js).
 const NIGHT_EIGHT = "2026-12-11T18:00";
 // The hosts in a group on the rug, in the middle of the crop: Jess and Jesse behind, Audrey and Eddie in front.
 // Each spot is the feet of the sprite, in room pixels.
