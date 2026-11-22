@@ -13,10 +13,25 @@ const OUT = process.env.E2E_OUT || "build/e2e";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
 
 // Test looks use the committed sample guests, so the test does not depend on the looks library.
+// The ages and silly looks are out of order on purpose: the look picker sorts them.
 const LOOKS = {
-  adult: [{ id: "t-mom", src: "/t/guest-mom.png" }, { id: "t-dad", src: "/t/guest-dad.png" }],
-  kid: [{ id: "t-kid", src: "/t/guest-kid.png" }],
-  dog: [{ id: "t-dog", src: "/t/guest-dog.png" }],
+  adult: [
+    { id: "t-mom", src: "/t/guest-mom.png", w: 24, h: 35, desc: "mom", age: "adult" },
+    { id: "t-robot", src: "/t/guest-dad.png", w: 20, h: 35, desc: "robot", age: "adult", silly: true },
+    { id: "t-dad", src: "/t/guest-dad.png", w: 20, h: 35, desc: "dad", age: "adult" },
+    { id: "t-gran", src: "/t/guest-mom.png", w: 24, h: 35, desc: "grandma", age: "older" },
+  ],
+  kid: [
+    { id: "t-kid", src: "/t/guest-kid.png", w: 21, h: 28, desc: "kid", age: "kid" },
+    { id: "t-ninja", src: "/t/guest-kid.png", w: 21, h: 28, desc: "kid ninja", age: "kid", silly: true },
+    { id: "t-teen", src: "/t/guest-kid.png", w: 21, h: 28, desc: "teen", age: "teen" },
+  ],
+  baby: [{ id: "t-baby", src: "/t/guest-kid.png", w: 21, h: 28, desc: "baby", age: "baby" }],
+  dog: [
+    { id: "t-dog", src: "/t/guest-dog.png", w: 17, h: 21, desc: "dog" },
+    { id: "t-robodog", src: "/t/guest-dog.png", w: 17, h: 21, desc: "robot dog", silly: true },
+  ],
+  cat: [{ id: "t-cat", src: "/t/guest-dog.png", w: 17, h: 21, desc: "cat" }],
 };
 
 const server = createServer(async (req, res) => {
@@ -62,6 +77,23 @@ async function fakeApi(route) {
   }
   return reply({ error: "not found" }, 404);
 }
+
+// A screen point that the scene resolves to the sprite that matches `want`, even when another sprite stands close.
+const pointOn = (pg, want) => pg.evaluate((w) => {
+  const { scene } = window.__hc;
+  const s = scene.sprites.find((x) => Object.entries(w).every(([k, v]) => x[k] === v));
+  const r = document.getElementById("stage").getBoundingClientRect();
+  const v = scene.view;
+  const spots = [];
+  for (let dy = Math.round(s.img.height / 2); dy < s.img.height; dy++) spots.push(dy, s.img.height - dy);
+  for (const dy of spots) {
+    for (const dx of [0, -3, 3, -6, 6]) {
+      const p = { x: s.x + dx, y: s.y - dy };
+      if (scene.spriteAt(p.x, p.y) === s) return { x: r.left + v.left + p.x * v.scale, y: r.top + v.top + p.y * v.scale, look: s.look };
+    }
+  }
+  throw new Error(`no clear point on ${JSON.stringify(w)}`);
+}, want);
 
 const browser = await chromium.launch({ channel: "chrome" });
 const errors = [];
@@ -127,12 +159,7 @@ try {
   assert.equal(saved[0].id, "fam12345");
   // the family's name shows only on hover
   assert.equal(await page.locator(".tag").count(), 0);
-  const garcia = await page.evaluate(() => {
-    const s = window.__hc.scene.sprites.find((x) => x.familyId === "fam12345");
-    const r = document.getElementById("stage").getBoundingClientRect();
-    const v = window.__hc.scene.view;
-    return { x: r.left + v.left + s.x * v.scale, y: r.top + v.top + (s.y - s.img.height / 2) * v.scale };
-  });
+  const garcia = await pointOn(page, { familyId: "fam12345" });
   await page.mouse.move(garcia.x, garcia.y);
   await page.locator(".tag", { hasText: "The Garcia Family" }).waitFor();
   await page.mouse.move(2, 2);
@@ -141,12 +168,7 @@ try {
   // hovering over the hosts shows each of their names (zoom back out first: the camera follows the new family)
   await page.evaluate(() => window.__hc.scene.focus(128, 120, 0));
   await page.waitForTimeout(100);
-  const host = await page.evaluate(() => {
-    const s = window.__hc.scene.sprites.find((x) => x.host && x.name === "Jesse");
-    const r = document.getElementById("stage").getBoundingClientRect();
-    const v = window.__hc.scene.view;
-    return { x: r.left + v.left + s.x * v.scale, y: r.top + v.top + (s.y - s.img.height / 2) * v.scale };
-  });
+  const host = await pointOn(page, { host: true, name: "Jesse" });
   await page.mouse.move(host.x, host.y);
   await page.locator(".tag", { hasText: "Eddie" }).waitFor();
   assert.deepEqual((await page.locator(".tag").allInnerTexts()).sort(), ["Audrey", "Eddie", "Jess", "Jesse"]);
@@ -154,12 +176,7 @@ try {
   await page.screenshot({ path: `${OUT}/5-done.png` });
 
   // tap your own sprite, say something
-  const mine = await page.evaluate(() => {
-    const s = window.__hc.scene.sprites.find((x) => x.familyId === "fam12345");
-    const r = document.getElementById("stage").getBoundingClientRect();
-    const v = window.__hc.scene.view;
-    return { x: r.left + v.left + s.x * v.scale, y: r.top + v.top + (s.y - s.img.height / 2) * v.scale };
-  });
+  const mine = await pointOn(page, { familyId: "fam12345" });
   await page.mouse.click(mine.x, mine.y);
   await page.getByLabel("Say something").fill("We love you guys");
   await page.getByRole("button", { name: "Save" }).click();
@@ -167,6 +184,47 @@ try {
   const spriteCall = calls.filter((c) => c.path === "/api/sprite").at(-1).body;
   assert.deepEqual({ id: spriteCall.id, token: spriteCall.token, bubble: spriteCall.bubble }, { id: "fam12345", token: "tok", bubble: "We love you guys" });
   await page.screenshot({ path: `${OUT}/6-bubble.png` });
+
+  // "New look" opens the look picker: people oldest first, silly looks last, and the current look marked
+  const spriteAt = (familyId, index) => pointOn(page, { familyId, index });
+  const parent = await spriteAt("fam12345", 0);
+  await page.mouse.click(parent.x, parent.y);
+  await page.getByRole("button", { name: "New look" }).click();
+  const picker = page.getByRole("dialog", { name: "Pick a look" });
+  await picker.waitFor();
+  assert.deepEqual(await picker.locator("h3").allInnerTexts(), ["Grown-ups", "Teens", "Kids", "Babies", "Silly"]);
+  assert.deepEqual(await picker.locator(".look-tile").evaluateAll((ts) => ts.map((t) => t.dataset.look)),
+    ["t-gran", "t-mom", "t-dad", "t-teen", "t-kid", "t-baby", "t-robot", "t-ninja"]);
+  assert.deepEqual(await picker.locator(".look-tile[aria-current]").evaluateAll((ts) => ts.map((t) => t.dataset.look)), [parent.look]);
+  const tileBox = await picker.locator(".look-tile").first().boundingBox();
+  assert.ok(tileBox.width >= 44 && tileBox.height >= 44, JSON.stringify(tileBox));
+  await page.screenshot({ path: `${OUT}/9-picker.png` });
+
+  // Escape leaves the look as it was
+  const spriteCalls = () => calls.filter((c) => c.path === "/api/sprite").length;
+  const before = spriteCalls();
+  await page.keyboard.press("Escape");
+  await picker.waitFor({ state: "detached" });
+  assert.equal(spriteCalls(), before);
+
+  // picking a silly look changes the sprite and saves it
+  await page.getByRole("button", { name: "New look" }).click();
+  await picker.locator('[data-look="t-ninja"]').click();
+  await picker.waitFor({ state: "detached" });
+  const lookCall = calls.filter((c) => c.path === "/api/sprite").at(-1).body;
+  assert.deepEqual(lookCall, { id: "fam12345", token: "tok", index: 0, look: "t-ninja" });
+  assert.equal((await spriteAt("fam12345", 0)).look, "t-ninja");
+  assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem("hc.families"))))[0].members[0].look, "t-ninja");
+
+  // a pet sees only pets
+  await page.mouse.click(2, 2);
+  const pet = await spriteAt("fam12345", 3);
+  await page.mouse.click(pet.x, pet.y);
+  await page.getByRole("button", { name: "New look" }).click();
+  assert.deepEqual(await picker.locator("h3").allInnerTexts(), ["Dogs", "Cats", "Silly"]);
+  assert.deepEqual(await picker.locator(".look-tile").evaluateAll((ts) => ts.map((t) => t.dataset.look)), ["t-dog", "t-cat", "t-robodog"]);
+  await picker.getByRole("button", { name: "Close" }).click();
+  await picker.waitFor({ state: "detached" });
 
   // coming back on the same browser goes straight to the party
   await page.reload();
@@ -205,6 +263,13 @@ try {
   });
   assert.deepEqual(broken.bad, []);
   assert.ok(broken.count >= 25, `looks: ${broken.count}`);
+  // the look picker sorts people by age, so every person look needs one
+  const ageless = await p3.evaluate(async () => {
+    const looks = await (await fetch("/assets/looks.json")).json();
+    const ages = ["older", "adult", "teen", "kid", "baby"];
+    return ["adult", "kid", "baby"].flatMap((t) => looks[t]).filter((l) => !ages.includes(l.age)).map((l) => l.id);
+  });
+  assert.deepEqual(ageless, []);
   await p3.getByLabel("Name on the envelope").fill("The Garcia Family");
   await p3.getByLabel("Name on the envelope").press("Enter");
   await p3.getByLabel("Who lives at your house").fill("Sofia, Dan, Mia, and Biscuit");
@@ -226,12 +291,7 @@ try {
   });
   assert.ok(fit.wr.l >= fit.st.l && fit.wr.t >= fit.st.t && fit.wr.r <= fit.st.r && fit.wr.b <= fit.st.b, JSON.stringify(fit));
   assert.ok(fit.wr.b - fit.wr.t > fit.st.b - fit.st.t - 1 || fit.wr.r - fit.wr.l > fit.st.r - fit.st.l - 1, JSON.stringify(fit));
-  const deskHost = await p4.evaluate(() => {
-    const s = window.__hc.scene.sprites.find((x) => x.host && x.name === "Jesse");
-    const r = document.getElementById("stage").getBoundingClientRect();
-    const v = window.__hc.scene.view;
-    return { x: r.left + v.left + s.x * v.scale, y: r.top + v.top + (s.y - s.img.height / 2) * v.scale };
-  });
+  const deskHost = await pointOn(p4, { host: true, name: "Jesse" });
   await p4.mouse.move(deskHost.x, deskHost.y);
   await p4.locator(".tag", { hasText: "Eddie" }).waitFor();
   await p4.screenshot({ path: `${OUT}/8-desktop.png` });
