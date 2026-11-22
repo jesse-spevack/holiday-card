@@ -1,23 +1,14 @@
 // Hidden extras in the living room. Nothing on screen points to them.
 // A light blue Waymo van drives past the window now and then. A tap on the window sends a shooting star,
 // a tap on the menorah lights it again and asks about miracles, and a tap on the floor lamp turns it off and on.
-// The tap areas are HOTSPOTS in scene.js.
+// The tap areas are HOTSPOTS in room.js. The scene draws this module as a layer (Scene.addLayer).
 
-import { ROOM_W, ROOM_H, FIRE } from "./scene.js";
+import { ROOM_W, ROOM_H, FIRE, WINDOW, ROAD_Y, MENORAH, LAMP, LAMP_YELLOW, WALL, SHADE_OFF, FIRE_COLORS, rgb, isNight } from "./room.js";
+import { eachPixel } from "./pixels.js";
 
-// The window glass in room pixels. The bottom rows are the snowy ground outside.
-const PANES = [[166, 184], [189, 212], [217, 235]];
-const GLASS_Y = [8, 48];
-// The menorah's white candles stand in front of the glass, so the car and the star pass behind them.
-const MENORAH = { x0: 190, y0: 36, x1: 213, y1: 49 };
-
-// The floor lamp's light is one yellow on the wall around it. The shade inside its outline is the same yellow.
-const LAMP = { x0: 0, y0: 0, x1: 60, y1: 72, shade: { x0: 24, y0: 29, x1: 42, y1: 46 } };
-const LAMP_YELLOW = 0xfef09f;
-const WALL = [0xed, 0xd7, 0xb6];
-const SHADE_OFF = [0xd0, 0xb3, 0x99];
+const PANES = WINDOW.glass.panes;
+// With the lamp off, the room goes this dark blue.
 const NIGHT_TINT = [0x7c, 0x84, 0xb8];
-const FIRE_COLORS = new Set([0xaa5317, 0xfbe55d, 0xfef09f, 0xf5cf6f, 0xe1a468, 0xf8f5f1]);
 
 // The Waymo Ojai, the light blue van, facing right. O outline, L roof light, B blue body, S body shade, G window,
 // D lidar dome, R tail light, H headlight, K tire, h hub.
@@ -38,7 +29,6 @@ const CAR_COLORS = { O: "#1b1a2e", L: "#c6e7fa", B: "#86c5ea", S: "#5a93bf", G: 
 const CAR_W = CAR[0].length;
 const DOME = { x: 6, y: 1, w: 3 };
 const HEADLIGHT_Y = 7;
-const ROAD_Y = 47;
 const CAR_SPEED = 13;
 const CAR_PARKED = { x: 168, seconds: 5 };
 const WAYMO_GAP = [40, 90];
@@ -52,7 +42,6 @@ const MIRACLES = { text: "What miracles are you grateful for?", x: 201, y: 61, m
 const LIGHTING = { pause: 0.7, step: 0.45, grow: 0.18 };
 
 const rand = (a, b) => a + Math.random() * (b - a);
-const rgb = (data, i) => (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
 
 export class Eggs {
   // onFound("waymo") runs each time the Waymo drives out of sight.
@@ -114,13 +103,10 @@ export class Eggs {
     const x0 = Math.round(c.x);
     const y0 = ROAD_Y - CAR.length + 1;
     const px = (col) => x0 + (c.dir > 0 ? col : CAR_W - 1 - col);
-    CAR.forEach((row, r) => {
-      [...row].forEach((ch, col) => {
-        if (!CAR_COLORS[ch]) return;
-        g.fillStyle = CAR_COLORS[ch];
-        g.fillRect(px(col), y0 + r, 1, 1);
-      });
-    });
+    eachPixel(CAR, CAR_COLORS, (x, y, color) => {
+      g.fillStyle = color;
+      g.fillRect(x0 + x, y0 + y, 1, 1);
+    }, { flipX: c.dir < 0 });
     // The lidar dome spins: a glint sweeps across it.
     const sweep = this.reducedMotion ? 1 : Math.floor(this.scene.time * 10) % (DOME.w + 1);
     if (sweep < DOME.w) {
@@ -258,7 +244,7 @@ export class Eggs {
     this.sound.click();
   }
 
-  // ---- loop hooks from the scene ----
+  // ---- the layer hooks that the scene calls ----
   update(dt) {
     const time = this.scene.time;
     if (!this.car && time >= this.nextCar) this.waymo();
@@ -356,13 +342,13 @@ function layer(keep, [r, gr, b] = [255, 255, 255]) {
 }
 
 // The night sky, the snow, and the hill outside, but not the frame, the menorah, or the dreidels.
+// The white candles of the menorah look like snow, so they do not count.
 function isGlass(data, x, y, i) {
-  if (y < GLASS_Y[0] || y > GLASS_Y[1] || !PANES.some(([x0, x1]) => x >= x0 && x <= x1)) return false;
-  const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
-  if (b > r + 10) return true;
-  const white = r > 200 && g > 200 && b > 200;
+  const { y0, y1 } = WINDOW.glass;
+  if (y < y0 || y > y1 || !PANES.some(([x0, x1]) => x >= x0 && x <= x1)) return false;
+  if (data[i + 2] > data[i] + 10) return true;
   const candle = x >= MENORAH.x0 && x <= MENORAH.x1 && y >= MENORAH.y0 && y <= MENORAH.y1;
-  return white && !candle;
+  return isNight(data, i) && !candle;
 }
 
 // The pixels that change when the lamp goes off: its yellow light becomes the wall, and the shade goes dull.

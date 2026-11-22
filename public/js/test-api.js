@@ -2,9 +2,10 @@
 // The end-to-end tests use only this API, so a change inside the page modules changes this one file, not the tests.
 // Each function takes and returns plain data, so a test can call it through page.evaluate.
 
-import { HOTSPOTS, DREIDELS, FLOOR, HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
+import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
+import { HOTSPOTS, DREIDELS, FLOOR } from "./room.js";
 
-export function testApi({ scene, sound, dreidel, found }) {
+export function testApi({ scene, sound, eggs, dreidel, found }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -43,7 +44,7 @@ export function testApi({ scene, sound, dreidel, found }) {
   return {
     // What has loaded: the room, the book, the masks for the hidden extras, and the sprites with their images.
     loaded: () => ({
-      room: !!scene.room, book: !!scene.book, eggs: !!scene.eggs?.glassLayer,
+      room: !!scene.room, book: !!scene.book, eggs: !!eggs.glassLayer,
       hosts: scene.sprites.filter((s) => s.host && s.img).length,
       families: Object.fromEntries([...scene.families.keys()].map((id) => [id, scene.sprites.filter((s) => s.familyId === id && s.img).length])),
     }),
@@ -84,7 +85,7 @@ export function testApi({ scene, sound, dreidel, found }) {
     toScreen,
     roomCenter: (box) => center(scene.roomRect(box)),
     bookCenter: () => center(scene.bookRect()),
-    bookHidden: () => !!scene.bookHidden,
+    bookHidden: () => !scene.bookShown,
     spotCenter: (id) => {
       const s = HOTSPOTS.find((h) => h.id === id);
       return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
@@ -118,13 +119,13 @@ export function testApi({ scene, sound, dreidel, found }) {
 
     // ---- the hidden extras ----
     eggs: () => {
-      const e = scene.eggs;
+      const e = eggs;
       return {
         star: !!e.star, lampOn: e.lampOn, car: e.car ? e.car.x : null, lighting: !!e.lighting,
         menorahLit: e.menorahLit, flames: scene.flames.length, nextCarIn: e.nextCar - scene.time,
       };
     },
-    sendWaymo: () => scene.eggs.waymo(),
+    sendWaymo: () => eggs.waymo(),
     found: (...eggs) => { for (const egg of eggs) found.add(egg); },
 
     // ---- the dreidel game ----

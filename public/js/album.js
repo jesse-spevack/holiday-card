@@ -4,6 +4,7 @@
 // The book is pixel art like the room (album-art.js), and it moves in a few steps like a sprite.
 
 import { sideArt, coverArt, spriteArt, CORNER_SIZE, FLAKE_SIZE } from "./album-art.js";
+import { h, loadCss, dialogRoot, PageBehind } from "./dom.js";
 
 const CSS = "/album.css";
 const TITLE = "Our 2026";
@@ -21,13 +22,6 @@ const FADE = "steps(4, jump-end)";
 // About this many book pixels across one side.
 const BOOK_PIXELS = 115;
 const MAT = 2;
-
-const h = (tag, cls, ...children) => {
-  const el = document.createElement(tag);
-  if (cls) el.className = cls;
-  el.append(...children);
-  return el;
-};
 
 export class Album {
   // bookRect: where the book is on screen now. showBook: show or hide the book in the room.
@@ -48,6 +42,7 @@ export class Album {
     this.settle = null;
     this.down = null;
     this.ignoreClicksUntil = 0;
+    this.page = new PageBehind({ onKey: (e) => this.key(e), onResize: () => this.resize() });
   }
 
   // ---- open and close ----
@@ -57,19 +52,17 @@ export class Album {
     this.isOpen = true;
     this.busy = true;
     this.ignoreClicksUntil = performance.now() + 400;
-    this.returnFocus = document.activeElement;
+    this.page.remember();
     const photos = this.load();
     const from = this.bookRect();
-    await this.styles();
+    await loadCss(CSS);
     if (session !== this.session) return;
 
     this.build();
     this.reset();
     this.layout();
     this.el.hidden = false;
-    document.getElementById("app")?.setAttribute("inert", "");
-    document.addEventListener("keydown", this.onKey);
-    addEventListener("resize", this.onResize);
+    this.page.hold();
     this.showBook(false);
 
     // The closed book: the cover lies on the right side, and the left side waits under the open cover.
@@ -151,12 +144,9 @@ export class Album {
   finishClose() {
     this.reset();
     if (this.el) this.el.hidden = true;
-    document.getElementById("app")?.removeAttribute("inert");
-    document.removeEventListener("keydown", this.onKey);
-    removeEventListener("resize", this.onResize);
     this.showBook(true);
     this.busy = false;
-    this.returnFocus?.focus?.({ preventScroll: true });
+    this.page.release();
   }
 
   // Stops every animation and removes the turning pages, so a new open or a close starts clean.
@@ -180,15 +170,6 @@ export class Album {
     return this.list;
   }
 
-  styles() {
-    this.css ??= new Promise((resolve) => {
-      const link = Object.assign(document.createElement("link"), { rel: "stylesheet", href: CSS });
-      link.onload = link.onerror = () => resolve();
-      document.head.append(link);
-    });
-    return this.css;
-  }
-
   // Wide screens show two pages side by side: a title page, then the photos, then an end page if one is short.
   makePages() {
     this.title ??= { kind: "title" };
@@ -204,31 +185,19 @@ export class Album {
   // ---- the DOM ----
   build() {
     if (this.el) return;
-    this.onKey = (e) => this.key(e);
-    this.onResize = () => this.resize();
     this.shade = h("div", "album-shade");
     this.left = this.side("l");
     this.right = this.side("r");
     this.book = h("div", "album-book", this.left, this.right);
-    this.closeBtn = h("button", "album-close");
-    this.closeBtn.type = "button";
-    this.closeBtn.setAttribute("aria-label", "Close the album");
+    this.closeBtn = h("button", { class: "album-close", type: "button", "aria-label": "Close the album" });
     this.closeBtn.innerHTML = pixelIcon(CLOSE_ICON);
-    this.prev = h("button", "album-arrow");
-    this.next = h("button", "album-arrow");
+    this.prev = h("button", { class: "album-arrow", type: "button", "aria-label": "Previous page" });
+    this.next = h("button", { class: "album-arrow", type: "button", "aria-label": "Next page" });
     this.prev.innerHTML = pixelIcon(ARROW_ICON, true);
     this.next.innerHTML = pixelIcon(ARROW_ICON);
-    this.prev.type = this.next.type = "button";
-    this.prev.setAttribute("aria-label", "Previous page");
-    this.next.setAttribute("aria-label", "Next page");
-    this.count = h("span", "album-count");
-    this.count.setAttribute("aria-live", "polite");
-    this.el = h("div", "album", this.shade, h("div", "album-stage", this.book), this.closeBtn, h("div", "album-foot", this.prev, h("div", "album-count-box", this.count), this.next));
-    this.el.hidden = true;
-    this.el.tabIndex = -1;
-    this.el.setAttribute("role", "dialog");
-    this.el.setAttribute("aria-modal", "true");
-    this.el.setAttribute("aria-label", "Photo album");
+    this.count = h("span", { class: "album-count", "aria-live": "polite" });
+    const foot = h("div", "album-foot", this.prev, h("div", "album-count-box", this.count), this.next);
+    this.el = dialogRoot("album", "Photo album", this.shade, h("div", "album-stage", this.book), this.closeBtn, foot);
     document.body.append(this.el);
 
     this.closeBtn.addEventListener("click", () => this.close());

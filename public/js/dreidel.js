@@ -4,6 +4,7 @@
 
 import { W, H, FLOOR, FACES, LENGTH, drawRoom, drawDreidel, drawFlake, drawShadow, drawGelt, drawLetter, drawSpeed, lowest, PANES, PANE_Y } from "./dreidel-art.js";
 import { DreidelSound } from "./dreidel-sound.js";
+import { h, loadCss, dialogRoot, PageBehind } from "./dom.js";
 
 const CSS = "/dreidel.css";
 const GROW_MS = 520;
@@ -24,13 +25,6 @@ const WOBBLE = 15 * DEG; // the biggest lean before it falls
 // The gelt at the start. Nothing here is real money.
 const POT = 4;
 const YOU = 8;
-
-const h = (tag, cls, ...children) => {
-  const el = document.createElement(tag);
-  if (cls) el.className = cls;
-  el.append(...children);
-  return el;
-};
 
 const ease = {
   out: (u) => 1 - (1 - u) ** 2,
@@ -58,6 +52,7 @@ export class Dreidel {
     this.motion = null;
     this.flakes = Array.from({ length: 16 }, () => newFlake(true));
     this.ignoreClicksUntil = 0;
+    this.page = new PageBehind({ onKey: (e) => this.key(e), onResize: () => this.layout() });
   }
 
   // ---- open and close ----
@@ -69,8 +64,8 @@ export class Dreidel {
     this.isOpen = true;
     this.busy = true;
     this.ignoreClicksUntil = performance.now() + 400;
-    this.returnFocus = document.activeElement;
-    await this.styles();
+    this.page.remember();
+    await loadCss(CSS);
     if (session !== this.session) return;
 
     this.build();
@@ -80,9 +75,7 @@ export class Dreidel {
     this.layout();
     this.text();
     this.el.hidden = false;
-    document.getElementById("app")?.setAttribute("inert", "");
-    document.addEventListener("keydown", this.onKey);
-    addEventListener("resize", this.onResize);
+    this.page.hold();
     this.last = performance.now();
     this.loop();
 
@@ -129,11 +122,8 @@ export class Dreidel {
     this.stopAnims();
     if (this.el) this.el.hidden = true;
     cancelAnimationFrame(this.raf);
-    document.getElementById("app")?.removeAttribute("inert");
-    document.removeEventListener("keydown", this.onKey);
-    removeEventListener("resize", this.onResize);
     this.busy = false;
-    this.returnFocus?.focus?.({ preventScroll: true });
+    this.page.release();
   }
 
   // The card moves from the small dreidel on the sill: the big dreidel's box lands on the small one.
@@ -159,20 +149,9 @@ export class Dreidel {
     this.anims = [];
   }
 
-  styles() {
-    this.css ??= new Promise((resolve) => {
-      const link = Object.assign(document.createElement("link"), { rel: "stylesheet", href: CSS });
-      link.onload = link.onerror = () => resolve();
-      document.head.append(link);
-    });
-    return this.css;
-  }
-
   // ---- the DOM ----
   build() {
     if (this.el) return;
-    this.onKey = (e) => this.key(e);
-    this.onResize = () => this.layout();
     this.shade = h("div", "dreidel-shade");
     this.canvas = h("canvas", "dreidel-canvas");
     this.canvas.width = W;
@@ -183,9 +162,8 @@ export class Dreidel {
     this.room = new Uint32Array(W * H);
     drawRoom(this.room);
 
-    this.letter = h("canvas", "dreidel-letter");
+    this.letter = h("canvas", { class: "dreidel-letter", "aria-hidden": "true" });
     this.letter.width = this.letter.height = 14;
-    this.letter.setAttribute("aria-hidden", "true");
     this.nameEl = h("p", "dreidel-name");
     this.saysEl = h("p", "dreidel-says");
     this.noteEl = h("p", "dreidel-note");
@@ -193,24 +171,12 @@ export class Dreidel {
     this.youEl = h("span", "dreidel-you");
     this.potChange = h("span", "dreidel-change");
     this.youChange = h("span", "dreidel-change");
-    this.words = h("div", "dreidel-words", this.nameEl, this.saysEl, this.noteEl);
-    this.words.setAttribute("aria-live", "polite");
+    this.words = h("div", { class: "dreidel-words", id: "dreidel-words", "aria-live": "polite" }, this.nameEl, this.saysEl, this.noteEl);
     const panel = h("div", "dreidel-panel", h("div", "dreidel-result", this.letter, this.words), h("div", "dreidel-gelt", h("span", "", this.potEl, this.potChange), h("span", "", this.youChange, this.youEl)));
-    this.card = h("button", "dreidel-card", this.canvas, panel);
-    this.card.type = "button";
-    this.card.setAttribute("aria-label", "Spin the dreidel");
-    this.card.setAttribute("aria-describedby", "dreidel-words");
-    this.words.id = "dreidel-words";
-    this.closeBtn = h("button", "dreidel-close");
-    this.closeBtn.type = "button";
-    this.closeBtn.setAttribute("aria-label", "Close the dreidel game");
+    this.card = h("button", { class: "dreidel-card", type: "button", "aria-label": "Spin the dreidel", "aria-describedby": "dreidel-words" }, this.canvas, panel);
+    this.closeBtn = h("button", { class: "dreidel-close", type: "button", "aria-label": "Close the dreidel game" });
     this.closeBtn.innerHTML = '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square"><path d="M5 5l14 14M19 5L5 19"></path></svg>';
-    this.el = h("div", "dreidel", this.shade, h("div", "dreidel-stage", this.card), this.closeBtn);
-    this.el.hidden = true;
-    this.el.tabIndex = -1;
-    this.el.setAttribute("role", "dialog");
-    this.el.setAttribute("aria-modal", "true");
-    this.el.setAttribute("aria-label", "Dreidel game");
+    this.el = dialogRoot("dreidel", "Dreidel game", this.shade, h("div", "dreidel-stage", this.card), this.closeBtn);
     document.body.append(this.el);
 
     this.closeBtn.addEventListener("click", () => this.close());

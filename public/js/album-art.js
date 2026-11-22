@@ -1,6 +1,8 @@
 // Pixel art for the open photo album: one canvas pixel is one book pixel, and CSS scales it up crisp.
 // The colors come from the small red book on the sofa (art/scripts/book.py) and the room.
 
+import { eachPixel } from "./pixels.js";
+
 const C = {
   outline: "#1b0804",
   spine: "#6e2a2a",
@@ -196,12 +198,8 @@ const FLAKE = [
 ];
 
 function sprite(rows, colors, flipX = false, flipY = false) {
-  const h = rows.length;
-  const w = rows[0].length;
-  const { c, px } = canvas(w, h);
-  rows.forEach((row, y) => [...row].forEach((k, x) => {
-    if (colors[k]) px(colors[k], flipX ? w - 1 - x : x, flipY ? h - 1 - y : y);
-  }));
+  const { c, px } = canvas(rows[0].length, rows.length);
+  eachPixel(rows, colors, (x, y, color) => px(color, x, y), { flipX, flipY });
   return c.toDataURL();
 }
 

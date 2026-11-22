@@ -2,6 +2,8 @@
 // The gelt coins play two short recordings from Kenney's RPG Audio pack (CC0, see public/assets/sounds/),
 // which the page's Sound loads. It uses that Sound for the on/off setting and the audio context.
 
+import { tone, whiteNoise } from "./sound.js";
+
 export class DreidelSound {
   constructor(sound) {
     this.sound = sound;
@@ -24,7 +26,7 @@ export class DreidelSound {
     const curve = (fn) => Float32Array.from({ length: steps }, (_, i) => fn(at(i)));
 
     const src = ctx.createBufferSource();
-    src.buffer = noise(ctx);
+    src.buffer = whiteNoise(ctx);
     src.loop = true;
     const filter = ctx.createBiquadFilter();
     filter.type = "bandpass";
@@ -126,27 +128,15 @@ export class DreidelSound {
   play(name, gain, at = 0) {
     const ctx = this.ctx;
     const coins = () => this.sound.sample([`gelt-${name}`], gain);
-    if (this.sound.samples?.[`gelt-${name}`]) return void setTimeout(coins, at * 1000);
+    if (this.sound.hasSample(`gelt-${name}`)) return void setTimeout(coins, at * 1000);
     for (let i = 0; i < (name === "pile" ? 5 : 2); i++) ping(ctx, ctx.currentTime + at + i * 0.06, 2400 + Math.random() * 900, 0.08, 0.03);
   }
-}
-
-// One second of white noise for each audio context.
-const noises = new WeakMap();
-function noise(ctx) {
-  let buf = noises.get(ctx);
-  if (buf) return buf;
-  buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  noises.set(ctx, buf);
-  return buf;
 }
 
 // A short burst of noise through a band-pass filter: the hard part of a knock on wood.
 function knock(ctx, t, { freq, dur, gain, q }) {
   const src = ctx.createBufferSource();
-  src.buffer = noise(ctx);
+  src.buffer = whiteNoise(ctx);
   const filter = ctx.createBiquadFilter();
   filter.type = "bandpass";
   filter.frequency.value = freq;
@@ -161,28 +151,10 @@ function knock(ctx, t, { freq, dur, gain, q }) {
 
 // A sine tone that dies away fast: the ring of the wood, or a coin.
 function ping(ctx, t, freq, dur, gain, slide = 0) {
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(freq, t);
-  if (slide) osc.frequency.linearRampToValueAtTime(freq + slide, t + dur);
-  const amp = ctx.createGain();
-  amp.gain.setValueAtTime(gain, t);
-  amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(amp).connect(ctx.destination);
-  osc.start(t);
-  osc.stop(t + dur + 0.02);
+  tone(ctx, t, freq, { dur, gain, slide, type: "sine" });
 }
 
-// One note of a tune, in the square wave of the other sounds on the page.
+// One note of a tune, in the square wave of the other sounds on the page, with a 5 ms attack.
 function note(ctx, t, freq, dur, gain, type = "square") {
-  const osc = ctx.createOscillator();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t);
-  const amp = ctx.createGain();
-  amp.gain.setValueAtTime(0, t);
-  amp.gain.linearRampToValueAtTime(gain, t + 0.005);
-  amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(amp).connect(ctx.destination);
-  osc.start(t);
-  osc.stop(t + dur + 0.02);
+  tone(ctx, t, freq, { dur, gain, type, attack: 0.005 });
 }

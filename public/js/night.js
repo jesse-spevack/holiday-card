@@ -10,8 +10,10 @@
 // The dialog grows while the host types, and the Turnstile check mounts under it, so the live stage changes size.
 // The art does not follow those changes. The canvas only covers the live bands, and the stage crops the rest.
 
-const ROOM_W = 256;
-const ROOM_H = 192;
+import { ROOM_W, ROOM_H } from "./room.js";
+import { PALETTE } from "./palette.js";
+import { loadCss } from "./dom.js";
+
 const CSS = "/night.css";
 
 // Bands smaller than this (in room pixels) stay plain.
@@ -25,8 +27,8 @@ const WORD_GAP = 5;
 
 // Colors from room.png and style.css.
 const P = {
-  ink: "#fffdf7",
-  gold: "#ffd27a",
+  ink: PALETTE.ink,
+  gold: PALETTE.gold,
   goldHi: "#fff4c2",
   goldDk: "#f6b74a",
   outline: "#2a1813",
@@ -45,7 +47,7 @@ const P = {
   star: "#c9ccd6",
   starDim: "#8a8ca8",
   starFaint: "#5c5f85",
-  line: "#4a4e7a",
+  line: PALETTE.line,
   moon: "#fffbe9",
   moonRim: "#fff4d6",
   moonEdge: "#e8d9b0",
@@ -55,7 +57,7 @@ const P = {
   smoke: "#7a7d9c",
 };
 // The sky gets lighter toward the room. The top color is the page background, so the sky has no seam.
-const SKY = ["#1b1a2e", "#1d1e34", "#20233b", "#232842", "#262e48", "#2a3450"];
+const SKY = [PALETTE.night, "#1d1e34", "#20233b", "#232842", "#262e48", "#2a3450"];
 const LIGHTS = [P.gold, "#7fb0ec", P.ink, "#ff9c8a", P.gold, "#9be3b0"];
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 const bayer = (x, y) => BAYER[((y & 3) << 2) | (x & 3)];
@@ -77,7 +79,9 @@ const rgba = (hex) => {
 };
 
 export class Night {
-  constructor({ stage, reducedMotion }) {
+  // clock: the scene. Its frames move the snow, the smoke, the stars, and the lights.
+  constructor({ stage, reducedMotion, clock }) {
+    this.clock = clock;
     this.stage = stage;
     this.reducedMotion = reducedMotion;
     this.canvas = Object.assign(document.createElement("canvas"), { className: "night" });
@@ -89,9 +93,7 @@ export class Night {
     this.greeting.hidden = true;
     // Both sit behind the room, so bubbles and the sprite editor always show on top.
     stage.prepend(this.canvas, this.greeting);
-    if (!document.querySelector(`link[href="${CSS}"]`)) {
-      document.head.append(Object.assign(document.createElement("link"), { rel: "stylesheet", href: CSS }));
-    }
+    loadCss(CSS);
     this.art = null; // the roof, eave, and moon, chosen for the stage at rest
     this.band = null; // the live bands that the canvas covers
     this.view = null;
@@ -410,7 +412,7 @@ export class Night {
         const arm = tw > -0.2 ? P.starDim : P.line;
         px(st.x - 1, st.y, arm); px(st.x + 1, st.y, arm); px(st.x, st.y - 1, arm); px(st.x, st.y + 1, arm);
       } else if (st.kind === "gold") {
-        px(st.x, st.y, tw > -0.5 ? P.gold : "#b98454");
+        px(st.x, st.y, tw > -0.5 ? P.gold : PALETTE.goldDark);
       } else {
         px(st.x, st.y, st.dim ? (tw > 0 ? P.starDim : P.starFaint) : tw > -0.7 ? P.star : P.starDim);
       }
@@ -524,17 +526,16 @@ export class Night {
     if (this.running) return;
     this.running = true;
     this.last = performance.now();
-    const frame = (now) => {
-      if (!this.running) return;
+    this.unsubscribe = this.clock.onFrame((now) => {
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
       this.draw(dt);
-      requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
+    });
   }
 
   stop() {
     this.running = false;
+    this.unsubscribe?.();
+    this.unsubscribe = null;
   }
 }
