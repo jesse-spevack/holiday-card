@@ -666,7 +666,7 @@ try {
     const miracles = await words();
     assert.equal(miracles.count, 1);
     assert.ok(miracles.box[1] >= 49, `the question sits under the menorah: ${miracles.box}`);
-    assert.ok(miracles.screen[0] >= 0 && miracles.screen[1] <= 390, `the question fits the screen: ${miracles.screen}`);
+    assert.ok(miracles.screen[0] >= 12 && miracles.screen[1] <= 378, `the question keeps clear of the screen edges: ${miracles.screen}`);
     assert.equal(miracles.fade, reduce === "no-preference");
     if (reduce === "no-preference") {
       await pe.waitForTimeout(700);

@@ -195,7 +195,9 @@ export class Eggs {
     el.textContent = words.text;
     el.style.setProperty("--ms", `${words.ms}ms`);
     this.scene.overlay.append(el);
-    this.scene.pin(el, words.x, words.y);
+    // Keep the words inside the room, 12 screen pixels or more from its edges.
+    const reach = ((el.offsetWidth / 2 + 12) / this.scene.overlay.clientWidth) * ROOM_W;
+    this.scene.pin(el, Math.min(Math.max(words.x, reach), ROOM_W - reach), words.y);
     this.words = { el, of: words };
     this.wordsTimer = setTimeout(() => this.hush(), words.ms);
   }
