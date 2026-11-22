@@ -627,6 +627,114 @@ try {
     await ctx.close();
   }
 
+  // the hidden pet reactions: a tap on a dog or a cat makes it hop or stretch, with a sound
+  const PETS = { families: [{ id: "pets1", name: "The Parks", members: [{ type: "adult", look: "t-dad" }, { type: "dog", look: "t-dog" }, { type: "cat", look: "t-cat" }], bubbles: ["", "", ""] }] };
+  const petCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+  const pp = await petCtx.newPage();
+  pp.on("pageerror", (e) => errors.push(String(e)));
+  await pp.route("**/api/**", fakeApi);
+  await pp.route("**/api/party", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(PETS) }));
+  await pp.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+  await pp.addInitScript(() => localStorage.setItem("hc.families", JSON.stringify([
+    { id: "fam12345", token: "tok", name: "The Garcia Family", members: [{ type: "adult", look: "t-mom" }, { type: "dog", look: "t-dog" }], bubbles: ["", ""] },
+  ])));
+  await pp.goto(base);
+  await pp.waitForFunction(() => window.__hc.scene.sprites.filter((s) => s.familyId === "pets1" || s.familyId === "fam12345").length === 5);
+  await assertTucks(pp);
+  // the guests stand still in clear spots, so a tap lands where the test aims
+  await pp.evaluate(() => {
+    const spots = { "pets1:0": [104, 118], "pets1:1": [124, 118], "pets1:2": [144, 118], "fam12345:0": [132, 148], "fam12345:1": [152, 148] };
+    window.__hc.scene.sprites.forEach((s) => {
+      const spot = spots[`${s.familyId}:${s.index}`];
+      if (spot) Object.assign(s, { x: spot[0], y: spot[1], home: { x: spot[0], y: spot[1] } });
+      Object.assign(s, { wander: false, path: null, bob: 0 });
+    });
+    const { sound } = window.__hc;
+    window.__sounds = [];
+    for (const name of ["woof", "mrrp", "select"]) {
+      const play = sound[name].bind(sound);
+      sound[name] = () => { window.__sounds.push(name); play(); };
+    }
+  });
+  const petSounds = () => pp.evaluate(() => window.__sounds.splice(0));
+  const reaction = (want) => pp.evaluate((w) => {
+    const s = window.__hc.scene.sprites.find((x) => x.familyId === w.familyId && x.type === w.type);
+    return s.react ? { kind: s.react.kind, ago: window.__hc.scene.time - s.react.at } : null;
+  }, want);
+
+  // another family's dog hops, woofs, and still shows the family's name
+  const dog = await pointOn(pp, { familyId: "pets1", type: "dog" });
+  await pp.touchscreen.tap(dog.x, dog.y);
+  await pp.locator(".tag", { hasText: "The Parks" }).waitFor();
+  assert.equal((await reaction({ familyId: "pets1", type: "dog" }))?.kind, "dog");
+  assert.deepEqual(await petSounds(), ["woof"]);
+  await pp.waitForTimeout(90);
+  await pp.screenshot({ path: `${OUT}/pet-dog.png` });
+
+  // another family's cat stretches, says mrrp, and shows a heart
+  const cat = await pointOn(pp, { familyId: "pets1", type: "cat" });
+  await pp.touchscreen.tap(cat.x, cat.y);
+  await pp.locator(".tag", { hasText: "The Parks" }).waitFor();
+  assert.equal((await reaction({ familyId: "pets1", type: "cat" }))?.kind, "cat");
+  assert.deepEqual(await petSounds(), ["mrrp"]);
+  await pp.waitForTimeout(300);
+  await pp.screenshot({ path: `${OUT}/pet-cat.png` });
+  assert.equal(await pp.locator(".pop").count(), 0, "another family's pet never opens the editor");
+
+  // your own pet reacts, and the editor opens too, with the woof in place of the chime
+  const ownDog = await pointOn(pp, { familyId: "fam12345", type: "dog" });
+  await pp.touchscreen.tap(ownDog.x, ownDog.y);
+  await pp.getByLabel("Say something").waitFor();
+  assert.equal((await reaction({ familyId: "fam12345", type: "dog" }))?.kind, "dog");
+  assert.deepEqual(await petSounds(), ["woof"]);
+  // a person in your family opens the editor with its chime, and does not react
+  await pp.touchscreen.tap(2, 2);
+  const ownMom = await pointOn(pp, { familyId: "fam12345", type: "adult" });
+  await pp.touchscreen.tap(ownMom.x, ownMom.y);
+  await pp.getByLabel("Say something").waitFor();
+  assert.equal(await reaction({ familyId: "fam12345", type: "adult" }), null);
+  assert.deepEqual(await petSounds(), ["select"]);
+
+  // the moves, the silly pets, reduced motion, and soft sounds
+  const petFacts = await pp.evaluate(async () => {
+    const { petPose, reactionKind, drawPet } = await import("/js/pets.js");
+    const { woof, mrrp, puff } = await import("/js/sound.js");
+    const lift = (still) => {
+      const moves = [];
+      const g = { save() {}, restore() {}, rotate() {}, scale() {}, drawImage() {}, translate: (x, y) => moves.push(y) };
+      drawPet(g, { img: { width: 10, height: 20 }, react: { kind: "dog", at: 0 } }, 0, 0, 0.11, still);
+      return 20 - moves[0];
+    };
+    const loud = async (play) => {
+      const ctx = new OfflineAudioContext(1, 48000, 48000);
+      play(ctx, ctx.destination);
+      const data = (await ctx.startRendering()).getChannelData(0);
+      let peak = 0, last = 0;
+      data.forEach((v, i) => { if (Math.abs(v) > peak) peak = Math.abs(v); if (Math.abs(v) > 0.001) last = i; });
+      return { peak, ms: (last / 48000) * 1000 };
+    };
+    return {
+      dogHop: petPose("dog", 0.11).dy,
+      catStretch: petPose("cat", 0.3).stretch,
+      after: petPose("dog", 5),
+      silly: ["dog-11", "dog-12", "cat-07", "cat-08", "dog-01", "cat-01"].map((look) => reactionKind({ look, type: look.slice(0, 3) })),
+      lift: lift(false),
+      stillLift: lift(true),
+      sounds: { woof: await loud(woof), mrrp: await loud(mrrp), puff: await loud(puff) },
+    };
+  });
+  assert.ok(petFacts.dogHop >= 3, `dog hop ${petFacts.dogHop}`);
+  assert.ok(petFacts.catStretch >= 2, `cat stretch ${petFacts.catStretch}`);
+  assert.deepEqual(petFacts.after, { dx: 0, dy: 0, tilt: 0, stretch: 0 });
+  assert.deepEqual(petFacts.silly, ["robot", "dragon", "alien", "penguin", "dog", "cat"]);
+  assert.ok(petFacts.lift >= 3, `a dog lifts ${petFacts.lift} pixels`);
+  assert.equal(petFacts.stillLift, 0, "with reduced motion, a pet does not hop");
+  for (const [name, { peak, ms }] of Object.entries(petFacts.sounds)) {
+    assert.ok(peak > 0.01 && peak < 0.2, `${name} peak ${peak}`);
+    assert.ok(ms > 100 && ms < 700, `${name} length ${ms} ms`);
+  }
+  await petCtx.close();
+
   assert.deepEqual(errors, []);
   console.log("e2e: all checks passed");
 } finally {
