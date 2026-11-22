@@ -122,7 +122,7 @@ describe("the toast", { concurrency: true }, () => {
           g.imageSmoothingEnabled = false;
           g.drawImage(document.getElementById("canvas"), x, y, w, h, 0, 0, w * k, h * k);
           return out.toDataURL("image/png").split(",")[1];
-        }, { x: 88, y: 94, w: 100, h: 74, k: 6 });
+        }, { x: 84, y: 94, w: 112, h: 74, k: 6 });
         await writeFile(`${OUT}/toast-zoom.png`, Buffer.from(png, "base64"));
       }
 
