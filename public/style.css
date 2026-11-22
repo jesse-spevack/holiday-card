@@ -185,3 +185,18 @@ button, input { font: inherit; }
 
 .turnstile { display: flex; justify-content: center; }
 .turnstile:not(:empty) { padding: 8px 0 12px; }
+
+/* Wide screens: the room fills the left side at full height, and the hosts talk in a column on the right. */
+@media (min-width: 900px) {
+  #app {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    grid-template-rows: 56px minmax(0, 1fr) auto;
+    grid-template-areas: "bar bar" "stage dialog" "stage turnstile";
+  }
+  .bar { grid-area: bar; }
+  .stage { grid-area: stage; margin: 0 0 24px 24px; min-height: 0; }
+  .dialog { grid-area: dialog; align-self: center; margin: 0 24px; max-height: calc(100dvh - 160px); }
+  .turnstile { grid-area: turnstile; padding-bottom: 24px; }
+}
