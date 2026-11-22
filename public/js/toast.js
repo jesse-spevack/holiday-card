@@ -1,6 +1,7 @@
 // The toast, a hidden extra. A tap on the wine on the dining table makes the whole party raise a glass.
-// Each person (not the pets) holds a small red wine glass in one hand, lifts it, and hops once.
-// The glasses clink, one of the two big hosts says a toast, and after about 2 seconds everyone lowers the glass.
+// Each grown-up holds a small red wine glass in one hand, and each kid and baby holds a mug of cocoa. The pets hold nothing.
+// Everyone lifts their cup and hops once. The glasses clink, one of the two big hosts says a toast,
+// and after about 2 seconds everyone lowers the cup.
 // The tap area is "wine" in HOTSPOTS (room.js). The scene draws this module as a layer (Scene.addLayer).
 
 import { eachPixel } from "./pixels.js";
@@ -18,33 +19,64 @@ export const TOAST_LINES = [
 // The hosts who can give the toast, by sprite id.
 const SPEAKERS = ["jessica", "jesse"];
 
-// A red wine glass from the side, in the colors of the glasses on the table (art/scripts/table_wine.py).
-// The room glasses stand on the table and need no outline. This glass shows on the floor, the rug, and clothes,
-// so a dark outline goes all round it. "." stays clear.
-const GLASS = [
-  "oxixo",
-  "oWWRo",
-  "oRRro",
-  ".oro.",
-  "..o..",
-  "..o..",
-  ".ooo.",
-];
-const GLASS_COLORS = {
-  o: "#090100", // outline
+// The cups, drawn from the side for a sprite that faces right. The cups on the table need no outline,
+// but these show on the floor, the rug, and clothes, so a dark outline goes all round each one. "." stays clear.
+// hold is the column and the row where the hand is. The hand closes round the stem of the wine glass (wrap).
+// The mug stands just outside the hand, with its handle on the far side. Its steam drifts above it in two frames.
+const OUTLINE = "#090100";
+const CUPS = {
+  // A red wine glass, in the colors of the glasses on the table (art/scripts/table_wine.py).
+  wine: {
+    rows: [
+      "oxixo",
+      "oWWRo",
+      "oRRro",
+      ".oro.",
+      "..o..",
+      "..o..",
+      ".ooo.",
+    ],
+    hold: { x: 2, y: 4 },
+    wrap: true,
+  },
+  // A cream mug of cocoa, in the colors of the mugs on the table.
+  cocoa: {
+    rows: [
+      "ooooo.",
+      "oHHHo.",
+      "okkKoo",
+      "okkKoo",
+      "okkKo.",
+      ".ooo..",
+    ],
+    hold: { x: -1, y: 3 },
+    steam: [
+      ["..s..", ".s...", "..s.."],
+      [".s...", "..s..", ".s..."],
+    ],
+  },
+};
+const CUP_COLORS = {
+  o: OUTLINE,
   r: "#4a101c", // wine, dark
   R: "#7a1a28", // wine
   W: "#a8343a", // wine, lit
   x: "#b8c0c6", // clear glass
   i: "#f8f5f1", // glint
+  H: "#7a4f38", // cocoa
+  k: "#edd7b6", // mug
+  K: "#d0b399", // mug, shade side
+  s: "#f8f5f1", // steam
 };
-// The stem column and the row that the hand holds, in GLASS.
-const STEM = { x: 2, y: 4 };
+// The steam shows each frame for this many seconds.
+const STEAM_FRAME = 0.35;
+// The kids and the babies hold cocoa. Audrey and Eddie are kids too (kid in HOSTS).
+const cupOf = (s) => (s.kid || s.type === "kid" || s.type === "baby" ? "cocoa" : "wine");
 
 // The times in the toast, in seconds from the tap.
-//   up: the hand and the glass rise one pixel at a time, `lift` pixels in all.
+//   up: the hand and the cup rise one pixel at a time, `lift` pixels in all.
 //   hop: each person hops once as the glasses clink, each at a slightly different time.
-//   down: the glass goes back down. end: the glasses go away. rest: after the end, a tap waits this long.
+//   down: the cup goes back down. end: the cups go away. rest: after the end, a tap waits this long.
 const T = { up: 0.12, lift: 1, hop: 0.15, hopLength: 0.28, hopHeight: 2, hopSpread: 0.25, down: 2.45, end: 2.75, rest: 0.6 };
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -81,8 +113,8 @@ export class Toast {
       t0: time,
       speaker,
       line,
-      people: people.map((s) => ({ sprite: s, hop: rand(0, T.hopSpread) })),
-      holds: new Set(people),
+      people: people.map((s) => ({ sprite: s, hop: rand(0, T.hopSpread), cup: cupOf(s) })),
+      holds: new Map(people.map((s) => [s, cupOf(s)])),
     };
     // Everyone stops where they stand for the toast, and stays a moment after it.
     for (const s of people) {
@@ -94,7 +126,7 @@ export class Toast {
     return true;
   }
 
-  // How high the glass is above the hand at `age` seconds into the toast.
+  // How high the cup and the hand are above the hand as drawn, at `age` seconds into the toast.
   liftAt(age) {
     if (this.reducedMotion) return T.lift;
     if (age < T.down) return Math.min(T.lift, Math.floor(age / T.up));
@@ -123,41 +155,52 @@ export class Toast {
     for (const p of t.people) p.sprite.rise = this.hopAt(age, p.hop);
   }
 
-  // Draws the glass in the hand of sprite `s`, right after the scene draws the sprite with its top-left corner at (x, y).
+  // Draws the cup in the hand of sprite `s`, right after the scene draws the sprite with its top-left corner at (x, y).
   drawOn(g, s, x, y) {
     const t = this.toast;
-    if (!t || !t.holds.has(s)) return;
-    const glass = this.glassFor(s, x, y);
-    if (!glass) return;
+    const kind = t?.holds.get(s);
+    if (!kind) return;
+    const cup = this.cupFor(s, x, y, kind);
+    if (!cup) return;
+    const art = CUPS[kind];
     const put = (px, py, color) => {
       g.fillStyle = color;
       g.fillRect(px, py, 1, 1);
     };
-    eachPixel(GLASS, GLASS_COLORS, (i, j, color) => put(glass.x + i, glass.y + j, color), { flipX: s.flip });
-    // The hand closes round the stem: a skin pixel with an outline pixel outside it.
-    // With the glass up, the wrist (skin) and the arm's outline reach down to the hand as drawn.
-    const { hand, lift, dir } = glass;
+    const flipX = s.flip;
+    eachPixel(art.rows, CUP_COLORS, (i, j, color) => put(cup.x + i, cup.y + j, color), { flipX });
+    if (art.steam) {
+      const frame = this.reducedMotion ? 0 : Math.floor((this.scene.time - t.t0) / STEAM_FRAME) % art.steam.length;
+      const steam = art.steam[frame];
+      const dx = flipX ? art.rows[0].length - steam[0].length : 0;
+      eachPixel(steam, CUP_COLORS, (i, j, color) => put(cup.x + dx + i, cup.y - steam.length + j, color), { flipX });
+    }
+    // The hand holds the cup: a skin pixel, one more for each pixel of lift, so the wrist reaches the hand as drawn.
+    // The wine glass's stem goes through the hand, so an outline pixel closes the hand on the far side of the stem.
+    const { hand, lift, dir } = cup;
     for (let k = 0; k <= lift; k++) {
       put(hand.x, hand.y - k, hand.skin);
-      put(hand.x + dir, hand.y - k, GLASS_COLORS.o);
+      if (art.wrap) put(hand.x + dir, hand.y - k, OUTLINE);
     }
   }
 
-  // Where the glass and the hand that holds it are now, in room pixels. Null when the sprite has no hand to hold it.
-  glassFor(s, x, y) {
+  // Where the cup and the hand that holds it are now, in room pixels. Null when the sprite has no hand to hold it.
+  cupFor(s, x, y, kind) {
     const hand = this.handOf(s.img);
     if (!hand) return null;
-    const age = this.scene.time - this.toast.t0;
-    const lift = this.liftAt(age);
+    const art = CUPS[kind];
+    const lift = this.liftAt(this.scene.time - this.toast.t0);
     const w = s.img.width;
-    // The glass sits one pixel outside the hand, on the hand's side of the sprite. A flipped sprite holds it on the other side.
+    // The hand reaches one pixel past the arm, on the hand's side of the sprite. A flipped sprite holds the cup on the other side.
     const dir = s.flip ? -1 : 1;
     const handX = x + (s.flip ? w - 1 - hand.x : hand.x) + dir;
     const handY = y + hand.y;
-    const stemX = s.flip ? GLASS[0].length - 1 - STEM.x : STEM.x;
+    const holdX = s.flip ? art.rows[0].length - 1 - art.hold.x : art.hold.x;
     return {
-      x: handX - stemX,
-      y: handY - lift - STEM.y,
+      x: handX - holdX,
+      y: handY - lift - art.hold.y,
+      w: art.rows[0].length,
+      h: art.rows.length,
       lift,
       dir,
       hand: { x: handX, y: handY, skin: hand.skin },
@@ -188,11 +231,11 @@ export class Toast {
       line: t?.line ?? null,
       lift: t ? this.liftAt(age) : 0,
       readyIn: t ? T.end + T.rest - age : Math.max(0, this.readyAt - time),
-      people: t ? t.people.map(({ sprite: s }) => {
-        const glass = this.glassFor(s, Math.round(s.x - s.img.width / 2), Math.round(s.y - s.img.height - s.bob - s.rise));
+      people: t ? t.people.map(({ sprite: s, cup: kind }) => {
+        const cup = this.cupFor(s, Math.round(s.x - s.img.width / 2), Math.round(s.y - s.img.height - s.bob - s.rise), kind);
         return {
           familyId: s.familyId, index: s.index, name: s.name ?? null, flip: s.flip, hop: s.rise,
-          glass: glass && { x: glass.x, y: glass.y, w: GLASS[0].length, h: GLASS.length, stem: glass.hand.x, lift: glass.lift },
+          cup: cup && { kind, x: cup.x, y: cup.y, w: cup.w, h: cup.h, hand: cup.hand.x, lift: cup.lift },
         };
       }) : [],
     };

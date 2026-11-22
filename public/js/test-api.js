@@ -127,8 +127,8 @@ export function testApi({ scene, sound, eggs, dreidel, toast, found }) {
       };
     },
     sendWaymo: () => eggs.waymo(),
-    // The toast: { on, age, speaker, line, lift, readyIn, people: [{ familyId, index, name, flip, hop, glass: { x, y, w, h, stem, lift } }] }.
-    // stem is the column of the glass stem, where the hand holds it.
+    // The toast: { on, age, speaker, line, lift, readyIn, people: [{ familyId, index, name, flip, hop, cup }] }.
+    // cup is { kind: "wine" or "cocoa", x, y, w, h, hand, lift } in room pixels. hand is the column of the hand that holds it.
     toast: () => toast.state(),
     toastLines: () => [...TOAST_LINES],
     found: (...eggs) => { for (const egg of eggs) found.add(egg); },

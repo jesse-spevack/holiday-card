@@ -15,11 +15,12 @@ const TAP_PAD = 2;
 const PRESS = { seconds: 0.45, gold: PALETTE.gold, dark: "#2a1813", arm: 4, gap: 2 };
 
 // Each host has a home spot and places to visit. Jess and Jesse also visit the guests. Eddie walks with Audrey.
+// Audrey and Eddie are kids, so they toast with cocoa (toast.js).
 export const HOSTS = [
   { id: "jessica", name: "Jess", x: 153, y: 130, places: ["table", "rug", "fire"], mingle: true },
   { id: "jesse", name: "Jesse", x: 171, y: 130, places: ["table", "rug", "fire"], mingle: true },
-  { id: "daughter", name: "Audrey", x: 98, y: 160, places: ["rug", "fire", "presents", "table"] },
-  { id: "son", name: "Eddie", x: 114, y: 162, follow: "daughter" },
+  { id: "daughter", name: "Audrey", x: 98, y: 160, places: ["rug", "fire", "presents", "table"], kid: true },
+  { id: "son", name: "Eddie", x: 114, y: 162, follow: "daughter", kid: true },
 ];
 // What each host says when a guest taps them. Most lines thank the guest. A line with an egg hints at a hidden
 // thing in the room (app.js drops it after the guest finds that thing).
