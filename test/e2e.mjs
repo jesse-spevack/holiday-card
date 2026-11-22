@@ -120,6 +120,33 @@ async function assertWholeRoom(pg, what) {
   assert.ok(fit.ok, `${what}: ${JSON.stringify(fit)}`);
 }
 
+// The snowy night around the room: is the sky canvas showing, does the gable roof sit right above the room,
+// and is the greeting showing under the room?
+const nightState = (pg) => pg.evaluate(() => {
+  const night = document.querySelector(".night");
+  const greeting = document.querySelector(".night-greeting");
+  const wr = document.getElementById("world").getBoundingClientRect();
+  const st = document.getElementById("stage").getBoundingClientRect();
+  const out = { sky: !!night && !night.hidden, greeting: !!greeting && !greeting.hidden && greeting.innerText.replace(/\s+/g, " ").trim() };
+  if (!out.sky) return out;
+  const nr = night.getBoundingClientRect();
+  const scale = wr.width / 256;
+  // room pixel (128, -10) is the gable wall right above the middle of the room; (2, top row) is open sky
+  const at = (x, y) => {
+    const X = Math.round((wr.left + x * scale - nr.left) / scale);
+    const Y = Math.round((wr.top + y * scale - nr.top) / scale);
+    return [...night.getContext("2d").getImageData(X, Y, 1, 1).data.slice(0, 3)];
+  };
+  out.gable = at(128, -10);
+  out.sky0 = at(2, Math.ceil((st.top - wr.top) / scale) + 1);
+  out.aboveRoom = nr.top < wr.top - 20;
+  if (out.greeting) {
+    const gr = greeting.getBoundingClientRect();
+    out.greetingBelowRoom = gr.top >= wr.bottom - 1 && gr.bottom <= st.bottom + 1;
+  }
+  return out;
+});
+
 // After the thank-you, the dialog slides away within about 8 seconds and the top bar offers "Add another address".
 async function assertTucks(pg) {
   const started = Date.now();
@@ -191,8 +218,19 @@ try {
   await say.filter({ hasText: "Thank you. You mean a lot to us." }).waitFor();
   await page.locator("#dialog .hint").filter({ hasText: "Then poke around the room. A few things in here might surprise you." }).waitFor();
   assert.ok(await page.locator("#dialog").isVisible());
+  // while the dialog shows, the greeting stays away
+  assert.equal((await nightState(page)).greeting, false);
   await assertTucks(page);
   await assertWholeRoom(page, "phone, thank-you hidden");
+  // a tall phone fills the bands: a night sky with a snowy roof above the room, and the greeting below it
+  await page.locator(".night-greeting").waitFor();
+  const night = await nightState(page);
+  assert.ok(night.sky && night.aboveRoom, JSON.stringify(night));
+  assert.deepEqual(night.gable, [0x34, 0x40, 0x5f], `the gable wall sits above the room: ${JSON.stringify(night)}`);
+  assert.ok(night.sky0.every((c, i) => Math.abs(c - [0x1b, 0x1a, 0x2e][i]) <= 6), `the sky starts at the page color: ${JSON.stringify(night)}`);
+  assert.equal(night.greeting, "Happy holidays from Jesse, Jess, Audrey & Eddie");
+  assert.ok(night.greetingBelowRoom, JSON.stringify(night));
+  await assertWholeRoom(page, "phone, with the night around the room");
   await page.screenshot({ path: `${OUT}/5-tucked.png` });
 
   const submitted = calls.filter((c) => c.path === "/api/submit").at(-1).body;
@@ -299,6 +337,7 @@ try {
   await page.getByRole("button", { name: "Add another address" }).click();
   await say.filter({ hasText: "Whose name goes on the envelope?" }).waitFor();
   assert.ok(await page.locator("#dialog").isVisible());
+  await page.locator(".night-greeting").waitFor({ state: "hidden" });
   assert.ok(await page.getByRole("button", { name: "Add another address" }).isHidden());
   await assertWholeRoom(page, "phone, after restart");
 
@@ -384,6 +423,8 @@ try {
   await assertTucks(p4);
   await assertWholeRoom(p4, "desktop, thank-you hidden");
   assert.ok((await wholeRoom(p4)).stage[2] > deskStage + 300);
+  // a wide desktop has no bands above and below the room, so it stays plain
+  assert.deepEqual(await nightState(p4), { sky: false, greeting: false });
   await p4.screenshot({ path: `${OUT}/8-desktop-tucked.png` });
 
   // the hidden photo album: tap the book on the sofa, turn a page, close it

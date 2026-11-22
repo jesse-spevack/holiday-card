@@ -16,6 +16,7 @@ The pixel-art living room party is decoration and a thank-you.
 | Hidden pet reactions (a tap on a dog or a cat) | `public/js/pets.js`, with the sounds in `public/js/sound.js` |
 | Look picker ("New look") | `public/js/picker.js`, with ages in `public/assets/looks.json` |
 | Sound effects | `public/js/sound.js` |
+| Snowy night around the room (sky, roof, greeting) | `public/js/night.js`, `public/night.css` |
 | Hidden photo album (the book on the sofa) | `public/js/album.js`, `public/album.css`, `src/album.ts` |
 | Hidden room extras (Waymo, shooting star, menorah, floor lamp) | `public/js/eggs.js`, with the tap areas in `HOTSPOTS` in `public/js/scene.js` |
 | Markup and styles | `public/index.html`, `public/style.css` |
@@ -38,6 +39,7 @@ The hosts ("Jesse & Jess") ask one question at a time in a dialog box.
    "Yes, send it" starts the door arrival at once and calls `POST /api/submit` during it. On failure, the button works again.
 5. **Done**: the browser saves `{id, token, name, members, bubbles}` in localStorage key `hc.families`. A return visit goes straight to the party.
    After 7 seconds, the thank-you slides away and the camera shows the whole room. "Add another address" in the top bar brings back step 1.
+   On a tall screen, the room then sits under a snowy roof in a night sky, with "Happy holidays from Jesse, Jess, Audrey & Eddie" below it.
 
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 

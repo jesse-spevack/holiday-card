@@ -5,6 +5,7 @@ import { openPicker } from "./js/picker.js";
 import { Album } from "./js/album.js";
 import { Eggs } from "./js/eggs.js";
 import { react } from "./js/pets.js";
+import { Night } from "./js/night.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -15,6 +16,8 @@ const dialog = $("dialog");
 const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => { scene.bookHidden = !on; } });
 scene.eggs = new Eggs({ scene, sound, reducedMotion });
 scene.onHotspot = (id) => (id === "book" ? album.open() : scene.eggs.tap(id));
+const night = new Night({ stage: $("stage"), reducedMotion });
+scene.onLayout = (view) => night.layout(view);
 const again = $("again");
 const TUCK_MS = 7000;
 const SAVED = "hc.families";
@@ -358,6 +361,7 @@ function tuck(away) {
     dialog.style.height = "";
   }
   app.classList.toggle("tucked", away);
+  night.showGreeting(away);
   if (away && hadFocus) again.focus();
 }
 

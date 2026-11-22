@@ -1,0 +1,27 @@
+/* The snowy night around the room (public/js/night.js). */
+.night {
+  position: absolute;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.night[hidden], .night-greeting[hidden] { display: none; }
+.night-greeting {
+  position: absolute; left: 0; right: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 0 16px;
+  text-align: center;
+  pointer-events: none;
+  animation: night-in 600ms ease both;
+}
+.night-greeting p { margin: 0; }
+.night-hi {
+  font-family: var(--pixel); font-weight: 600; font-size: 30px; line-height: 1.1;
+  color: var(--gold);
+  text-shadow: 0 3px 0 #6b4a35;
+}
+.night-from { font-family: var(--pixel); font-size: 18px; line-height: 1.3; color: var(--ink); }
+@keyframes night-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .night-greeting { animation: none; }
+}
