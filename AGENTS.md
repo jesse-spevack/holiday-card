@@ -163,6 +163,7 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
   The originals and `captions.json` stay in `~/Pictures/holiday-card-album/`. `python3 art/scripts/album.py` strips the metadata and uploads them.
 - Never commit a screenshot that shows a real guest's name, address, or family. Use `pnpm e2e` or `pnpm dev` data for screenshots.
 - To hide a family or a chat bubble, set `families.hidden` or `members.bubble_hidden` to 1 in D1. There is no admin page yet.
+- To read, fix, or delete a row in the contact Sheet, use the service account in `apps-script/README.md` ("Maintain the Sheet"). Do not change the Apps Script for this.
 
 ## Secrets and bindings
 
@@ -190,10 +191,13 @@ A new secret goes in `secrets.required` in `wrangler.jsonc`, in `.dev.vars.examp
 
 - Make a worktree for each change: `git worktree add -b <type>/<name> ~/code/holiday-card-<name> origin/main`. Never commit to main.
 - One branch, one PR, squash merge. Do not merge your own PR unless the orchestrator tells you to.
+- The squash commit subject uses a semantic prefix and the PR number, for example `feat: a tap on the fire makes it crackle (#41)`. Pass it with `gh pr merge --squash --subject`. Do not keep the PR title as the subject.
 - Commits use semantic prefixes: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`.
 - There are no GitHub Actions. You run the checks: `pnpm test`, and `pnpm e2e` for a page change.
 - Check a branch with `pnpm preview`. Never deploy a branch.
 - Delete files with `/usr/bin/trash`. Never use `rm -rf`.
+- Several agents often work at the same time on this machine. Put your temporary files in a subfolder with your own name, never straight in a shared scratch folder.
+- Stop only the processes that you started. Never use a broad `pkill`, for example on `node --test`, because it can stop another agent's tests.
 - Remove your worktree with `git worktree remove` after the PR merges.
 - Write in ASD-STE100 Simplified Technical English: active voice, short sentences, one idea in a sentence. This applies to code comments, commits, PRs, and docs.
 - Never use an em dash. Use a plain dash "-".
