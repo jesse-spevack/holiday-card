@@ -335,10 +335,13 @@ const image = (src) => {
 };
 const lookById = (id) => Object.values(state.looks).flat().find((l) => l.id === id);
 
+// A family arrives in regular looks. The silly ones (robots, aliens, and more) come only from "New look".
 function assignLooks(members) {
   const used = new Set();
   return members.map(({ type }) => {
-    const options = state.looks[type]?.length ? state.looks[type] : state.looks.adult || [];
+    const all = state.looks[type]?.length ? state.looks[type] : state.looks.adult || [];
+    const regular = all.filter((l) => !l.silly);
+    const options = regular.length ? regular : all;
     const fresh = options.filter((l) => !used.has(l.id));
     const pool = fresh.length ? fresh : options;
     const look = pool[Math.floor(Math.random() * pool.length)];

@@ -3,3 +3,4 @@ node_modules/
 .dev.vars
 apps-script/Secret.js
 build/
+__pycache__/
