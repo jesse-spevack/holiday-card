@@ -102,8 +102,12 @@ describe("the plants", { concurrency: true }, () => {
       const moment = (await hc.plants()).moment;
       assert.ok(moment.petals.length >= 40, `petals fill the room: ${moment.petals.length}`);
       // Most petals show in their own color. A few hide behind a twinkle, a person, or another petal.
-      const shown = await page.evaluate((ps) => ps.filter((p) => window.__hc.pixel(p.x, p.y) === p.color).length, moment.petals);
-      assert.ok(shown >= moment.petals.length * 0.6, `${shown} of ${moment.petals.length} petals show`);
+      // The petals move each frame, so one call reads both the petals and the canvas.
+      const { shown, all } = await page.evaluate(() => {
+        const ps = window.__hc.plants().moment.petals;
+        return { shown: ps.filter((p) => window.__hc.pixel(p.x, p.y) === p.color).length, all: ps.length };
+      });
+      assert.ok(shown >= all * 0.6, `${shown} of ${all} petals show`);
       if (name !== "phone-still") {
         await page.screenshot({ path: `${OUT}/plants-${name}-room.png` });
         if (name === "phone") await zoomShot(page, `${OUT}/plants-zoom-room.png`, { x: 0, y: 0, w: 256, h: 192, k: 4 });
@@ -190,7 +194,7 @@ describe("the plants", { concurrency: true }, () => {
     const { flowers, moment } = await hc.plants();
     for (const f of flowers) assert.notEqual(await hc.pixel(f.x, f.y), f.center, `${f.plant}: the flower at ${f.x}, ${f.y} is dark`);
     assert.ok(moment.petals.length >= 40);
-    const bright = await page.evaluate((ps) => ps.filter((p) => window.__hc.pixel(p.x, p.y) === p.color).length, moment.petals);
+    const bright = await page.evaluate(() => window.__hc.plants().moment.petals.filter((p) => window.__hc.pixel(p.x, p.y) === p.color).length);
     assert.equal(bright, 0, "no petal shows in full light");
     await zoomShot(page, `${OUT}/plants-zoom-dark.png`, { x: 0, y: 0, w: 256, h: 192, k: 4 });
   });
