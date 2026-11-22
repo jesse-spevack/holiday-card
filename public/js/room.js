@@ -27,6 +27,7 @@ export const WINDOW = {
 // The ground outside the window, where the Waymo drives. The car's wheels touch this row.
 export const ROAD_Y = 47;
 
+// The fireplace opening with its dark frame.
 export const FIRE = { x: 112, y: 44, w: 32, h: 24 };
 // The candle flames are the bright yellow pixels in this box.
 export const CANDLES = { x0: 188, y0: 34, x1: 212, y1: 46 };
@@ -75,6 +76,8 @@ export const HOTSPOTS = [
   { id: "dreidel-right", x: 214, y: 45, w: 11, h: 15 },
   { id: "wine", ...WINE },
   ...Object.entries(PLANTS).map(([id, { x, y, w, h }]) => ({ id, x, y, w, h })),
+  // The fireplace opening with its frame. A tap makes the fire crackle and throw sparks (fire.js).
+  { id: "fire", ...FIRE },
   { id: "window", x: 162, y: 6, w: 80, h: 38, back: true },
 ];
 

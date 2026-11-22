@@ -111,6 +111,9 @@ export class Sound {
     }
   }
 
+  // A tap on the fire (fire.js): the fire roars up, then crackles and pops.
+  crackle() { if (this.ready()) crackle(this.ctx, this.ctx.destination); }
+
   // A soft bell. Each step is one note higher on a pentatonic scale, from C5.
   chime(step = 0) {
     const semis = [0, 2, 4, 7, 9][step % 5] + 12 * Math.floor(step / 5);
@@ -297,6 +300,46 @@ export function puff(ctx, out, { at = 0 } = {}) {
   fire.filter.frequency.exponentialRampToValueAtTime(700, t + 0.4);
   fire.gain.linearRampToValueAtTime(0.13, t + 0.04);
   fire.gain.linearRampToValueAtTime(0, t + 0.4);
+}
+
+// A happy fire crackle, about 0.7 seconds long. First a warm roar: low noise that swells and opens up, like a breath of air
+// into the fire. Over it, two or three soft pops of wood, then a quick run of small crackles that thin out.
+// Each crackle is a tiny click of noise at a random pitch and time, so no two taps sound the same.
+// The clicks stay below 3600 Hz and die away in a few milliseconds, so the sound is loud but not harsh.
+export function crackle(ctx, out, { at = 0 } = {}) {
+  const r = () => Math.random();
+  const t = ctx.currentTime + at;
+  const roar = burst(ctx, out, t, 0.55, "lowpass");
+  roar.filter.Q.value = 0.5;
+  roar.filter.frequency.setValueAtTime(260, t);
+  roar.filter.frequency.exponentialRampToValueAtTime(1300, t + 0.09);
+  roar.filter.frequency.exponentialRampToValueAtTime(320, t + 0.55);
+  roar.gain.linearRampToValueAtTime(0.26, t + 0.05);
+  roar.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+
+  const pops = 2 + Math.floor(r() * 2);
+  for (let i = 0; i < pops; i++) {
+    const p = t + 0.02 + i * (0.08 + r() * 0.08);
+    tone(ctx, p, 150 + r() * 60, { dur: 0.07, type: "sine", gain: 0.16, slide: -90, out });
+    const knock = burst(ctx, out, p, 0.05, "bandpass");
+    knock.filter.frequency.value = 700 + r() * 400;
+    knock.filter.Q.value = 0.9;
+    knock.gain.linearRampToValueAtTime(0.32, p + 0.003);
+    knock.gain.exponentialRampToValueAtTime(0.0001, p + 0.05);
+  }
+
+  const clicks = 12 + Math.floor(r() * 6);
+  for (let i = 0; i < clicks; i++) {
+    // Most crackles come early, and they thin out toward the end.
+    const c = t + 0.03 + 0.62 * r() ** 1.6;
+    const fade = 1 - (c - t) / 0.75;
+    const dur = 0.008 + r() * 0.014;
+    const click = burst(ctx, out, c, dur, "bandpass");
+    click.filter.frequency.value = 1400 + r() * 2200;
+    click.filter.Q.value = 1.6;
+    click.gain.linearRampToValueAtTime((0.22 + r() * 0.26) * fade, c + 0.001);
+    click.gain.exponentialRampToValueAtTime(0.0001, c + dur);
+  }
 }
 
 // A soft paper swish: noise through a band-pass filter that sweeps up and back down, then a small low flop.

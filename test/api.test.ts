@@ -440,6 +440,15 @@ describe("interaction", () => {
     expect(response.status).toBe(404);
   });
 
+  it("counts a tap on the fire", async () => {
+    const { id, token } = await submitFamily();
+
+    const response = await post("/api/interaction", { id, token, egg: "fire" });
+
+    expect(response.status).toBe(204);
+    expect((await rows(id)).map(({ egg, count }) => ({ egg, count }))).toEqual([{ egg: "fire", count: 1 }]);
+  });
+
   it.each([["nope"], ["LAMP"], [""], [3], [null]])("rejects the egg %o", async (egg) => {
     const { id, token } = await submitFamily();
 

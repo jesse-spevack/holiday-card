@@ -7,7 +7,7 @@ import { HOTSPOTS, DREIDELS, FLOOR, WINDOW, PLANTS } from "./room.js";
 import { TOAST_LINES } from "./toast.js";
 import { CARS } from "./eggs.js";
 
-export function testApi({ scene, sound, eggs, dreidel, toast, plants, album, found, tracking }) {
+export function testApi({ scene, sound, eggs, dreidel, toast, plants, fire, album, found, tracking }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -159,6 +159,9 @@ export function testApi({ scene, sound, eggs, dreidel, toast, plants, album, fou
       const [r, g, b] = scene.ctx.getImageData(x, y, 1, 1).data;
       return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
     },
+    // The fire: { bursts, sparks, embers, flare, moving, box, max, bounds }. flare goes from 1 right after a tap to 0.
+    // box holds every spark and ember now, and bounds is the box they must stay in, both in room pixels.
+    fire: () => fire.state(),
     found: (...eggs) => { for (const egg of eggs) found.add(egg); },
     // The time in ms between two interaction calls for the same egg (app.js track). The page uses 5000.
     trackGap: (ms) => { tracking.gapMs = ms; },

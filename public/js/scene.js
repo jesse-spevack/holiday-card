@@ -34,6 +34,7 @@ export const HOST_LINES = {
     hint("menorah", "The candles by the window have a question."),
     hint("star", "The window is good for wishes."),
     hint("toast", "Those glasses won't raise themselves."),
+    hint("fire", "Poke the fire. It likes attention."),
   ],
   jesse: [
     "Happy holidays!",
