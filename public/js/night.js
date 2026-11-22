@@ -89,7 +89,7 @@ export class Night {
     this.ctx = this.canvas.getContext("2d");
     this.greeting = document.createElement("div");
     this.greeting.className = "night-greeting";
-    this.greeting.innerHTML = '<p class="night-hi">Happy holidays</p><p class="night-from">from Jesse, Jess, Audrey &amp; Eddie</p>';
+    this.greeting.innerHTML = '<p class="night-hi">Happy holidays</p><p class="night-from">from Jesse, Jess, Eddie &amp; Audrey Spevack</p>';
     this.greeting.hidden = true;
     // Both sit behind the room, so bubbles and the sprite editor always show on top.
     stage.prepend(this.canvas, this.greeting);
