@@ -21,11 +21,13 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
 
 - The party shows the household name only.
 - Addresses and family member names are never shown.
-- Jesse can hide any chat bubble from the Sheet.
+- Jesse can hide any chat bubble.
 
 ## Data
 
-- Each entry goes into a Google Sheet through an Apps Script on that Sheet.
+- The Google Sheet is the contact list only: name, household, and mailing address.
+  An Apps Script on the Sheet adds one row for each sign-up. See `apps-script/`.
+- Party data (family members, sprite looks, chat bubbles) does not go in the Sheet.
 - Duplicates are kept. Jesse cleans them up.
 
 ## Look
@@ -52,7 +54,7 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
 ## Setup tasks for Jesse
 
 1. Cloudflare: create a project and point the `hi` subdomain at it.
-2. Google Sheet: create it, then paste in the Apps Script.
+2. Google Sheet: done with clasp. Jesse approved the script.
 3. Google Cloud: turn on billing with a budget alert, turn on Places API (New), and create a key limited to that API.
 4. Cloudflare secrets: add the OpenRouter key and the Google key.
 
