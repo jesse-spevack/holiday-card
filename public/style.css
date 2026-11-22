@@ -312,21 +312,33 @@ button, input { font: inherit; }
   .picker-body { padding: 4px 16px 24px; }
 }
 
-/* "Make a wish" under the window, after a shooting star. */
+/* Words from the room extras: "Make a wish" on the window glass, and the menorah's question under the sill.
+   A long line wraps into two balanced lines on a narrow room. */
 .wish {
   position: absolute;
   transform: translate(-50%, 0);
-  white-space: nowrap;
+  width: max-content;
+  max-width: 40%;
+  text-align: center;
+  text-wrap: balance;
   pointer-events: none;
   font-size: 14px;
   color: var(--gold);
   background: rgba(27, 26, 46, 0.82);
   padding: 2px 8px 3px;
   border-radius: 3px;
-  animation: wish 2200ms ease both;
+  animation: wish var(--ms, 2200ms) ease both;
+}
+/* On the night sky, a dark outline in place of the box keeps the letters clear and lets the star show through. */
+.wish.sky {
+  background: none;
+  text-shadow: -1px 0 #1b1a2e, 1px 0 #1b1a2e, 0 -1px #1b1a2e, 0 1px #1b1a2e, 0 0 6px rgba(27, 26, 46, 0.9);
 }
 @keyframes wish {
   0% { opacity: 0; }
   20%, 75% { opacity: 1; }
   100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wish { animation: none; }
 }

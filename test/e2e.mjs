@@ -621,12 +621,32 @@ try {
     assert.equal(await pe.locator(".wish").count(), 0);
     assert.deepEqual(await sounds(), []);
 
-    // the window: a shooting star and "Make a wish" for about 2 seconds
+    // The box of the words on screen, in room pixels, and whether they fade.
+    const words = () => pe.evaluate(() => {
+      const els = [...document.querySelectorAll(".wish")];
+      const v = window.__hc.scene.view;
+      const st = document.getElementById("stage").getBoundingClientRect();
+      const r = els[0]?.getBoundingClientRect();
+      const room = (px, py) => [(px - st.left - v.left) / v.scale, (py - st.top - v.top) / v.scale];
+      return {
+        count: els.length,
+        text: els[0]?.textContent,
+        box: r && [...room(r.left, r.top), ...room(r.right, r.bottom)],
+        screen: r && [r.left, r.right],
+        fade: els[0] && getComputedStyle(els[0]).animationName !== "none",
+      };
+    });
+
+    // the window: a shooting star and "Make a wish" for about 2 seconds, high on the glass and clear of the menorah
     const win = await spot("window");
     await tapRoom(win.x, win.y);
     await pe.locator(".wish", { hasText: "Make a wish" }).waitFor();
     assert.ok(await eggs(() => !!window.__hc.scene.eggs.star));
     assert.deepEqual(await sounds(), ["sparkle"]);
+    const wish = await words();
+    const [left, top, right, bottom] = wish.box;
+    assert.ok(left >= 163 && right <= 238 && top >= 8 && bottom <= 30, `the wish sits on the glass: ${wish.box}`);
+    assert.equal(wish.fade, reduce === "no-preference");
     await pe.locator(".wish").waitFor({ state: "detached", timeout: 3000 });
 
     // the menorah: the flames go out, then light one by one with a rising chime each
@@ -639,7 +659,34 @@ try {
     if (reduce === "no-preference") await pe.screenshot({ path: `${OUT}/egg-menorah.png` });
     await pe.waitForFunction(() => !window.__hc.scene.eggs.lighting, null, { timeout: 6000 });
     assert.deepEqual(await sounds(), ["snuff", ...Array.from({ length: total }, (_, i) => `chime:${i}`)]);
-    assert.equal(await pe.locator(".wish").count(), 0, "the menorah never sends a star");
+    assert.equal(await eggs(() => window.__hc.scene.eggs.star), null, "the menorah never sends a star");
+
+    // after the last candle, the menorah asks about miracles under the sill, inside the screen, for about 3.5 seconds
+    await pe.locator(".wish", { hasText: "What miracles are you grateful for?" }).waitFor({ timeout: 1000 });
+    const miracles = await words();
+    assert.equal(miracles.count, 1);
+    assert.ok(miracles.box[1] >= 49, `the question sits under the menorah: ${miracles.box}`);
+    assert.ok(miracles.screen[0] >= 12 && miracles.screen[1] <= 378, `the question keeps clear of the screen edges: ${miracles.screen}`);
+    assert.equal(miracles.fade, reduce === "no-preference");
+    if (reduce === "no-preference") {
+      await pe.waitForTimeout(700);
+      await pe.screenshot({ path: `${OUT}/egg-miracles.png` });
+    }
+
+    // a tap on the window now replaces the question with the wish, so the two never overlap
+    await tapRoom(win.x, win.y);
+    await pe.locator(".wish", { hasText: "Make a wish" }).waitFor();
+    assert.equal((await words()).count, 1);
+    assert.deepEqual(await sounds(), ["sparkle"]);
+    await pe.locator(".wish").waitFor({ state: "detached", timeout: 3000 });
+
+    // the question goes away on its own
+    await tapRoom(menorah.x, menorah.y);
+    await pe.locator(".wish", { hasText: "What miracles" }).waitFor({ timeout: 6000 });
+    const shown = Date.now();
+    await pe.locator(".wish").waitFor({ state: "detached", timeout: 4500 });
+    assert.ok(Date.now() - shown > 2500, `the question shows for about 3.5 seconds: ${Date.now() - shown} ms`);
+    await sounds();
 
     // the floor lamp: off, then on again, with a click each time
     const lamp = await spot("lamp");
