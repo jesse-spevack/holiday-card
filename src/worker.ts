@@ -1,8 +1,8 @@
 import { albumList, albumPhoto } from "./album";
-import { HttpError, field, json, limit, readJson } from "./http";
-import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./family-parser";
+import { HttpError, field, json, rateLimit, readJson } from "./http";
+import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./household";
 import { lookUpAddress, suggestAddresses } from "./places";
-import { BUBBLE_MAX, addFamily, partyVersion, readParty, updateMember, type NewMember } from "./party";
+import { BUBBLE_MAX, addFamily, partyVersion, readParty, updateMember, type Member } from "./party";
 import { addContact } from "./sheet";
 import { verifyTurnstile } from "./turnstile";
 
@@ -47,7 +47,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 }
 
 async function household(request: Request, env: Env): Promise<Response> {
-  await limit(env.HOUSEHOLD_LIMIT, request);
+  await rateLimit(env.HOUSEHOLD_LIMIT, request);
   const text = field(await readJson(request), "text", { max: 400 });
   return json({ members: await parseHousehold(env, text) });
 }
@@ -55,25 +55,29 @@ async function household(request: Request, env: Env): Promise<Response> {
 async function places(request: Request, env: Env, url: URL): Promise<Response> {
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 120);
   if (q.length < 3) return json({ suggestions: [] });
-  await limit(env.PLACES_LIMIT, request);
-  return json({ suggestions: await suggestAddresses(env, q, (url.searchParams.get("session") ?? "").slice(0, 64)) });
+  await rateLimit(env.PLACES_LIMIT, request);
+  return json({ suggestions: await suggestAddresses(env, q, sessionToken(url)) });
 }
 
 async function place(request: Request, env: Env, url: URL): Promise<Response> {
-  await limit(env.PLACES_LIMIT, request);
+  await rateLimit(env.PLACES_LIMIT, request);
   const id = url.searchParams.get("id") ?? "";
-  return json({ address: await lookUpAddress(env, id, (url.searchParams.get("session") ?? "").slice(0, 64)) });
+  return json({ address: await lookUpAddress(env, id, sessionToken(url)) });
+}
+
+function sessionToken(url: URL): string {
+  return (url.searchParams.get("session") ?? "").slice(0, 64);
 }
 
 async function submit(request: Request, env: Env): Promise<Response> {
-  await limit(env.WRITE_LIMIT, request);
+  await rateLimit(env.WRITE_LIMIT, request);
   const body = await readJson(request);
   const envelope = field(body, "envelope", { max: 120 });
-  const householdText = field(body, "household", { max: 400 });
+  const householdNote = field(body, "household", { max: 400 });
   const address = (body.address && typeof body.address === "object" ? body.address : {}) as Record<string, unknown>;
   const contact = {
     // The Sheet's name column holds who lives there, and its household column holds the envelope name.
-    name: householdText,
+    name: householdNote,
     household: envelope,
     street: field(address, "street", { max: 300 }),
     unit: field(address, "unit", { max: 50, required: false }),
@@ -84,26 +88,31 @@ async function submit(request: Request, env: Env): Promise<Response> {
   const members = readMembers(body.members);
 
   await verifyTurnstile(env, field(body, "turnstileToken", { max: 4096 }), request.headers.get("CF-Connecting-IP"));
+  // The address is the point, so the Sheet goes first. If D1 fails after it, the guest sees an error
+  // and a retry adds a second Sheet row. Jesse removes duplicates by hand.
   await addContact(env, contact);
-  return json(await addFamily(env.DB, envelope, householdText, members), 201);
+  return json(await addFamily(env.DB, envelope, householdNote, members), 201);
 }
 
-function readMembers(raw: unknown): NewMember[] {
+// The page sends what the household parser returned, so a bad member falls back instead of failing the submit.
+function readMembers(raw: unknown): Member[] {
   if (!Array.isArray(raw) || raw.length === 0) throw new HttpError(400, "missing_members");
-  return raw.slice(0, MAX_MEMBERS).map((m) => {
-    const type = KINDS.includes(m?.type) ? (m.type as Kind) : "adult";
-    const look = typeof m?.look === "string" && LOOK_ID.test(m.look) ? m.look : "";
-    return { type, look };
+  return raw.slice(0, MAX_MEMBERS).map((m: unknown) => {
+    const { type, look } = (m && typeof m === "object" ? m : {}) as Record<string, unknown>;
+    return {
+      type: KINDS.includes(type as Kind) ? (type as Kind) : "adult",
+      look: typeof look === "string" && LOOK_ID.test(look) ? look : "",
+    };
   });
 }
 
 async function sprite(request: Request, env: Env): Promise<Response> {
-  await limit(env.SPRITE_LIMIT, request);
+  await rateLimit(env.SPRITE_LIMIT, request);
   const body = await readJson(request);
   const id = field(body, "id", { max: 64 });
   const token = field(body, "token", { max: 100 });
   const index = body.index;
-  if (!Number.isInteger(index) || (index as number) < 0 || (index as number) >= MAX_MEMBERS) throw new HttpError(400, "bad_index");
+  if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= MAX_MEMBERS) throw new HttpError(400, "bad_index");
 
   const change: { look?: string; bubble?: string } = {};
   if (body.look !== undefined) {
@@ -112,7 +121,7 @@ async function sprite(request: Request, env: Env): Promise<Response> {
   }
   if (body.bubble !== undefined) change.bubble = field(body, "bubble", { max: BUBBLE_MAX, required: false });
 
-  await updateMember(env.DB, id, token, index as number, change);
+  await updateMember(env.DB, id, token, index, change);
   return json({ ok: true });
 }
 

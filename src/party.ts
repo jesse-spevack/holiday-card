@@ -1,22 +1,26 @@
 import { HttpError } from "./http";
-import type { Kind } from "./family-parser";
+import type { Kind } from "./household";
 
 export const BUBBLE_MAX = 40;
 
-export type NewMember = { type: Kind; look: string };
-export type PartyFamily = { id: string; name: string; members: { type: Kind; look: string }[]; bubbles: string[] };
+export type Member = { type: Kind; look: string };
+export type PartyFamily = { id: string; name: string; members: Member[]; bubbles: string[] };
+
+type FamilyRow = { id: string; household: string };
+type MemberRow = { family_id: string; kind: Kind; look: string; bubble: string; bubble_hidden: number };
 
 export async function partyVersion(db: D1Database): Promise<number> {
   const row = await db.prepare("SELECT version FROM party_version WHERE id = 1").first<{ version: number }>();
   return row?.version ?? 0;
 }
 
-export async function addFamily(db: D1Database, envelope: string, householdText: string, members: NewMember[]) {
+// The columns follow the Sheet: `household` holds the envelope name, and `family_text` holds the guest's note.
+export async function addFamily(db: D1Database, envelope: string, householdNote: string, members: Member[]) {
   const id = crypto.randomUUID();
   const token = randomToken();
   await db.batch([
     db.prepare("INSERT INTO families (id, household, family_text, token_hash) VALUES (?, ?, ?, ?)")
-      .bind(id, envelope, householdText, await sha256(token)),
+      .bind(id, envelope, householdNote, await sha256(token)),
     ...members.map((m, position) =>
       db.prepare("INSERT INTO members (id, family_id, position, kind, look) VALUES (?, ?, ?, ?, ?)")
         .bind(crypto.randomUUID(), id, position, m.type, m.look),
@@ -26,22 +30,22 @@ export async function addFamily(db: D1Database, envelope: string, householdText:
 }
 
 export async function readParty(db: D1Database): Promise<PartyFamily[]> {
-  const [families, members] = await db.batch<Record<string, unknown>>([
+  const [families, members] = await db.batch([
     db.prepare("SELECT id, household FROM families WHERE hidden = 0 ORDER BY created_at, rowid"),
     db.prepare("SELECT family_id, kind, look, bubble, bubble_hidden FROM members ORDER BY family_id, position"),
   ]);
 
   const byFamily = new Map<string, PartyFamily>();
-  const party = families.results.map((f) => {
-    const family: PartyFamily = { id: f.id as string, name: f.household as string, members: [], bubbles: [] };
+  const party = (families.results as FamilyRow[]).map((f) => {
+    const family: PartyFamily = { id: f.id, name: f.household, members: [], bubbles: [] };
     byFamily.set(family.id, family);
     return family;
   });
-  for (const m of members.results) {
-    const family = byFamily.get(m.family_id as string);
+  for (const m of members.results as MemberRow[]) {
+    const family = byFamily.get(m.family_id);
     if (!family) continue;
-    family.members.push({ type: m.kind as Kind, look: m.look as string });
-    family.bubbles.push(m.bubble_hidden ? "" : (m.bubble as string));
+    family.members.push({ type: m.kind, look: m.look });
+    family.bubbles.push(m.bubble_hidden ? "" : m.bubble);
   }
   return party;
 }
