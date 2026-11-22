@@ -1,12 +1,12 @@
 // The plants, a hidden extra. A tap on a potted plant makes it bloom: its flowers open one by one, with a sparkle and a soft chime.
 // Each new plant chimes one note higher. The flowers stay for the rest of the visit.
 // When every plant blooms, petals drift down over the whole room, every plant sparkles, and a soft chord plays.
-// The plants and the flower spots are PLANTS in room.js. The scene draws this module as a layer (Scene.addLayer).
+// The plants, their tap areas, and the flower spots are PLANTS in room.js. The scene draws this module as a layer.
 
 import { PLANTS, ROOM_W, ROOM_H } from "../room.js";
 import { eachPixel } from "../pixels.js";
 import { PALETTE } from "../palette.js";
-import { NIGHT_TINT } from "./eggs.js";
+import { NIGHT_TINT } from "./lamp.js";
 
 // The flowers, as text grids. o is the outline, P the petal, S the petal in shade, and c the center. "." stays clear.
 // The center pixel of each grid is a c, so the tests find each flower by its center color.
@@ -238,3 +238,23 @@ function shade(hex, [r, g, b]) {
   }
   return shades.get(key);
 }
+
+export default {
+  name: "plants",
+  spots: Object.entries(PLANTS).map(([id, { x, y, w, h }]) => ({ id, x, y, w, h })),
+  hints: [{ host: "daughter", text: "I bet the plants would love some attention." }],
+  setup(ctx) {
+    // While the lamp is off, the falling petals take the dark blue of the room.
+    const plants = new Plants({ ...ctx, dark: () => !!ctx.extra("lamp")?.dark });
+    return {
+      layer: plants,
+      tap: (id) => plants.tap(id),
+      test: () => ({
+        // The plants: { bloomed: [ids], flowers: [{ plant, x, y, stage, center }], twinkles, moment: { age, petals } or null, momentDone }.
+        // x, y is the center of a flower in room pixels, and center is the color there once the flower is "full".
+        plants: () => plants.state(),
+        constants: () => ({ PLANTS }),
+      }),
+    };
+  },
+};

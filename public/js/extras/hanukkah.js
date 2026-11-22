@@ -1,4 +1,4 @@
-// The nights of Hanukkah 2026, in the guest's own time. The menorah in eggs.js burns one candle for each night.
+// The nights of Hanukkah 2026, in the guest's own time. The menorah (menorah.js) burns one candle for each night.
 // A new night starts at 4 pm, a simple stand-in for sundown in winter.
 // Night 1 starts at 4 pm on Friday, December 4. Night 8 starts at 4 pm on December 11 and lasts to the end of December 12.
 

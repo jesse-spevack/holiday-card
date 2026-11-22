@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 A = f"{REPO}/public/assets"
-# Feet positions (x center, y feet) in room pixels. The host spots match HOSTS in public/js/scene.js.
+# Feet positions (x center, y feet) in room pixels. The host spots match HOSTS in public/js/hosts.js.
 CAST = {
     "hosts/jessica": (153, 130), "hosts/jesse": (171, 130), "hosts/daughter": (98, 160), "hosts/son": (114, 162),
     "looks/adult-11": (112, 112), "looks/adult-12": (130, 110), "looks/kid-07": (120, 124), "looks/dog-06": (137, 126),

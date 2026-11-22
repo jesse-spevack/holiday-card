@@ -51,10 +51,10 @@ export const DREIDELS = {
   "dreidel-right": { x: 214, y: 45, w: 10, h: 14 },
 };
 
-// The wine on the dining table (art/scripts/table_wine.py): two glasses and the bottle, with their shadow. A tap starts the toast (toast.js).
+// The wine on the dining table (art/scripts/table_wine.py): two glasses and the bottle, with their shadow. A tap starts the toast (extras/toast.js).
 export const WINE = { x: 228, y: 109, w: 16, h: 13 };
 
-// The six potted plants. A tap makes a plant bloom (plants.js). Each box is the plant as drawn, with its pot.
+// The six potted plants. A tap makes a plant bloom (extras/plants.js). Each box is the plant as drawn, with its pot.
 // The plant by the armchair starts 5 pixels below its top leaf tips, so the floor lamp keeps a finger-sized tap area.
 // Each bloom is the center of one flower on the leaves, in room pixels. A "big" flower is 5 to 7 pixels across, a "small" one 5.
 export const PLANTS = {
@@ -66,24 +66,20 @@ export const PLANTS = {
   "plant-floor-small": { x: 34, y: 162, w: 13, h: 23, blooms: [[40, 165, "big"], [45, 170, "small"]] },
 };
 
-// The presents on the floor by the window. A tap gives a message from Eddie and Audrey (presents.js).
+// The presents on the floor by the window. A tap gives a message from Eddie and Audrey (extras/presents.js).
 export const PRESENTS = { x: 170, y: 66, w: 30, h: 26 };
 
-// Hidden things a tap finds. Each box is the thing as drawn, in room pixels.
-// The window is "back": it takes only the taps that no small thing in front of it takes.
-export const HOTSPOTS = [
-  { id: "book", x: 43, y: 99, w: 12, h: 12 },
-  { id: "lamp", x: 24, y: 28, w: 19, h: 50 },
-  { id: "dreidel-left", x: 183, y: 45, w: 11, h: 15 },
-  { id: "menorah", x: 194, y: 39, w: 17, h: 19 },
-  { id: "dreidel-right", x: 214, y: 45, w: 11, h: 15 },
-  { id: "wine", ...WINE },
-  ...Object.entries(PLANTS).map(([id, { x, y, w, h }]) => ({ id, x, y, w, h })),
-  // The fireplace opening with its frame. A tap makes the fire crackle and throw sparks (fire.js).
-  { id: "fire", ...FIRE },
-  { id: "presents", ...PRESENTS },
-  { id: "window", x: 162, y: 6, w: 80, h: 38, back: true },
-];
+// The tap areas of the hidden extras that have no box above. Each box is the thing as drawn, in room pixels.
+// The extras in public/js/extras/ give these boxes to the scene (the `spots` of each extra).
+export const BOOK_TAP = { x: 43, y: 99, w: 12, h: 12 };
+export const LAMP_TAP = { x: 24, y: 28, w: 19, h: 50 };
+export const MENORAH_TAP = { x: 194, y: 39, w: 17, h: 19 };
+export const DREIDEL_TAPS = {
+  "dreidel-left": { x: 183, y: 45, w: 11, h: 15 },
+  "dreidel-right": { x: 214, y: 45, w: 11, h: 15 },
+};
+// The window takes only the taps that no small thing in front of it takes (star.js).
+export const WINDOW_TAP = { x: 162, y: 6, w: 80, h: 38 };
 
 // The RGB pixel value at index i of RGBA room pixels.
 export const rgb = (data, i) => (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
@@ -92,6 +88,16 @@ export const rgb = (data, i) => (data[i] << 16) | (data[i + 1] << 8) | data[i + 
 export function isNight(data, i) {
   const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
   return b > r + 10 || (r > 200 && g > 200 && b > 200);
+}
+
+// The night sky, the snow, and the hill outside the window, but not the frame, the menorah, or the dreidels.
+// The white candles of the menorah look like snow, so they do not count.
+export function isGlass(data, x, y, i) {
+  const { panes, y0, y1 } = WINDOW.glass;
+  if (y < y0 || y > y1 || !panes.some(([x0, x1]) => x >= x0 && x <= x1)) return false;
+  if (data[i + 2] > data[i] + 10) return true;
+  const candle = x >= MENORAH.x0 && x <= MENORAH.x1 && y >= MENORAH.y0 && y <= MENORAH.y1;
+  return isNight(data, i) && !candle;
 }
 
 // The RGBA pixels of a room image.

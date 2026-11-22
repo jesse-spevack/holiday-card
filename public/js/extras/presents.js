@@ -1,9 +1,11 @@
 // The presents, a hidden extra. A tap on the presents by the window gives a message from each host kid.
 // Eddie says his line in a bubble. When his bubble goes, Audrey says hers, so a guest can read both.
 // Each kid's name shows under them while they talk. The kids stand still until the last line ends.
-// The tap area is "presents" in HOTSPOTS (room.js). The scene runs this module as a layer (Scene.addLayer) for its clock.
+// The tap area is PRESENTS in room.js. The scene runs this module as a layer for its clock.
 
-// The lines, in order. id is the host sprite id (HOSTS in scene.js). seconds is how long the bubble shows.
+import { PRESENTS } from "../room.js";
+
+// The lines, in order. id is the host sprite id (HOSTS in hosts.js). seconds is how long the bubble shows.
 // A guest needs about 1.5 seconds to find a bubble, then about 4 words each second.
 export const PRESENT_LINES = [
   { id: "son", text: "Happy Hanukkah! I hope your holiday season is filled with happiness.", seconds: 4.5 },
@@ -79,3 +81,21 @@ export class Presents {
     };
   }
 }
+
+export default {
+  name: "presents",
+  spots: [{ id: "presents", ...PRESENTS }],
+  hints: [{ host: "son", text: "Psst. Tap the presents!" }],
+  setup(ctx) {
+    const presents = new Presents(ctx);
+    return {
+      layer: presents,
+      tap: () => presents.tap(),
+      test: () => ({
+        // The presents: { on, age, speaker, readyIn, lines: [{ name, text, at, seconds }] }. speaker is the kid whose turn it is now.
+        presents: () => presents.state(),
+        presentLines: () => PRESENT_LINES.map((l) => ({ ...l })),
+      }),
+    };
+  },
+};

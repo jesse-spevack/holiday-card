@@ -5,6 +5,7 @@
 import { W, H, FLOOR, FACES, LENGTH, drawRoom, drawDreidel, drawFlake, drawShadow, drawGelt, drawLetter, drawSpeed, lowest, PANES, PANE_Y } from "./dreidel-art.js";
 import { DreidelSound } from "./dreidel-sound.js";
 import { h, loadCss, dialogRoot, PageBehind } from "../dom.js";
+import { DREIDELS, DREIDEL_TAPS } from "../room.js";
 
 const CSS = "/dreidel.css";
 const GROW_MS = 520;
@@ -432,3 +433,28 @@ function newFlake(anywhere = false) {
     drift: Math.random() * 2 - 1,
   };
 }
+
+export default {
+  name: "dreidel",
+  spots: Object.entries(DREIDEL_TAPS).map(([id, box]) => ({ id, ...box })),
+  hints: [
+    { host: "daughter", text: "The little tops on the sill look lonely." },
+    { host: "son", text: "Bet you can't beat me at dreidel." },
+  ],
+  setup({ scene, sound, reducedMotion }) {
+    const dreidel = new Dreidel({ sound, reducedMotion });
+    return {
+      // The game grows from the small dreidel that the guest taps.
+      tap: (id) => dreidel.open(() => scene.roomRect(DREIDELS[id])),
+      test: ({ spy }) => ({
+        // { face, speed }: the side to land on and how much faster the clock runs.
+        rigDreidel: (rig) => { dreidel.rig = rig; },
+        dreidelSpins: () => dreidel.spins,
+        // The game is open and takes taps. Right after it opens, it ignores taps for a moment, so a double tap does not spin it.
+        dreidelReady: () => dreidel.isOpen && !dreidel.busy && performance.now() >= dreidel.ignoreClicksUntil,
+        spyDreidelSounds: (names) => spy(dreidel.sound, names, (name, args) => (name === "result" ? `result:${args[0]}` : name)),
+        constants: () => ({ DREIDELS }),
+      }),
+    };
+  },
+};

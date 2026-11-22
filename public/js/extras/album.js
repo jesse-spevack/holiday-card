@@ -2,9 +2,12 @@
 // and taps it. The book flies up, opens, and shows one photo from our year on each page.
 // The photos and captions come from the Worker (/album/list), never from the repo.
 // The book is pixel art like the room (album-art.js), and it moves in a few steps like a sprite.
+// The small book on the sofa is public/assets/book.png. This extra draws it as a scene layer, and hides it while the album is open.
 
 import { sideArt, coverArt, spriteArt, CORNER_SIZE, FLAKE_SIZE } from "./album-art.js";
 import { h, loadCss, dialogRoot, PageBehind } from "../dom.js";
+import { BOOK, BOOK_TAP } from "../room.js";
+import { loadImage } from "../scene.js";
 
 const CSS = "/album.css";
 const TITLE = "Our 2026";
@@ -547,3 +550,67 @@ function pixelIcon(rows, flip = false) {
   }));
   return `<svg aria-hidden="true" width="${n * 3}" height="${n * 3}" viewBox="0 0 ${n} ${n}" fill="currentColor" shape-rendering="crispEdges">${rects}</svg>`;
 }
+
+// The book on the sofa. It loads once the room loads, and a tap finds it only while it shows.
+class Book {
+  constructor() {
+    this.img = null;
+    this.shown = true;
+  }
+
+  prepare() {
+    loadImage("/assets/book.png").then((img) => { this.img = img; }, () => {});
+  }
+
+  drawBack(g) {
+    if (this.img && this.shown) g.drawImage(this.img, BOOK.x, BOOK.y);
+  }
+}
+
+export default {
+  name: "album",
+  spots: [{ id: "book", ...BOOK_TAP }],
+  hints: [
+    { host: "jessica", text: "Have you seen our year? It's somewhere comfy." },
+    { host: "jesse", text: "Our whole year fits in one little book." },
+  ],
+  setup({ scene, sound, reducedMotion }) {
+    const book = new Book();
+    const bookRect = () => scene.roomRect(BOOK);
+    const album = new Album({ sound, reducedMotion, bookRect, showBook: (on) => { book.shown = on; } });
+    return {
+      layer: book,
+      open: () => !!(book.img && book.shown),
+      tap: () => album.open(),
+      test: ({ rect, center }) => ({
+        loaded: () => ({ book: !!book.img }),
+        bookCenter: () => center(bookRect()),
+        bookHidden: () => !book.shown,
+        // The album in its current state: { ready, spread, book, controls, photos }. ready is true when the album is open and no page turns.
+        // book and controls are screen boxes. photos has one item for each photo page that shows:
+        // { caption, font, overflow, paper, print, cap }. font is the caption font size in CSS pixels.
+        // overflow is true when the caption text needs more space than its box. paper, print, and cap are screen boxes.
+        album: () => {
+          const box = (el) => rect(el.getBoundingClientRect());
+          if (!album.el || album.el.hidden) return { ready: false, spread: false, book: null, controls: [], photos: [] };
+          const step = album.spread ? 2 : 1;
+          const photos = album.pages.slice(album.at, album.at + step).filter((p) => p.kind === "photo" && p.el?.isConnected).map((p) => ({
+            caption: p.cap.textContent,
+            font: parseFloat(getComputedStyle(p.cap).fontSize),
+            overflow: p.cap.scrollHeight > p.cap.clientHeight || p.cap.scrollWidth > p.cap.clientWidth,
+            paper: box(p.el.parentElement),
+            print: box(p.print),
+            cap: box(p.cap),
+          }));
+          return {
+            ready: album.isOpen && !album.busy && !album.settle,
+            spread: album.spread,
+            book: box(album.book),
+            controls: [album.closeBtn, album.prev, album.count.parentElement, album.next].map(box),
+            photos,
+          };
+        },
+      }),
+    };
+  },
+};

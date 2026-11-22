@@ -1,4 +1,4 @@
-/* The hidden photo album (public/js/album.js). The page loads this file only when a guest opens the book.
+/* The hidden photo album (public/js/extras/album.js). The page loads this file only when a guest opens the book.
    The book, the page edges, the gutter, and the photo corners are pixel art (public/js/album-art.js).
    --u is one book pixel in screen pixels. Every frame line is a whole number of book pixels. */
 .album {

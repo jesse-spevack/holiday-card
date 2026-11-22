@@ -1,4 +1,4 @@
-// The pixels of the dreidel game (public/js/dreidel.js). Everything is drawn in code at a low size,
+// The pixels of the dreidel game (dreidel.js). Everything is drawn in code at a low size,
 // W x H pixels, and CSS scales the canvas up by a whole number with crisp pixels.
 // The dreidel is a small 3D model: a square body with a letter on each side, a point, and a handle.
 // Each frame finds the color of each pixel from the spin angle and the tilt, so any pose looks hand-drawn.

@@ -1,6 +1,7 @@
 // Hidden pet reactions. A tap on a dog or a cat makes it react with a small move and a sound.
 // Nothing on the page points this out. A reaction is the field `react` on a sprite: { kind, at }.
-// scene.js draws a sprite with a reaction through drawPet, and its heart or flame through drawPetMark.
+// This extra is a scene layer: it draws a sprite with a reaction through drawPet (drawSprite), and its heart or flame through drawPetMark.
+// It is the last layer in extras/index.js, so the marks show over every other layer.
 
 import { eachPixel } from "../pixels.js";
 
@@ -140,3 +141,39 @@ export function drawPetMark(g, sprite, time, still) {
   if (!still && t > LENGTH[kind] - 0.3 && Math.floor(t * 12) % 2) return;
   drawHeart(g, Math.round(sprite.x) + (sprite.flip ? -7 : 2), top - 6 - rise);
 }
+
+// The scene layer: a pet with a reaction draws in its pose, and its mark shows over everything.
+class PetLayer {
+  constructor({ scene, reducedMotion }) {
+    this.scene = scene;
+    this.reducedMotion = reducedMotion;
+  }
+
+  drawSprite(g, s, x, y) {
+    if (!s.react) return false;
+    drawPet(g, s, x, y, this.scene.time, this.reducedMotion);
+    return true;
+  }
+
+  drawFront(g) {
+    for (const s of this.scene.visibleSprites()) if (s.react) drawPetMark(g, s, this.scene.time, this.reducedMotion);
+  }
+}
+
+export default {
+  name: "pets",
+  hints: [
+    { host: "daughter", text: "Have you met the pets? They know tricks." },
+    { host: "son", text: "Some pets here are not normal pets." },
+  ],
+  // The pets hints need a pet at the party.
+  fits: ({ scene }) => scene.sprites.some(isPet),
+  setup(ctx) {
+    const { scene, sound } = ctx;
+    return {
+      layer: new PetLayer(ctx),
+      // A pet reacts to every tap. Its own sound plays in place of the editor's chime.
+      tapSprite: (sprite) => !!react(sprite, { time: scene.time, sound }),
+    };
+  },
+};

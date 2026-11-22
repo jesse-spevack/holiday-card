@@ -51,7 +51,7 @@ export const ALBUM = { photos: [
 export const PARTY = { families: [{ id: "other1", name: "The Lees", members: [{ type: "adult", look: "t-dad" }, { type: "dog", look: "t-dog" }], bubbles: ["Happy Hanukkah!", ""] }] };
 // A family that this browser signed up before.
 export const GARCIA = { id: "fam12345", token: "tok", name: "The Garcia Family", members: [{ type: "adult", look: "t-mom" }, { type: "kid", look: "t-kid" }], bubbles: ["", ""] };
-// The hosts by their sprite ids (scene.js HOSTS) and names.
+// The hosts by their sprite ids (hosts.js HOSTS) and names.
 export const HOSTS_BY_NAME = [{ id: "jessica", name: "Jess" }, { id: "jesse", name: "Jesse" }, { id: "daughter", name: "Audrey" }, { id: "son", name: "Eddie" }];
 
 // A fake Worker API. Each page gets its own, with its own list of calls.
