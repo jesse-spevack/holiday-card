@@ -2,7 +2,7 @@
 // A tap on one grows it to fill the screen. A tap spins it: it whirrs, slows, wobbles, and falls on one side.
 // The side is random, and each letter has its meaning, with a small pile of gelt that changes.
 
-import { W, H, FLOOR, FACES, LENGTH, drawRoom, drawDreidel, drawFlake, drawShadow, drawGelt, drawLetter, lowest, PANES, PANE_Y } from "./dreidel-art.js";
+import { W, H, FLOOR, FACES, LENGTH, drawRoom, drawDreidel, drawFlake, drawShadow, drawGelt, drawLetter, drawSpeed, lowest, PANES, PANE_Y } from "./dreidel-art.js";
 import { DreidelSound } from "./dreidel-sound.js";
 
 const CSS = "/dreidel.css";
@@ -50,6 +50,7 @@ export class Dreidel {
     this.pot = POT;
     this.you = YOU;
     this.face = null;
+    this.spins = 0;
     this.pose = { x: CX, theta: 0, tilt: 0, hop: 0 };
     this.motion = null;
     this.flakes = Array.from({ length: 16 }, () => newFlake(true));
@@ -79,7 +80,6 @@ export class Dreidel {
     document.getElementById("app")?.setAttribute("inert", "");
     document.addEventListener("keydown", this.onKey);
     addEventListener("resize", this.onResize);
-    this.sound.load();
     this.last = performance.now();
     this.loop();
 
@@ -100,7 +100,7 @@ export class Dreidel {
     }
     if (session !== this.session) return;
     this.busy = false;
-    this.card.focus({ preventScroll: true });
+    this.el.focus({ preventScroll: true });
   }
 
   async close() {
@@ -223,10 +223,12 @@ export class Dreidel {
   // The biggest whole-number scale that fits the canvas and the words under it.
   layout() {
     if (!this.el) return;
-    const panel = 132;
-    const k = Math.max(1, Math.min(Math.floor((innerWidth - 24) / W), Math.floor((innerHeight - 64 - panel - 32) / H)));
+    const fit = (panel) => Math.max(1, Math.min(Math.floor((innerWidth - 32) / W), Math.floor((innerHeight - 64 - panel - 40) / H)));
+    let k = fit(140);
+    if (k >= 7) k = Math.max(6, fit(190));
     this.k = k;
     this.el.style.setProperty("--k", k);
+    this.el.classList.toggle("big", k >= 7);
     this.el.style.setProperty("--card-w", `${W * k}px`);
     this.el.style.setProperty("--canvas-h", `${H * k}px`);
   }
@@ -266,6 +268,7 @@ export class Dreidel {
     if (this.pot < 2) this.pot += 2;
     if (this.you < 1) this.you += 5;
     this.state = "spinning";
+    this.spins++;
     this.text();
     if (this.reducedMotion) return this.quickSpin(k);
 
@@ -294,18 +297,20 @@ export class Dreidel {
   async quickSpin(k) {
     this.busy = true;
     const session = this.session;
-    await this.play([this.canvas.animate([{ opacity: 1 }, { opacity: 0.15 }], { duration: FADE_MS, fill: "forwards" })]);
+    const out = this.canvas.animate([{ opacity: 1 }, { opacity: 0.15 }], { duration: FADE_MS, fill: "forwards" });
+    await this.play([out]);
+    out.cancel();
     if (session !== this.session) return;
     const dir = Math.random() < 0.5 ? -1 : 1;
     this.lie(k, dir);
     this.sound.clack(0.8);
     this.settle(k);
-    await this.play([this.canvas.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: FADE_MS })]);
-    if (session === this.session) this.busy = false;
+    this.busy = false;
+    this.play([this.canvas.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: FADE_MS })]);
   }
 
   lie(k, dir) {
-    Object.assign(this.pose, { theta: -k * QUARTER, tilt: dir * QUARTER, x: CX - dir * 19, hop: 0 });
+    Object.assign(this.pose, { theta: -k * QUARTER, tilt: dir * QUARTER, x: CX - dir * 22, hop: 0 });
   }
 
   // Moves the pose along the spin. Called each frame with the time since the last frame.
@@ -345,7 +350,7 @@ export class Dreidel {
     if (t < FALL_S) {
       const u = ease.in(t / FALL_S);
       p.tilt = m.dir * (WOBBLE + (QUARTER - WOBBLE) * u);
-      p.x = CX - m.dir * 19 * u * u;
+      p.x = CX - m.dir * 22 * u * u;
       return;
     }
     if (!m.clacked) {
@@ -357,7 +362,7 @@ export class Dreidel {
       // one small bounce on the sill
       const u = t / BOUNCE_S;
       p.tilt = m.dir * (QUARTER - 9 * DEG * Math.sin(Math.min(1, u / 0.7) * Math.PI));
-      p.x = CX - m.dir * 19;
+      p.x = CX - m.dir * 22;
       if (u >= 0.7 && m.clacked === 1) {
         m.clacked = 2;
         this.sound.clack(0.35);
@@ -417,13 +422,16 @@ export class Dreidel {
       if (f.y > PANE_Y[1] || f.x < f.pane[0] || f.x > f.pane[1]) Object.assign(f, newFlake());
       drawFlake(px, f.x, f.y);
     }
-    drawGelt(px, 12, 51, this.pot);
-    drawGelt(px, 76, 51, this.you);
+    drawGelt(px, 15, 51, this.pot, -1);
+    drawGelt(px, 73, 51, this.you, 1);
     const p = this.pose;
     const lean = Math.abs(Math.sin(p.tilt));
     drawShadow(px, p.x + Math.sin(p.tilt) * LENGTH * 0.42, FLOOR, 7 + lean * 30);
     const y = FLOOR - lowest(p.theta, p.tilt) - p.hop;
     drawDreidel(px, { x: p.x, y, theta: p.theta, tilt: p.tilt });
+    const m = this.motion;
+    const u = m ? (m.t - m.lift) / SPIN_S : 1;
+    if (u > 0 && u < 0.55) drawSpeed(px, p.x, y, p.theta, 1 - u / 0.55);
     this.ctx.putImageData(this.image, 0, 0);
   }
 }

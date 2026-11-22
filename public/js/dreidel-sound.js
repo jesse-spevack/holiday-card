@@ -1,32 +1,15 @@
 // The sounds of the dreidel game. The whirr, the ticks, the clack, and the tunes are made with Web Audio.
-// The gelt coins play two short recordings from Kenney's RPG Audio pack (CC0, see public/assets/sounds/).
-// It uses the page's Sound for the on/off setting and the audio context.
-
-const GELT = { pile: "/assets/sounds/gelt-pile.m4a", few: "/assets/sounds/gelt-few.m4a" };
+// The gelt coins play two short recordings from Kenney's RPG Audio pack (CC0, see public/assets/sounds/),
+// which the page's Sound loads. It uses that Sound for the on/off setting and the audio context.
 
 export class DreidelSound {
   constructor(sound) {
     this.sound = sound;
-    this.samples = null;
     this.spin = null;
   }
 
   get ctx() { return this.sound.ctx; }
   ready() { return this.sound.ready(); }
-
-  // Fetches the coin recordings one time, on the first open, so the page load stays light.
-  load() {
-    if (this.samples || !this.ready()) return;
-    const ctx = this.ctx;
-    this.samples = {};
-    for (const [name, url] of Object.entries(GELT)) {
-      fetch(url)
-        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${url}: ${r.status}`))))
-        .then((data) => ctx.decodeAudioData(data))
-        .then((buf) => { this.samples[name] = buf; })
-        .catch(() => {});
-    }
-  }
 
   // The whirr of the spin. speed(t) gives the turns per second at t seconds, for `seconds`.
   // Noise through a band-pass filter flutters once for each side that passes, and slows with the dreidel.
@@ -132,21 +115,12 @@ export class DreidelSound {
     }
   }
 
-  // Plays a loaded recording. Until it loads, a few soft pings stand in for the coins.
+  // Plays a gelt recording. Until it loads, a few soft pings stand in for the coins.
   play(name, gain, at = 0) {
     const ctx = this.ctx;
-    const buf = this.samples?.[name];
-    if (!buf) {
-      for (let i = 0; i < (name === "pile" ? 5 : 2); i++) ping(ctx, ctx.currentTime + at + i * 0.06, 2400 + Math.random() * 900, 0.08, 0.03);
-      return;
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.playbackRate.value = 0.95 + Math.random() * 0.1;
-    const amp = ctx.createGain();
-    amp.gain.value = gain;
-    src.connect(amp).connect(ctx.destination);
-    src.start(ctx.currentTime + at);
+    const coins = () => this.sound.sample([`gelt-${name}`], gain);
+    if (this.sound.samples?.[`gelt-${name}`]) return void setTimeout(coins, at * 1000);
+    for (let i = 0; i < (name === "pile" ? 5 : 2); i++) ping(ctx, ctx.currentTime + at + i * 0.06, 2400 + Math.random() * 900, 0.08, 0.03);
   }
 }
 

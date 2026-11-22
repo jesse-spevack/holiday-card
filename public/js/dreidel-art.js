@@ -303,6 +303,28 @@ export function drawRoom(px) {
   }
 }
 
+// Speed arcs beside a fast dreidel, like ( and ). They flicker with the spin. strength is 0 to 1.
+const ARCS = [
+  [[1, -2], [0, -1], [0, 0], [0, 1], [1, 2]],
+  [[2, -4], [1, -3], [1, -2], [0, -1], [0, 0], [0, 1], [1, 2], [1, 3], [2, 4]],
+];
+export function drawSpeed(px, x, y, turn, strength) {
+  const colors = [rgb(0xfef09f), rgb(0xf8f5f1)];
+  const mid = Math.round(y - HP - HB / 2);
+  const flick = Math.floor(turn / (Math.PI / 4)) % 2;
+  const arcs = strength > 0.45 ? 2 : 1;
+  for (const side of [-1, 1]) {
+    for (let n = 0; n < arcs; n++) {
+      const col = Math.round(x + side * (19 + n * 3 + flick));
+      for (const [dx, dy] of ARCS[n]) {
+        const X = col - side * dx;
+        const Y = mid + dy;
+        if (X >= 0 && X < W && Y >= 0 && Y < H) px[Y * W + X] = colors[n];
+      }
+    }
+  }
+}
+
 export function drawFlake(px, x, y) {
   const X = Math.round(x);
   const Y = Math.round(y);
@@ -325,17 +347,18 @@ export function drawShadow(px, x, y, w) {
 }
 
 // A pile of gold coins (gelt): stacks of up to five, side by side, the front row lower.
-export function drawGelt(px, x, y, n) {
+// side is 1 for a pile that grows to the right, -1 for one that grows to the left.
+export function drawGelt(px, x, y, n, side = 1) {
+  const place = [[0, 0], [6, -1], [3, 2], [9, 2], [12, -1], [15, 1]];
   const stacks = [];
-  for (let left = n, s = 0; left > 0; s++) {
-    const take = Math.min(5, left);
-    stacks.push(take);
-    left -= take;
+  for (let left = n, i = 0; left > 0; i++) {
+    const count = Math.min(5, left);
+    const [dx, dy] = place[i % place.length];
+    stacks.push({ count, dx: dx * side, dy });
+    left -= count;
   }
-  const place = [[0, 0], [7, -1], [-7, -1], [3, 2], [-4, 2], [10, 2]];
-  const order = stacks.map((count, i) => ({ count, dx: place[i % place.length][0], dy: place[i % place.length][1] }));
-  order.sort((a, b) => a.dy - b.dy);
-  for (const s of order) {
+  stacks.sort((a, b) => a.dy - b.dy);
+  for (const s of stacks) {
     for (let c = 0; c < s.count; c++) drawCoin(px, x + s.dx, y + s.dy - c * 2, c === s.count - 1);
   }
 }

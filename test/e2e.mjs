@@ -430,7 +430,7 @@ try {
   // the hidden photo album: tap the book on the sofa, turn a page, close it
   const albumCalls = [];
   const soundCalls = [];
-  const SOUND_FILES = ["book-close", "book-flip-1", "book-flip-2", "book-flip-3", "book-open"].map((n) => `/assets/sounds/${n}.m4a`);
+  const SOUND_FILES = ["book-close", "book-flip-1", "book-flip-2", "book-flip-3", "book-open", "gelt-few", "gelt-pile"].map((n) => `/assets/sounds/${n}.m4a`);
   const fakeAlbum = async (route) => {
     const path = new URL(route.request().url()).pathname;
     albumCalls.push(path);
@@ -486,7 +486,7 @@ try {
     if (name === "desktop") {
       // a first key press wakes the sound, and the recordings load before the book opens
       await pa.keyboard.press("Shift");
-      await pa.waitForFunction(() => Object.keys(window.__hc.sound.samples ?? {}).length === 5);
+      await pa.waitForFunction((n) => Object.keys(window.__hc.sound.samples ?? {}).length === n, SOUND_FILES.length);
     }
     const book = await bookAt(pa);
     if (name === "phone") await pa.touchscreen.tap(book.x, book.y);
@@ -614,9 +614,7 @@ try {
       return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
     }, id);
 
-    // a tap on a dreidel or the wall does nothing
-    await tapRoom(188, 53);
-    await tapRoom(219, 53);
+    // a tap on the wall does nothing
     await tapRoom(100, 20);
     assert.equal(await pe.locator(".wish").count(), 0);
     assert.deepEqual(await sounds(), []);
@@ -822,6 +820,126 @@ try {
     assert.ok(ms > 100 && ms < 700, `${name} length ${ms} ms`);
   }
   await petCtx.close();
+  // the hidden dreidel game: a dreidel on the sill grows into a game, spins, falls on a side, and closes
+  for (const [name, viewport, reduce] of [
+    ["phone", { width: 390, height: 844 }, "no-preference"],
+    ["desktop", { width: 1440, height: 900 }, "no-preference"],
+    ["phone-reduced", { width: 390, height: 844 }, "reduce"],
+  ]) {
+    const touch = name.startsWith("phone");
+    const ctx = await browser.newContext({ viewport, hasTouch: touch, reducedMotion: reduce });
+    const pd = await ctx.newPage();
+    pd.on("pageerror", (e) => errors.push(String(e)));
+    await pd.route("**/api/**", fakeApi);
+    await pd.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+    await pd.route("**/album/**", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(ALBUM) }));
+    await pd.goto(base);
+    await pd.waitForFunction(() => window.__hc.scene.eggs.glassLayer && window.__hc.scene.book && window.__hc.scene.sprites.some((s) => s.familyId === "other1" && s.img));
+    // count the game's sounds, and still play them
+    await pd.evaluate(() => {
+      const { sound } = window.__hc.dreidel;
+      window.__sounds = [];
+      for (const n of ["whirr", "tick", "clack", "lift", "result"]) {
+        const play = sound[n].bind(sound);
+        sound[n] = (...args) => { window.__sounds.push(n === "result" ? `result:${args[0]}` : n); play(...args); };
+      }
+    });
+    const sounds = () => pd.evaluate(() => window.__sounds.splice(0));
+    const at = (x, y) => (touch ? pd.touchscreen.tap(x, y) : pd.mouse.click(x, y));
+    const roomPoint = (box) => pd.evaluate((b) => {
+      const r = window.__hc.scene.roomRect(b);
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }, box);
+    const dreidelAt = (id) => pd.evaluate(async (id) => {
+      const { DREIDELS } = await import("/js/scene.js");
+      const r = window.__hc.scene.roomRect(DREIDELS[id]);
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }, id);
+    const game = pd.getByRole("dialog", { name: "Dreidel game" });
+    const state = () => game.getAttribute("data-state");
+
+    // the main page never loads the game's styles until a guest opens it
+    assert.equal(await pd.locator('link[href="/dreidel.css"]').count(), 0);
+    const left = await dreidelAt("dreidel-left");
+    await at(left.x, left.y);
+    await game.waitFor();
+    assert.equal(await state(), "idle");
+    await pd.locator(".dreidel-name", { hasText: "Tap to spin" }).waitFor();
+    assert.equal(await pd.locator(".pop").count(), 0, "a dreidel never opens the sprite editor");
+    assert.equal(await pd.locator(".wish").count(), 0, "a dreidel never sends a star");
+    assert.equal(await pd.evaluate(() => !!window.__hc.scene.eggs.lighting), false, "a dreidel never lights the menorah");
+    assert.equal(await pd.evaluate(() => document.getElementById("app").hasAttribute("inert")), true);
+    await pd.waitForTimeout(600);
+    if (name !== "phone-reduced") await pd.screenshot({ path: `${OUT}/dreidel-${name}-open.png` });
+
+    // each side: the letter's name, its meaning, and the gelt
+    const spinTo = async (face) => {
+      const spins = await pd.evaluate((face) => {
+        window.__hc.dreidel.rig = { face, speed: 6 };
+        return window.__hc.dreidel.spins;
+      }, face);
+      if (touch) await pd.locator(".dreidel-card").tap();
+      else await pd.keyboard.press("Space");
+      await pd.waitForFunction((n) => window.__hc.dreidel.spins === n + 1 && document.querySelector(".dreidel").dataset.state === "result", spins, { timeout: 5000 });
+      return game.getAttribute("data-face");
+    };
+    const expected = [
+      ["gimel", "Gimel", "Take it all!", 0, 12],
+      ["shin", "Shin", "Put one in", 3, 11],
+      ["hei", "Hei", "Take half", 1, 13],
+      ["nun", "Nun", "Nothing happens", 3, 13],
+    ];
+    for (const [face, title, says, pot, you] of expected) {
+      assert.equal(await spinTo(face), face);
+      assert.equal(await pd.locator(".dreidel-name").textContent(), title);
+      assert.equal(await pd.locator(".dreidel-says").textContent(), says);
+      assert.equal(await pd.locator(".dreidel-pot").textContent(), `Pot: ${pot} gelt`);
+      assert.equal(await pd.locator(".dreidel-you").textContent(), `You: ${you} gelt`);
+      const heard = await sounds();
+      assert.ok(heard.includes("clack") && heard.at(-1) === `result:${face}`, `${face}: ${heard}`);
+      if (reduce === "reduce") assert.ok(!heard.includes("whirr") && !heard.includes("tick"), `reduced: ${heard}`);
+      else assert.ok(heard.includes("whirr") && heard.includes("tick"), `${face}: ${heard}`);
+    }
+    if (name !== "phone-reduced") await pd.screenshot({ path: `${OUT}/dreidel-${name}-result.png` });
+    // with no rig, the dreidel lands on one of the four sides
+    await pd.evaluate(() => { window.__hc.dreidel.rig = { speed: 6 }; });
+    assert.ok(["nun", "gimel", "hei", "shin"].includes(await spinTo(undefined)));
+
+    // close: a tap outside the play area, Escape, or the close button
+    if (name === "phone") await at(20, viewport.height - 20);
+    else if (name === "desktop") await pd.keyboard.press("Escape");
+    else await pd.getByRole("button", { name: "Close the dreidel game" }).click();
+    await game.waitFor({ state: "hidden" });
+    assert.equal(await pd.evaluate(() => document.getElementById("app").hasAttribute("inert")), false);
+
+    // the other dreidel opens the game too, and it shows the last result
+    const right = await dreidelAt("dreidel-right");
+    await at(right.x, right.y);
+    await game.waitFor();
+    assert.equal(await state(), "result");
+    await pd.keyboard.press("Escape");
+    await game.waitFor({ state: "hidden" });
+
+    // the menorah, the album book, and a guest sprite still work
+    const { HOTSPOTS } = await pd.evaluate(async () => ({ HOTSPOTS: (await import("/js/scene.js")).HOTSPOTS }));
+    const menorah = await roomPoint(HOTSPOTS.find((h) => h.id === "menorah"));
+    await at(menorah.x, menorah.y);
+    assert.equal(await pd.evaluate(() => !!window.__hc.scene.eggs.lighting), true);
+    assert.equal(await game.isVisible(), false, "the menorah never opens the dreidel game");
+    const book = await pd.evaluate(() => {
+      const r = window.__hc.scene.bookRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await at(book.x, book.y);
+    const album = pd.getByRole("dialog", { name: "Photo album" });
+    await album.waitFor();
+    await pd.keyboard.press("Escape");
+    await album.waitFor({ state: "hidden" });
+    const lee = await pointOn(pd, { familyId: "other1", index: 0 });
+    await at(lee.x, lee.y);
+    await pd.locator(".tag", { hasText: "The Lees" }).waitFor();
+    await ctx.close();
+  }
 
   assert.deepEqual(errors, []);
   console.log("e2e: all checks passed");

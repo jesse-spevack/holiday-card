@@ -21,9 +21,17 @@ const BOOK = { x: 43, y: 99, w: 12, h: 8 };
 export const HOTSPOTS = [
   { id: "book", x: 38, y: 94, w: 23, h: 23 },
   { id: "lamp", x: 23, y: 26, w: 22, h: 51 },
+  { id: "dreidel-left", x: 181, y: 44, w: 13, h: 16 },
+  { id: "dreidel-right", x: 212, y: 44, w: 13, h: 16 },
   { id: "menorah", x: 194, y: 37, w: 17, h: 16 },
   { id: "window", x: 162, y: 6, w: 80, h: 38 },
 ];
+
+// The two dreidels on the window sill, as drawn in room.png. The dreidel game grows from them.
+export const DREIDELS = {
+  "dreidel-left": { x: 183, y: 45, w: 10, h: 14 },
+  "dreidel-right": { x: 214, y: 45, w: 10, h: 14 },
+};
 
 export const HOSTS = [
   { id: "jessica", name: "Jess", x: 153, y: 130 },
@@ -488,6 +496,13 @@ export class Scene {
     const spot = HOTSPOTS.find((s) => x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h);
     if (spot?.id === "book" && (!this.book || this.bookHidden)) return null;
     return spot?.id ?? null;
+  }
+
+  // Where a box in room pixels is on the screen now.
+  roomRect({ x, y, w, h }) {
+    const r = this.stage.getBoundingClientRect();
+    const v = this.view;
+    return new DOMRect(r.left + v.left + x * v.scale, r.top + v.top + y * v.scale, w * v.scale, h * v.scale);
   }
 
   // Where the book's cover is on the screen now.
