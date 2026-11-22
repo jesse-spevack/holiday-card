@@ -130,11 +130,15 @@ export function testApi({ scene, sound, eggs, dreidel, toast, plants, fire, pres
       const e = eggs;
       return {
         star: !!e.star, lampOn: e.lampOn, lighting: !!e.lighting, menorahLit: e.menorahLit, flames: scene.flames.length,
+        // Each candle flame from left to right: { x, y, shamash, state }. state is "lit", "new" (just lit), or "out".
+        candles: scene.flames.map((f, i) => ({ x: f.x, y: f.y, shamash: i === e.shamash, state: scene.flameState(i) })).sort((a, b) => a.x - b.x),
         // The x of the Waymo or the Cybertruck while it is on the road, else null. Only one car is on the road at a time.
         car: e.car?.kind === "waymo" ? e.car.x : null, truck: e.car?.kind === "cybertruck" ? e.car.x : null,
         nextCarIn: e.next.waymo - scene.time, nextTruckIn: e.next.cybertruck - scene.time,
       };
     },
+    // Sets the page clock for the nights of Hanukkah to a local time, for example "2026-12-07T18:00". null goes back to the real clock.
+    setNow: (local) => { eggs.now = local ? () => new Date(local) : () => new Date(); },
     sendWaymo: () => eggs.send("waymo"),
     // dir 1 drives right, -1 drives left. With no dir, the truck picks a way.
     sendCybertruck: (dir) => eggs.send("cybertruck", dir),

@@ -10,6 +10,8 @@ describe("the hidden extras", { concurrency: true }, () => {
   for (const reduce of ["no-preference", "reduce"]) {
     test(`the hidden extras, with reduced motion ${reduce}`, async () => {
       const { page, hc } = await env.open({ hasTouch: true, reducedMotion: reduce, wait: "eggs" });
+      // A day outside Hanukkah, when every candle burns. menorah.test.mjs checks the nights of Hanukkah.
+      await hc.setNow("2026-11-22T18:00");
       await waitForFamilies(page, { other1: 2 });
       await hc.spySounds(["sparkle", "chime", "snuff", "click"]);
       const tap = async (id) => {
