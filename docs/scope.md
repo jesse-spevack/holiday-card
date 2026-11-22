@@ -38,8 +38,10 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter ho
 Nothing on screen points to these.
 
 - Now and then (every 40 to 90 seconds), a small Waymo drives past outside the window, behind the frame and the menorah.
-- A tap on the window sends a shooting star across the night sky, and "Make a wish" shows under the window for about 2 seconds.
+- A tap on the window sends a shooting star across the night sky, and "Make a wish" shows high on the window glass for about 2 seconds.
 - A tap on the menorah puts the flames out. Then the candles light one by one, the shamash first, with a chime that goes up each time.
+  After the last candle, "What miracles are you grateful for?" shows under the sill for about 3.5 seconds.
+  Only one of these two lines shows at a time. A new line replaces the old line.
 - A tap on the floor lamp turns it off. The room goes dark blue, and the fire and the candles glow. A second tap turns it on.
 - With reduced motion, the Waymo stops in the window for a few seconds, and the star does not move.
 - Code: `public/js/eggs.js`. The tap areas are `HOTSPOTS` in `public/js/scene.js`. The first match wins, so a small thing goes before a big thing around it.
