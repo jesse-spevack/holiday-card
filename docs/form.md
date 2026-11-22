@@ -15,6 +15,7 @@ The pixel-art living room party is decoration and a thank-you.
 | Room, sprites, door arrival, taps | `public/js/scene.js` |
 | Look picker ("New look") | `public/js/picker.js`, with ages in `public/assets/looks.json` |
 | Sound effects | `public/js/sound.js` |
+| Hidden photo album (the book on the sofa) | `public/js/album.js`, `public/album.css`, `src/album.ts` |
 | Markup and styles | `public/index.html`, `public/style.css` |
 | Server (Cloudflare Worker) | `src/worker.ts` and the files next to it |
 | Party database (D1) | `migrations/` |

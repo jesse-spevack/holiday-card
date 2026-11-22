@@ -17,6 +17,18 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter ho
 6. Surprise: tapping your own sprite lets you change its look or give it a chat bubble (about 40 characters, no filter).
    The browser remembers which sprites are yours.
 
+## Photo album (a hidden extra)
+
+- A small red book lies on the sofa. Nothing points to it. A tap opens it over the whole screen, with one photo from our year on each page.
+- A tap on the left half goes back, and a tap on the right half goes forward. Arrow keys, Escape, and a swipe work too.
+- Phones show one page at a time. Wide screens show two pages, after a title page.
+- Code: `public/js/album.js` and `public/album.css`. The book sprite: `art/scripts/book.py`.
+- The photos and the captions live in Workers KV (namespace `holiday-card-album`, binding `ALBUM`). The Worker serves them at `/album/list` and `/album/<hash>.jpg`.
+- Photos and captions never go in git. The repo is public, and the originals hold GPS data.
+  The originals and `captions.json` stay in `~/Pictures/holiday-card-album/`.
+- To change the album, edit `captions.json` and run `python3 art/scripts/album.py`. It makes web copies with no metadata, uploads them, and removes old ones.
+  The pages go in photo date order. A `date` in `captions.json` places a photo that has no date.
+
 ## Privacy
 
 - The party shows the household name only.

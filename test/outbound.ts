@@ -9,7 +9,7 @@ export function stubOutbound(handlers: Record<string, Handler>) {
     const request = new Request(input, init);
     const host = new URL(request.url).host;
     // Read the body here: the worker's I/O objects cannot cross into the test context.
-    calls.push({ host, url: request.url, body: await request.clone().text() });
+    calls.push({ host, url: request.url, body: await bodyText(request.clone()) });
     const handler = handlers[host];
     if (!handler) throw new Error(`unexpected outbound call to ${host}`);
     return handler(request);
@@ -18,6 +18,13 @@ export function stubOutbound(handlers: Record<string, Handler>) {
     calls,
     to: (host: string) => calls.filter((c) => c.host === host),
   };
+}
+
+// A form body (Turnstile) reads as URL-encoded text, because .text() on multipart data warns.
+async function bodyText(request: Request): Promise<string> {
+  if (!request.headers.get("Content-Type")?.startsWith("multipart/form-data")) return request.text();
+  const form = await request.formData();
+  return new URLSearchParams([...form].map(([k, v]) => [k, String(v)])).toString();
 }
 
 export const OPENROUTER = "openrouter.ai";

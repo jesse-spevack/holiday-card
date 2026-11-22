@@ -310,3 +310,58 @@ describe("places", () => {
     expect(services.calls).toHaveLength(0);
   });
 });
+
+describe("album", () => {
+  const PHOTO = "0123456789abcdef.jpg";
+  const LIST = { photos: [{ src: `/album/${PHOTO}`, caption: "A long walk", w: 1400, h: 1050 }] };
+  const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 1, 2, 3, 0xff, 0xd9]);
+
+  beforeEach(async () => {
+    await env.ALBUM.put("list", JSON.stringify(LIST));
+    await env.ALBUM.put(`photo:${PHOTO}`, JPEG);
+  });
+
+  it("serves the page list", async () => {
+    const response = await request("/album/list");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/json");
+    expect(await response.json()).toEqual(LIST);
+  });
+
+  it("serves a photo with a long cache", async () => {
+    const response = await request(`/album/${PHOTO}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/jpeg");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(JPEG);
+  });
+
+  it("answers a HEAD request for a photo", async () => {
+    const response = await request(`/album/${PHOTO}`, { method: "HEAD" });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/jpeg");
+  });
+
+  it("returns 404 for a photo that is not there", async () => {
+    const response = await request("/album/ffffffffffffffff.jpg");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("reads only photo keys, never other keys", async () => {
+    const response = await request("/album/list.jpg");
+
+    expect(response.status).toBe(404);
+  });
+
+  it("returns 404 when no album is uploaded", async () => {
+    await env.ALBUM.delete("list");
+
+    const response = await request("/album/list");
+
+    expect(response.status).toBe(404);
+  });
+});

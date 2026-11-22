@@ -12,6 +12,9 @@ const WINDOW_PANES = [[167, 184], [190, 212], [217, 236]];
 const WINDOW_Y = [9, 44];
 const FIRE = { x: 112, y: 44, w: 32, h: 24 };
 const CANDLES = { x0: 188, y0: 34, x1: 212, y1: 46 };
+// The photo album on the sofa (art/scripts/book.py). Its cover is the top 12x8 pixels.
+// The tap area is bigger than the book, so a finger finds it on a phone.
+const BOOK = { x: 43, y: 99, w: 12, h: 8, pad: 5 };
 
 export const HOSTS = [
   { id: "jessica", name: "Jess", x: 172, y: 132 },
@@ -58,6 +61,8 @@ export class Scene {
     this.time = 0;
     this.onTap = () => {};
     this.onHover = () => {};
+    this.onBook = () => {};
+    this.bookHidden = false;
     stage.addEventListener("pointerup", (e) => this.handleTap(e));
     // Hover labels are for a mouse only. A phone shows them on tap.
     stage.addEventListener("pointermove", (e) => {
@@ -74,6 +79,7 @@ export class Scene {
     const pixels = roomPixels(this.room);
     this.flames = flamePixels(pixels);
     this.glass = glassMask(pixels);
+    loadImage("/assets/book.png").then((img) => { this.book = img; }, () => {});
     this.layout();
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -284,6 +290,8 @@ export class Scene {
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
 
+    if (this.book && !this.bookHidden) g.drawImage(this.book, BOOK.x, BOOK.y);
+
     // each candle flame flickers on its own: a bright core and a tip that comes and goes
     this.flames.forEach(({ x, y }, i) => {
       const wave = Math.sin(this.time * (7 + i) + i * 1.7) + Math.sin(this.time * 3.1 + i);
@@ -435,12 +443,24 @@ export class Scene {
     return hits[0] || null;
   }
 
+  bookAt(x, y) {
+    return x >= BOOK.x - BOOK.pad && x <= BOOK.x + BOOK.w + BOOK.pad && y >= BOOK.y - BOOK.pad && y <= BOOK.y + BOOK.h + BOOK.pad + 4;
+  }
+
+  // Where the book's cover is on the screen now.
+  bookRect() {
+    const r = this.stage.getBoundingClientRect();
+    const v = this.view;
+    return new DOMRect(r.left + v.left + BOOK.x * v.scale, r.top + v.top + BOOK.y * v.scale, BOOK.w * v.scale, BOOK.h * v.scale);
+  }
+
   handleTap(e) {
     if (this.popEl && this.popEl.contains(e.target)) return;
     const p = this.toRoom(e.clientX, e.clientY);
     const sprite = this.spriteAt(p.x, p.y);
     if (!sprite) {
       this.closePop();
+      if (this.book && !this.bookHidden && this.bookAt(p.x, p.y)) this.onBook();
       return;
     }
     this.onTap(sprite);

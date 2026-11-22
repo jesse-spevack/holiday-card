@@ -2,12 +2,15 @@ import { Scene, HOSTS, HOST_LINES, loadImage } from "./js/scene.js";
 import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
 import { openPicker } from "./js/picker.js";
+import { Album } from "./js/album.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sound = new Sound();
 const scene = new Scene({ stage: $("stage"), world: $("world"), canvas: $("canvas"), overlay: $("overlay"), reducedMotion });
 const dialog = $("dialog");
+const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => { scene.bookHidden = !on; } });
+scene.onBook = () => album.open();
 const SAVED = "hc.families";
 const POLL_MS = 30000;
 
