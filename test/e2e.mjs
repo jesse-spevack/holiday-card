@@ -820,6 +820,7 @@ try {
     assert.ok(ms > 100 && ms < 700, `${name} length ${ms} ms`);
   }
   await petCtx.close();
+
   // the hidden dreidel game: a dreidel on the sill grows into a game, spins, falls on a side, and closes
   for (const [name, viewport, reduce] of [
     ["phone", { width: 390, height: 844 }, "no-preference"],
