@@ -338,6 +338,13 @@ describe("album", () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(JPEG);
   });
 
+  it("answers a HEAD request for a photo", async () => {
+    const response = await request(`/album/${PHOTO}`, { method: "HEAD" });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/jpeg");
+  });
+
   it("returns 404 for a photo that is not there", async () => {
     const response = await request("/album/ffffffffffffffff.jpg");
 

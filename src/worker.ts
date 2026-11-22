@@ -38,10 +38,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       return sprite(request, env);
     case "GET /api/party":
       return party(request, env, ctx);
-    case "GET /album/list":
-      return albumList(env);
     default:
-      if (request.method === "GET" && url.pathname.startsWith("/album/")) return albumPhoto(env, url.pathname);
+      if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/album/")) {
+        return url.pathname === "/album/list" ? albumList(env) : albumPhoto(env, url.pathname);
+      }
       throw new HttpError(404, "not_found");
   }
 }
