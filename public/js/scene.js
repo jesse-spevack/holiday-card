@@ -5,7 +5,7 @@ export const ROOM_W = 256;
 export const ROOM_H = 192;
 
 // Places in living-room.png, in room pixels.
-const FLOOR = { x0: 98, x1: 196, y0: 100, y1: 168 };
+const FLOOR = { x0: 98, x1: 180, y0: 100, y1: 168 };
 const DOOR = { x: 127, y: 200 };
 const DOOR_WAIT = { x: 128, y: 182 };
 const WINDOW_PANES = [[167, 184], [190, 212], [217, 236]];
@@ -17,8 +17,8 @@ const CANDLES = { x0: 188, y0: 34, x1: 212, y1: 46 };
 const BOOK = { x: 43, y: 99, w: 12, h: 8, pad: 5 };
 
 export const HOSTS = [
-  { id: "jessica", name: "Jess", x: 172, y: 132 },
-  { id: "jesse", name: "Jesse", x: 187, y: 130 },
+  { id: "jessica", name: "Jess", x: 153, y: 130 },
+  { id: "jesse", name: "Jesse", x: 171, y: 130 },
   { id: "daughter", name: "Audrey", x: 98, y: 160 },
   { id: "son", name: "Eddie", x: 114, y: 162 },
 ];
