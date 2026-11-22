@@ -1027,6 +1027,72 @@ try {
   assert.equal(await pw.evaluate(() => window.__hc.scene.sprites.find((s) => s.name === "Jess").path), null);
   await walkCtx.close();
 
+  // The roof holds still while the page settles. On the first screen the host types the question and the
+  // Turnstile check mounts under the dialog, so the stage gets shorter. The roof must not come and go.
+  // A fake Turnstile mounts after 1.5 s. It shows its check box (65 px), as the real one does in a test browser,
+  // or it stays out of sight (0 px), as it does for most guests.
+  const fakeTurnstile = (px) => `window.turnstile = {
+    render(sel) { setTimeout(() => { const d = document.createElement("div"); d.style.height = "${px}px"; document.querySelector(sel).append(d); }, 1500); return 1; },
+    getResponse() { return ""; }, reset() {},
+  };`;
+  // Each frame notes whether the gable wall right above the room (room pixel 128, -6) shows on the stage.
+  const watchRoof = () => {
+    window.__roof = [];
+    const tick = () => {
+      const n = document.querySelector(".night");
+      const st = document.getElementById("stage")?.getBoundingClientRect();
+      const wr = document.getElementById("world")?.getBoundingClientRect();
+      let on = false;
+      if (n && !n.hidden && n.width && wr?.width) {
+        const scale = wr.width / 256;
+        const y = wr.top - 6 * scale;
+        if (y >= st.top && y < st.bottom) {
+          const nr = n.getBoundingClientRect();
+          const c = n.getContext("2d").getImageData(Math.round((wr.left + 128 * scale - nr.left) / scale), Math.round((y - nr.top) / scale), 1, 1).data;
+          on = [[0x34, 0x40, 0x5f], [0x27, 0x30, 0x49], [0x14, 0x1b, 0x32]].some((k) => k.every((v, i) => v === c[i]));
+        }
+      }
+      window.__roof.push(on);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+  const flips = (log) => log.reduce((n, on, i) => n + (i > 0 && on !== log[i - 1] ? 1 : 0), 0);
+  async function roofLog({ width, height, returning, ms, box }) {
+    const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: width < 900 ? 3 : 1, isMobile: width < 900, hasTouch: width < 900 });
+    const pr = await ctx.newPage();
+    pr.on("pageerror", (e) => errors.push(String(e)));
+    await pr.route("**/api/**", fakeApi);
+    await pr.route("**/api/config", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ turnstileSiteKey: "test-key" }) }));
+    await pr.route("https://challenges.cloudflare.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fakeTurnstile(box ? 65 : 0) }));
+    await pr.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+    if (returning) {
+      await pr.addInitScript(() => localStorage.setItem("hc.families", JSON.stringify([
+        { id: "fam12345", token: "tok", name: "The Garcia Family", members: [{ type: "adult", look: "t-mom" }, { type: "kid", look: "t-kid" }], bubbles: ["", ""] },
+      ])));
+    }
+    await pr.addInitScript(watchRoof);
+    await pr.goto(base);
+    await pr.waitForTimeout(ms);
+    const log = await pr.evaluate(() => window.__roof);
+    await ctx.close();
+    return log;
+  }
+  // a fresh visit on a tall phone: the roof shows on the first screen and stays
+  const freshRoof = await roofLog({ width: 390, height: 844, returning: false, ms: 6000, box: true });
+  assert.ok(freshRoof.includes(true), "the roof shows on the first screen of a tall phone");
+  assert.equal(flips(freshRoof.slice(freshRoof.indexOf(true))), 0, "the roof stays on the first screen");
+  // a return visit on a tall phone: the roof stays through the thank-you, the zoom out, and after.
+  // (With the check box showing, the zoom on the family fills the stage and hides the roof, as it should.)
+  const backRoof = await roofLog({ width: 390, height: 844, returning: true, ms: 12000 });
+  assert.ok(backRoof.at(-1), "the roof shows after the thank-you hides");
+  assert.equal(flips(backRoof.slice(backRoof.indexOf(true))), 0, "the roof stays from the moment it shows");
+  // a wide desktop never flashes the roof in and out
+  for (const returning of [false, true]) {
+    const deskRoof = await roofLog({ width: 1440, height: 900, returning, ms: returning ? 12000 : 6000 });
+    assert.ok(flips(deskRoof) <= 1, `the desktop roof flips ${flips(deskRoof)} times`);
+  }
+
   assert.deepEqual(errors, []);
   console.log("e2e: all checks passed");
 } finally {

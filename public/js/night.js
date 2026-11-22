@@ -5,6 +5,10 @@
 //
 // All art draws on the room's own pixel grid (1 canvas pixel = 1 room pixel), so it lines up with
 // room.png at every scale. The canvas follows the camera, so it zooms and pans with the room.
+//
+// The art (roof or eave, moon, chimney) is chosen for the stage at rest: the stage after the dialog hides.
+// The dialog grows while the host types, and the Turnstile check mounts under it, so the live stage changes size.
+// The art does not follow those changes. The canvas only covers the live bands, and the stage crops the rest.
 
 const ROOM_W = 256;
 const ROOM_H = 192;
@@ -88,11 +92,13 @@ export class Night {
     if (!document.querySelector(`link[href="${CSS}"]`)) {
       document.head.append(Object.assign(document.createElement("link"), { rel: "stylesheet", href: CSS }));
     }
-    this.band = null; // the band sizes the art was built for
+    this.art = null; // the roof, eave, and moon, chosen for the stage at rest
+    this.band = null; // the live bands that the canvas covers
     this.view = null;
     this.wantGreeting = false;
     this.words = [];
     this.flakes = [];
+    this.rand = seeded(42);
     this.puffs = [];
     this.running = false;
     this.last = 0;
@@ -102,9 +108,11 @@ export class Night {
   // The scene calls this whenever the room moves or the stage changes size.
   layout(view) {
     this.view = view;
+    const art = this.plan();
+    if (art.key !== this.art?.key) this.choose(art);
+    if (!art.on) return;
     const band = this.measure();
-    if (!this.band || band.key !== this.band.key) this.build(band);
-    if (!this.band.on) return;
+    if (band.key !== this.band?.key) this.fit(band);
     const s = view.scale;
     const left = view.left + this.band.x0 * s;
     const top = view.top + this.band.y0 * s;
@@ -122,41 +130,71 @@ export class Night {
     this.placeGreeting();
   }
 
-  // The bands at the camera's resting scale, in whole room pixels.
-  measure() {
-    const w = this.stage.clientWidth;
-    const h = this.stage.clientHeight;
-    const s = Math.min(w / ROOM_W, h / ROOM_H);
-    const top = Math.floor((h - ROOM_H * s) / 2 / s);
-    const pad = Math.ceil((w - ROOM_W * s) / 2 / s);
-    const on = s > 0 && top >= MIN_BAND;
-    // One extra row and column on each side covers rounding at the stage edges.
-    return { on, top: top + 1, bottom: top + 1, pad: pad + 1, bottomPx: (h - ROOM_H * s) / 2, key: `${on}|${top}|${pad}` };
+  // The stage at rest: once the dialog hides, the stage fills the app below the top bar, with the same
+  // margin on each side. This size changes only when the window does.
+  rest() {
+    const app = this.stage.parentElement;
+    const a = app.getBoundingClientRect();
+    const r = this.stage.getBoundingClientRect();
+    const as = getComputedStyle(app);
+    const ss = getComputedStyle(this.stage);
+    const side = r.left - a.left - parseFloat(as.paddingLeft);
+    const w = a.width - parseFloat(as.paddingLeft) - parseFloat(as.paddingRight) - 2 * side;
+    const h = a.bottom - parseFloat(as.paddingBottom) - r.top - parseFloat(ss.marginBottom);
+    return { w: Math.max(w, this.stage.clientWidth), h: Math.max(h, this.stage.clientHeight) };
   }
 
-  build(band) {
-    this.band = band;
-    this.placed = null;
-    this.canvas.hidden = !band.on;
-    if (!band.on) {
+  // The art for the stage at rest: no art, a flat eave, or a gable roof, and the moon.
+  plan() {
+    const { w, h } = this.rest();
+    const s = Math.min(w / ROOM_W, h / ROOM_H);
+    const top = s > 0 ? Math.floor((h - ROOM_H * s) / 2 / s) : 0;
+    const on = top >= MIN_BAND;
+    const roof = on && top >= ROOF_BAND ? Math.min(58, Math.round(top * 0.46)) : 0;
+    const moon = on && top >= 30 ? { x: 40, y: Math.round(top * 0.3) - top - 1, r: top >= 60 ? 9 : 6 } : null;
+    return { on, roof, moon, key: `${on}|${roof}|${moon?.y}|${moon?.r}` };
+  }
+
+  choose(art) {
+    this.art = art;
+    this.band = null;
+    this.canvas.hidden = !art.on;
+    if (!art.on) {
       this.greeting.hidden = true;
       this.stop();
       return;
     }
-    Object.assign(band, {
+    // Start with a full trail of smoke, so the first frame already looks lived in.
+    this.puffs = art.roof ? Array.from({ length: 11 }, (_, i) => ({ age: 6.6 - i * 0.6, seed: i * 1.7 })) : [];
+    if (!this.reducedMotion) this.start();
+  }
+
+  // The live bands at the camera's resting scale, in whole room pixels.
+  measure() {
+    const w = this.stage.clientWidth;
+    const h = this.stage.clientHeight;
+    const s = Math.min(w / ROOM_W, h / ROOM_H);
+    const top = Math.max(0, Math.floor((h - ROOM_H * s) / 2 / s));
+    const pad = Math.max(0, Math.ceil((w - ROOM_W * s) / 2 / s));
+    // One extra row and column on each side covers rounding at the stage edges.
+    return { top: top + 1, bottom: top + 1, pad: pad + 1, bottomPx: (h - ROOM_H * s) / 2, key: `${top}|${pad}` };
+  }
+
+  // Size the canvas to the live bands. The art stays the same, so nothing jumps.
+  fit(band) {
+    Object.assign(band, this.art, {
       x0: -band.pad, x1: ROOM_W + band.pad, y0: -band.top, y1: ROOM_H + band.bottom,
       w: ROOM_W + 2 * band.pad, h: band.top + ROOM_H + band.bottom,
     });
-    band.roof = band.top >= ROOF_BAND ? Math.min(58, Math.round(band.top * 0.46)) : 0;
+    this.band = band;
+    this.placed = null;
     this.canvas.width = band.w;
     this.canvas.height = band.h;
     this.still = this.paint(band);
     this.stars = this.makeStars(band);
-    this.flakes = this.makeFlakes(band);
-    // Start with a full trail of smoke, so the first frame already looks lived in.
-    this.puffs = band.roof ? Array.from({ length: 11 }, (_, i) => ({ age: 6.6 - i * 0.6, seed: i * 1.7 })) : [];
-    if (this.reducedMotion) this.draw(0);
-    else this.start();
+    this.fitFlakes(band);
+    // A new canvas size clears it, so draw now. Else the sky stays blank until the next frame.
+    this.draw(0);
   }
 
   // ---------- the still art: sky, moon, roof ----------
@@ -181,7 +219,6 @@ export class Night {
         px(x, y, y >= 0 ? SKY[0] : f > bayer(x, y) ? SKY[Math.min(i + 1, SKY.length - 1)] : SKY[i]);
       }
     }
-    b.moon = b.top >= 30 ? { x: 40, y: b.y0 + Math.round(b.top * 0.3), r: b.top >= 60 ? 9 : 6 } : null;
     if (b.moon) this.paintMoon(px, b.moon);
     if (b.roof) this.paintRoof(px, b);
     else this.paintEave(px, b);
@@ -312,29 +349,40 @@ export class Night {
   }
 
   // ---------- the moving parts: stars, snow, smoke, lights ----------
+  // Each 18 x 18 cell of sky gets at most one star, from a seed for that cell. So a star stays in its
+  // place when the bands change size.
   makeStars(b) {
-    const r = seeded(7);
+    const CELL = 18;
     const bottom = b.roof ? -b.roof - 8 : -12;
     const out = [];
-    const n = Math.round((b.w * (bottom - b.y0)) / 320);
     const c = b.roof ? this.chimney() : null;
-    for (let i = 0; i < n * 3 && out.length < n; i++) {
-      const x = Math.floor(b.x0 + r() * b.w);
-      const y = Math.floor(b.y0 + 2 + r() * (bottom - b.y0 - 4));
-      if (b.moon && Math.hypot(x - b.moon.x, y - b.moon.y) < b.moon.r + 8) continue;
-      if (c && x > c.x0 - 8 && x < c.x1 + 30 && y > c.top - 50) continue; // the smoke drifts here
-      const k = r();
-      out.push({ x, y, kind: k < 0.07 ? "plus" : k < 0.15 ? "gold" : "dot", dim: r() < 0.5, phase: r() * 10, rate: 0.6 + r() * 1.4 });
+    for (let cy = Math.floor(b.y0 / CELL); cy * CELL < bottom; cy++) {
+      for (let cx = Math.floor(b.x0 / CELL); cx * CELL < b.x1; cx++) {
+        const r = seeded(Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ 7);
+        if (r() > 0.85) continue;
+        const x = cx * CELL + Math.floor(r() * CELL);
+        const y = cy * CELL + Math.floor(r() * CELL);
+        if (x < b.x0 || x >= b.x1 || y < b.y0 + 2 || y > bottom - 2) continue;
+        if (b.moon && Math.hypot(x - b.moon.x, y - b.moon.y) < b.moon.r + 8) continue;
+        if (c && x > c.x0 - 8 && x < c.x1 + 30 && y > c.top - 50) continue; // the smoke drifts here
+        const k = r();
+        out.push({ x, y, kind: k < 0.07 ? "plus" : k < 0.15 ? "gold" : "dot", dim: r() < 0.5, phase: r() * 10, rate: 0.6 + r() * 1.4 });
+      }
     }
     return out;
   }
 
-  makeFlakes(b) {
-    const r = seeded(42);
+  // Keep the falling snow when the bands change size. Add or drop flakes to keep the same density,
+  // and move a flake that is now off the canvas to a new place on it.
+  fitFlakes(b) {
+    const r = this.rand;
     const n = Math.round((b.w * (b.top + b.bottom)) / 260);
-    return Array.from({ length: n }, () => ({
-      x: b.x0 + r() * b.w, y: b.y0 + r() * b.h, speed: 5 + r() * 9, sway: 0.5 + r() * 1.5, phase: r() * 6.28, big: r() < 0.22,
-    }));
+    const place = (f) => Object.assign(f, { x: b.x0 + r() * b.w, y: b.y0 + r() * b.h });
+    this.flakes.length = Math.min(this.flakes.length, n);
+    for (const f of this.flakes) if (f.x < b.x0 || f.x >= b.x1 || f.y < b.y0 || f.y >= b.y1) place(f);
+    while (this.flakes.length < n) {
+      this.flakes.push(place({ speed: 5 + r() * 9, sway: 0.5 + r() * 1.5, phase: r() * 6.28, big: r() < 0.22 }));
+    }
   }
 
   // A flake hides where it would pass in front of the house or the words.
@@ -373,7 +421,7 @@ export class Night {
     for (const f of this.flakes) {
       if (moving) {
         f.y += f.speed * dt;
-        if (f.y > b.y1) { f.y = b.y0; f.x = b.x0 + Math.random() * b.w; }
+        if (f.y > b.y1) { f.y = b.y0; f.x = b.x0 + this.rand() * b.w; }
       }
       const x = Math.round(f.x + (moving ? Math.sin(t * 0.9 + f.phase) * f.sway * 2 : 0));
       const y = Math.round(f.y);

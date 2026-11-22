@@ -104,11 +104,17 @@ function typeOut(el, text) {
     el.textContent = text;
     return Promise.resolve();
   }
+  // The rest of the text waits in place, unseen. So the dialog has its full height from the first letter,
+  // the stage and the room above it hold still, and no word jumps to the next line while it types.
+  const shown = document.createTextNode("");
+  const rest = h("span", { style: "visibility: hidden", "aria-hidden": "true" }, text);
+  el.replaceChildren(shown, rest);
   return new Promise((resolve) => {
     let i = 0;
     const timer = setInterval(() => {
       i++;
-      el.textContent = text.slice(0, i);
+      shown.data = text.slice(0, i);
+      rest.textContent = text.slice(i);
       if (i % 2 === 0 && text[i - 1] !== " ") sound.blip();
       if (i >= text.length) finish();
     }, 26);
@@ -545,6 +551,9 @@ async function start() {
   scene.onTap = onTap;
   scene.onHover = onHover;
   api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
+  // A new guest gets the first question at once. So the dialog has its real height before the room shows,
+  // and the room does not jump when the question appears.
+  if (!state.mine.length) go(1);
   const [looks] = await Promise.all([
     fetch("/assets/looks.json").then((r) => r.json()).catch(() => ({})),
     scene.load("/assets/room.png"),
@@ -565,8 +574,6 @@ async function start() {
     const last = scene.sprites.filter((s) => s.familyId === state.mine.at(-1).id);
     if (last.length) scene.focus(last[0].x, last[0].y - 12, 1);
     go("done");
-  } else {
-    go(1);
   }
 }
 
