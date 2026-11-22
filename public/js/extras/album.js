@@ -4,7 +4,7 @@
 // The book is pixel art like the room (album-art.js), and it moves in a few steps like a sprite.
 
 import { sideArt, coverArt, spriteArt, CORNER_SIZE, FLAKE_SIZE } from "./album-art.js";
-import { h, loadCss, dialogRoot, PageBehind } from "./dom.js";
+import { h, loadCss, dialogRoot, PageBehind } from "../dom.js";
 
 const CSS = "/album.css";
 const TITLE = "Our 2026";

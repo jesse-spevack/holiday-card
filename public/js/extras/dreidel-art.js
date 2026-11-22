@@ -3,8 +3,8 @@
 // The dreidel is a small 3D model: a square body with a letter on each side, a point, and a handle.
 // Each frame finds the color of each pixel from the spin angle and the tilt, so any pose looks hand-drawn.
 
-import { eachPixel } from "./pixels.js";
-import { PALETTE } from "./palette.js";
+import { eachPixel } from "../pixels.js";
+import { PALETTE } from "../palette.js";
 
 export const W = 88;
 export const H = 72;

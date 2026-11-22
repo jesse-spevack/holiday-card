@@ -1,7 +1,7 @@
 // The living room party. Draws at the room's native 256x192 pixels on a canvas,
 // which CSS scales up with crisp pixels. Bubbles and nametags are HTML on top.
 
-import { drawPet, drawPetMark } from "./pets.js";
+import { drawPet, drawPetMark } from "./extras/pets.js";
 import { ROOM_W, ROOM_H, FLOOR, PLACES, ENTRANCE, ENTRANCE_WAIT, WINDOW, CANDLES, FIRE, BOOK, HOTSPOTS, isNight, roomPixels } from "./room.js";
 import { PALETTE } from "./palette.js";
 

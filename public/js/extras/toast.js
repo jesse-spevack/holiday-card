@@ -4,7 +4,7 @@
 // and after about 2 seconds everyone lowers the cup.
 // The tap area is "wine" in HOTSPOTS (room.js). The scene draws this module as a layer (Scene.addLayer).
 
-import { eachPixel } from "./pixels.js";
+import { eachPixel } from "../pixels.js";
 import { isPet } from "./pets.js";
 
 // The lines for the toast. One of Jess and Jesse says one, never the same line twice in a row.

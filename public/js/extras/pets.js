@@ -2,7 +2,7 @@
 // Nothing on the page points this out. A reaction is the field `react` on a sprite: { kind, at }.
 // scene.js draws a sprite with a reaction through drawPet, and its heart or flame through drawPetMark.
 
-import { eachPixel } from "./pixels.js";
+import { eachPixel } from "../pixels.js";
 
 // The silly pets in looks.json each get their own reaction. Every other pet reacts as its type.
 const SILLY = { "dog-11": "robot", "dog-12": "dragon", "cat-07": "alien", "cat-08": "penguin" };

@@ -1,7 +1,7 @@
 // Pixel art for the open photo album: one canvas pixel is one book pixel, and CSS scales it up crisp.
 // The colors come from the small red book on the sofa (art/scripts/book.py) and the room.
 
-import { eachPixel } from "./pixels.js";
+import { eachPixel } from "../pixels.js";
 
 const C = {
   outline: "#1b0804",

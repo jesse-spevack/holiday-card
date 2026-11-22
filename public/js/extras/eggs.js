@@ -4,8 +4,8 @@
 // During Hanukkah, the menorah burns one candle for each night (hanukkah.js).
 // The tap areas are HOTSPOTS in room.js. The scene draws this module as a layer (Scene.addLayer).
 
-import { ROOM_W, ROOM_H, FIRE, WINDOW, ROAD_Y, MENORAH, LAMP, LAMP_YELLOW, WALL, SHADE_OFF, FIRE_COLORS, rgb, isNight } from "./room.js";
-import { eachPixel } from "./pixels.js";
+import { ROOM_W, ROOM_H, FIRE, WINDOW, ROAD_Y, MENORAH, LAMP, LAMP_YELLOW, WALL, SHADE_OFF, FIRE_COLORS, rgb, isNight } from "../room.js";
+import { eachPixel } from "../pixels.js";
 import { hanukkahNight } from "./hanukkah.js";
 
 const PANES = WINDOW.glass.panes;

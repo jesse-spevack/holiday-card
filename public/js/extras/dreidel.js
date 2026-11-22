@@ -4,7 +4,7 @@
 
 import { W, H, FLOOR, FACES, LENGTH, drawRoom, drawDreidel, drawFlake, drawShadow, drawGelt, drawLetter, drawSpeed, lowest, PANES, PANE_Y } from "./dreidel-art.js";
 import { DreidelSound } from "./dreidel-sound.js";
-import { h, loadCss, dialogRoot, PageBehind } from "./dom.js";
+import { h, loadCss, dialogRoot, PageBehind } from "../dom.js";
 
 const CSS = "/dreidel.css";
 const GROW_MS = 520;

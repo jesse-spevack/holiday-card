@@ -4,9 +4,9 @@
 
 import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
 import { HOTSPOTS, DREIDELS, FLOOR, WINDOW, PLANTS } from "./room.js";
-import { TOAST_LINES } from "./toast.js";
-import { CARS } from "./eggs.js";
-import { PRESENT_LINES } from "./presents.js";
+import { TOAST_LINES } from "./extras/toast.js";
+import { CARS } from "./extras/eggs.js";
+import { PRESENT_LINES } from "./extras/presents.js";
 
 export function testApi({ scene, sound, eggs, dreidel, toast, plants, fire, presents, album, found, tracking }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.

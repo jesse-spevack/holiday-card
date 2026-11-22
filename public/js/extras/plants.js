@@ -3,9 +3,9 @@
 // When every plant blooms, petals drift down over the whole room, every plant sparkles, and a soft chord plays.
 // The plants and the flower spots are PLANTS in room.js. The scene draws this module as a layer (Scene.addLayer).
 
-import { PLANTS, ROOM_W, ROOM_H } from "./room.js";
-import { eachPixel } from "./pixels.js";
-import { PALETTE } from "./palette.js";
+import { PLANTS, ROOM_W, ROOM_H } from "../room.js";
+import { eachPixel } from "../pixels.js";
+import { PALETTE } from "../palette.js";
 import { NIGHT_TINT } from "./eggs.js";
 
 // The flowers, as text grids. o is the outline, P the petal, S the petal in shade, and c the center. "." stays clear.
