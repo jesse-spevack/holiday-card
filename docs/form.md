@@ -35,6 +35,9 @@ The hosts ("Jesse & Jessica") ask one question at a time in a dialog box.
 4. **Confirm**: the envelope name, street plus unit, and city, state and ZIP. "Fix it" goes back to step 3.
    "Yes, send it" starts the door arrival at once and calls `POST /api/submit` during it. On failure, the button works again.
 5. **Done**: the browser saves `{id, token, name, members, bubbles}` in localStorage key `hc.families`. A return visit goes straight to the party.
+   After 5 seconds, the thank-you slides away and the camera shows the whole room. "Add another address" in the top bar brings back step 1.
+
+To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 
 After that, a tap on one of your own sprites opens a small editor. "Say something" sets a speech bubble.
 "New look" opens the look picker (`docs/form/look-picker-*.png`). A person sees every person look, from the oldest to the youngest, then the silly looks.
