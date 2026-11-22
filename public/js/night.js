@@ -16,6 +16,8 @@ const MIN_BAND = 14;
 const ROOF_BAND = 34;
 // The greeting needs this much room (in CSS pixels) under the room.
 const GREETING_PX = 96;
+// Snow keeps this far (in room pixels) from the words, so no flake looks like a stray dot in the text.
+const WORD_GAP = 5;
 
 // Colors from room.png and style.css.
 const P = {
@@ -463,8 +465,8 @@ export class Night {
     this.words = [...this.greeting.children].map((el) => {
       const r = el.getBoundingClientRect();
       return {
-        x0: (r.left - st.left - v.left) / v.scale - 2, x1: (r.right - st.left - v.left) / v.scale + 2,
-        y0: (r.top - st.top - v.top) / v.scale - 2, y1: (r.bottom - st.top - v.top) / v.scale + 2,
+        x0: (r.left - st.left - v.left) / v.scale - WORD_GAP, x1: (r.right - st.left - v.left) / v.scale + WORD_GAP,
+        y0: (r.top - st.top - v.top) / v.scale - WORD_GAP, y1: (r.bottom - st.top - v.top) / v.scale + WORD_GAP,
       };
     });
   }
