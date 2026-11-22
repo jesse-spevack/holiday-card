@@ -1,5 +1,5 @@
 // Pixel art written as text: each string is one row, and each character is one pixel.
-// The art modules (eggs.js, pets.js, album-art.js, dreidel-art.js) draw their small sprites with this.
+// The art modules (extras/road.js, extras/pets.js, extras/album-art.js, extras/dreidel-art.js) draw their small sprites with this.
 
 // Calls put(x, y, value) for each character in `rows` that has a value in `colors`, row by row from the top.
 // flipX and flipY mirror the sprite. A character with no value (such as ".") stays clear.

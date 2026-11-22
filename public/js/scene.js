@@ -1,8 +1,8 @@
 // The living room party. Draws at the room's native 256x192 pixels on a canvas,
 // which CSS scales up with crisp pixels. Bubbles and nametags are HTML on top.
 
-import { drawPet, drawPetMark } from "./pets.js";
-import { ROOM_W, ROOM_H, FLOOR, PLACES, ENTRANCE, ENTRANCE_WAIT, WINDOW, CANDLES, FIRE, BOOK, HOTSPOTS, isNight, roomPixels } from "./room.js";
+import { ROOM_W, ROOM_H, FLOOR, PLACES, ENTRANCE, ENTRANCE_WAIT, roomPixels } from "./room.js";
+import { Ambience } from "./ambience.js";
 import { PALETTE } from "./palette.js";
 
 // A tap finds a thing from a little way off. Each thing gets this much screen (in CSS pixels) in each direction
@@ -13,59 +13,6 @@ const TAP_PAD = 2;
 // The corners that show which thing a tap found.
 // Gold arms with a dark outline, so they show on the night glass, the wood, and the lamp light.
 const PRESS = { seconds: 0.45, gold: PALETTE.gold, dark: "#2a1813", arm: 4, gap: 2 };
-
-// Each host has a home spot and places to visit. Jess and Jesse also visit the guests. Eddie walks with Audrey.
-// Audrey and Eddie are kids, so they toast with cocoa (toast.js).
-export const HOSTS = [
-  { id: "jessica", name: "Jess", x: 153, y: 130, places: ["table", "rug", "fire"], mingle: true },
-  { id: "jesse", name: "Jesse", x: 171, y: 130, places: ["table", "rug", "fire"], mingle: true },
-  { id: "daughter", name: "Audrey", x: 98, y: 160, places: ["rug", "fire", "presents", "table"], kid: true },
-  { id: "son", name: "Eddie", x: 114, y: 162, follow: "daughter", kid: true },
-];
-// What each host says when a guest taps them. Most lines thank the guest. A line with an egg hints at a hidden
-// thing in the room (app.js drops it after the guest finds that thing).
-const hint = (egg, text) => ({ egg, text });
-export const HOST_LINES = {
-  jessica: [
-    "Thank you for being here.",
-    "We're grateful for you.",
-    "So happy to see you!",
-    hint("album", "Have you seen our year? It's somewhere comfy."),
-    hint("menorah", "The candles by the window have a question."),
-    hint("star", "The window is good for wishes."),
-    hint("toast", "Those glasses won't raise themselves."),
-    hint("fire", "Poke the fire. It likes attention."),
-  ],
-  jesse: [
-    "Happy holidays!",
-    "Happy New Year!",
-    "We're so glad you're in our lives.",
-    "I'm normal.",
-    hint("album", "Our whole year fits in one little book."),
-    hint("lamp", "This room is cozier with the lights low."),
-    hint("waymo", "Watch the street. Some cars drive themselves."),
-    hint("menorah", "Those candles love to be lit again."),
-    hint("toast", "Somebody should make a toast."),
-  ],
-  daughter: [
-    "So happy you came!",
-    "Thanks for coming to our party!",
-    hint("dreidel", "The little tops on the sill look lonely."),
-    hint("star", "I saw a shooting star in our window!"),
-    hint("pets", "Have you met the pets? They know tricks."),
-    hint("silly", "My favorite looks are the silly ones."),
-    hint("plants", "I bet the plants would love some attention."),
-  ],
-  son: [
-    "Hi! Happy holidays!",
-    "I'm glad you're here!",
-    hint("dreidel", "Bet you can't beat me at dreidel."),
-    hint("waymo", "I saw a van with nobody driving it!"),
-    hint("pets", "Some pets here are not normal pets."),
-    hint("lamp", "The fire looks so cool in the dark."),
-    hint("presents", "Psst. Tap the presents!"),
-  ],
-};
 
 const WALK_SPEED = 22;
 
@@ -94,7 +41,8 @@ export class Scene {
     this.reducedMotion = reducedMotion;
     this.sprites = [];
     this.families = new Map();
-    this.flakes = Array.from({ length: 36 }, () => this.newFlake(true));
+    // The snow in the window, the fire glow, and the candle flames. The snow makes the page's first random choices.
+    this.ambience = new Ambience(this);
     this.camera = { scale: 2, x: 128, y: 120, target: null };
     this.last = performance.now();
     this.time = 0;
@@ -102,10 +50,13 @@ export class Scene {
     this.onHover = onHover || (() => {});
     this.onHotspot = onHotspot || (() => {});
     this.onLayout = onLayout || (() => {});
-    // Layers (eggs.js) draw over the room image and over the sprites. Frame listeners (night.js) run at the start of each frame.
+    // Layers (the hidden extras) draw over the room image and over the sprites. Frame listeners (night.js) run at the start of each frame.
     this.layers = [];
     this.frameListeners = [];
-    this.bookShown = true;
+    // The tap areas of the hidden extras: [{ id, x, y, w, h, back, open }] in room pixels (registry.js). open() is false while a spot takes no taps.
+    this.spots = [];
+    // The sprites that the last frame drew, from back to front.
+    this.drawn = [];
     this.press = null;
     stage.addEventListener("pointerdown", (e) => this.handlePress(e));
     stage.addEventListener("pointercancel", () => { this.press = null; });
@@ -123,16 +74,16 @@ export class Scene {
   async load(roomSrc) {
     this.room = await loadImage(roomSrc);
     const pixels = roomPixels(this.room);
-    this.flames = flamePixels(pixels);
-    this.glass = glassMask(pixels);
+    this.ambience.prepare(pixels);
     for (const layer of this.layers) layer.prepare?.(pixels);
-    loadImage("/assets/book.png").then((img) => { this.book = img; }, () => {});
+    this.prepared = true;
     this.layout();
     requestAnimationFrame((t) => this.frame(t));
   }
 
   // A layer is an object with any of these: prepare(pixels) once the room loads, update(dt) each frame,
-  // drawBack(g) over the room image, drawOn(g, sprite, x, y) right after each sprite (x, y is its top-left corner),
+  // drawBack(g) over the room image, drawSprite(g, sprite, x, y) in place of a sprite's image (true when it drew),
+  // drawOn(g, sprite, x, y) right after each sprite (x, y is its top-left corner),
   // drawFront(g) over the sprites, and flame(i) for the state of candle i.
   addLayer(layer) {
     this.layers.push(layer);
@@ -144,10 +95,6 @@ export class Scene {
     return () => {
       this.frameListeners = this.frameListeners.filter((f) => f !== fn);
     };
-  }
-
-  showBook(on) {
-    this.bookShown = on;
   }
 
   // ---- camera ----
@@ -359,18 +306,6 @@ export class Scene {
     return center;
   }
 
-  newFlake(anywhere = false) {
-    const { panes, y0, y1 } = WINDOW.snow;
-    const pane = panes[Math.floor(Math.random() * panes.length)];
-    return {
-      x: rand(pane[0], pane[1]),
-      y: anywhere ? rand(y0, y1) : y0,
-      pane,
-      speed: rand(5, 11),
-      drift: rand(-1.5, 1.5),
-    };
-  }
-
   // ---- loop ----
   frame(now) {
     // The listeners run before the scene's own update. Both make random choices, so this order keeps them the same.
@@ -423,11 +358,7 @@ export class Scene {
         }
       }
     }
-    for (const f of this.flakes) {
-      f.y += f.speed * dt;
-      f.x += f.drift * dt;
-      if (f.y > WINDOW.snow.y1 || f.x < f.pane[0] || f.x > f.pane[1]) Object.assign(f, this.newFlake());
-    }
+    this.ambience.update(dt);
     for (const layer of this.layers) layer.update?.(dt);
   }
 
@@ -438,18 +369,7 @@ export class Scene {
     g.globalAlpha = 1;
     g.drawImage(this.room, 0, 0);
     for (const layer of this.layers) layer.drawBack?.(g);
-
-    // snow in the window, only on the glass, never over the frame or the menorah
-    g.fillStyle = "#ffffff";
-    for (const f of this.flakes) {
-      const x = Math.round(f.x);
-      const y = Math.round(f.y);
-      if (this.glass.has(y * ROOM_W + x)) g.fillRect(x, y, 1, 1);
-    }
-
-    this.drawGlow(g);
-    if (this.book && this.bookShown) g.drawImage(this.book, BOOK.x, BOOK.y);
-    this.drawFlames(g);
+    this.ambience.draw(g);
 
     // shadows, then sprites from back to front
     const visible = this.sprites.filter((s) => s.img && this.time >= s.popAt);
@@ -461,13 +381,14 @@ export class Scene {
       g.fill();
     }
     visible.sort((a, b) => a.y - b.y);
+    this.drawn = visible;
     for (const s of visible) {
       const age = this.time - s.popAt;
       const hop = !this.reducedMotion && age < 0.25 ? Math.round(Math.sin((age / 0.25) * Math.PI) * 4) : 0;
       const x = Math.round(s.x - s.img.width / 2);
       const y = Math.round(s.y - s.img.height - s.bob - hop - s.rise);
-      if (s.react) {
-        drawPet(g, s, x, y, this.time, this.reducedMotion);
+      if (this.layers.some((layer) => layer.drawSprite?.(g, s, x, y))) {
+        // a layer drew the sprite
       } else if (s.flip) {
         g.save();
         g.scale(-1, 1);
@@ -479,7 +400,6 @@ export class Scene {
       for (const layer of this.layers) layer.drawOn?.(g, s, x, y);
     }
     for (const layer of this.layers) layer.drawFront?.(g);
-    for (const s of visible) if (s.react) drawPetMark(g, s, this.time, this.reducedMotion);
     this.drawPress(g);
   }
 
@@ -513,44 +433,28 @@ export class Scene {
     corners(0, PRESS.gold);
   }
 
-  // "lit", "new" (just lit), or "out", from the first layer that knows.
+  // The candle flames: [{ x, y }] in room pixels. flameState(i) is "lit", "new" (just lit), or "out", from the first layer that knows.
+  get flames() {
+    return this.ambience.flames;
+  }
+
   flameState(i) {
     for (const layer of this.layers) if (layer.flame) return layer.flame(i);
     return "lit";
   }
 
+  // The flicker of the fire now, from 0 to 1.
   flicker() {
-    return 0.5 + 0.5 * Math.sin(this.time * 9) * Math.sin(this.time * 5.3 + 1);
+    return this.ambience.flicker();
   }
 
-  drawGlow(g) {
-    const flicker = this.flicker();
-    g.globalCompositeOperation = "lighter";
-    g.globalAlpha = 0.06 + 0.06 * flicker;
-    g.fillStyle = "#ffb050";
-    g.fillRect(FIRE.x, FIRE.y, FIRE.w, FIRE.h);
-    g.globalAlpha = 0.05 + 0.05 * flicker;
-    g.beginPath();
-    g.ellipse(128, 88, 34, 9, 0, 0, Math.PI * 2);
-    g.fill();
-    g.globalCompositeOperation = "source-over";
-    g.globalAlpha = 1;
-  }
-
-  // Each candle flame flickers on its own: a bright core and a tip that comes and goes.
-  // A flame that was just lit shows only a small dim core for a moment.
   drawFlames(g) {
-    this.flames.forEach(({ x, y }, i) => {
-      const state = this.flameState(i);
-      if (state === "out") return;
-      const wave = Math.sin(this.time * (7 + i) + i * 1.7) + Math.sin(this.time * 3.1 + i);
-      g.fillStyle = state === "new" ? "#f6b74a" : wave > 0 ? "#fff4c2" : "#ffd36b";
-      g.fillRect(x, y, 1, 1);
-      if (state === "lit" && wave > -0.6) {
-        g.fillStyle = wave > 0.8 ? "#ffe9a0" : "#f6b74a";
-        g.fillRect(x, y - 1, 1, 1);
-      }
-    });
+    this.ambience.drawFlames(g);
+  }
+
+  // The sprites that the last frame drew, from back to front.
+  visibleSprites() {
+    return this.drawn;
   }
 
   // ---- HTML on top: bubbles, nametags, popovers ----
@@ -717,8 +621,7 @@ export class Scene {
   }
 
   hotspotBoxAt(x, y, min = 0) {
-    const open = HOTSPOTS.filter((s) => s.id !== "book" || (this.book && this.bookShown));
-    return pickSpot(open, x, y, min);
+    return pickSpot(this.spots.filter((s) => s.open?.() ?? true), x, y, min);
   }
 
   // The smallest target in room pixels for this pointer at the camera's scale now.
@@ -762,11 +665,6 @@ export class Scene {
     const r = this.stage.getBoundingClientRect();
     const v = this.view;
     return new DOMRect(r.left + v.left + x * v.scale, r.top + v.top + y * v.scale, w * v.scale, h * v.scale);
-  }
-
-  // Where the book's cover is on the screen now.
-  bookRect() {
-    return this.roomRect(BOOK);
   }
 
   handleTap(e) {
@@ -835,30 +733,4 @@ function nearest(boxes, x, y, min, pad) {
 // first, and the nearest one wins. A "back" thing (the window) takes a tap only inside its own box.
 export function pickSpot(spots, x, y, min = 0) {
   return nearest(spots.filter((s) => !s.back), x, y, min, TAP_PAD) || spots.find((s) => s.back && inside(s, x, y)) || null;
-}
-
-// The candle flames are the bright yellow pixels around the menorah.
-function flamePixels(data) {
-  const flames = [];
-  for (let y = CANDLES.y0; y < CANDLES.y1; y++) {
-    for (let x = CANDLES.x0; x < CANDLES.x1; x++) {
-      const i = (y * ROOM_W + x) * 4;
-      if (data[i] > 220 && data[i + 1] > 170 && data[i + 2] < 160) flames.push({ x, y });
-    }
-  }
-  return flames;
-}
-
-// The window glass where snow falls: the dark blue night sky and the snow on it.
-function glassMask(data) {
-  const glass = new Set();
-  const { panes, y0, y1 } = WINDOW.snow;
-  for (let y = y0; y < y1; y++) {
-    for (const [x0, x1] of panes) {
-      for (let x = x0; x <= x1; x++) {
-        if (isNight(data, (y * ROOM_W + x) * 4)) glass.add(y * ROOM_W + x);
-      }
-    }
-  }
-  return glass;
 }

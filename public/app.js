@@ -1,55 +1,30 @@
-import { Scene, HOSTS, HOST_LINES, loadImage } from "./js/scene.js";
-import { ROOM_W, ROOM_H, DREIDELS, PLANTS } from "./js/room.js";
+import { Scene, loadImage } from "./js/scene.js";
+import { HOSTS, hostLine } from "./js/hosts.js";
+import { ROOM_W, ROOM_H } from "./js/room.js";
 import { h } from "./js/dom.js";
 import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
 import { openPicker } from "./js/picker.js";
-import { Album } from "./js/album.js";
-import { Dreidel } from "./js/dreidel.js";
-import { Eggs } from "./js/eggs.js";
-import { react, isPet } from "./js/pets.js";
+import { setupExtras } from "./js/registry.js";
+import { createFound } from "./js/found.js";
 import { Night } from "./js/night.js";
-import { Toast } from "./js/toast.js";
-import { Plants } from "./js/plants.js";
-import { Fire } from "./js/fire.js";
-import { Presents } from "./js/presents.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sound = new Sound();
-// The hidden thing that each tap area finds, for the hosts' hints.
-const EGG_OF = { book: "album", lamp: "lamp", "dreidel-left": "dreidel", "dreidel-right": "dreidel", menorah: "menorah", window: "star", wine: "toast", fire: "fire", presents: "presents" };
-// The modules make their random choices in this order (snow, the first Waymo, the dreidel's snow). Keep it.
+// The page makes its random choices in this order (the snow, the extras in their list order, the night). Keep it.
 const scene = new Scene({
   stage: $("stage"), world: $("world"), canvas: $("canvas"), overlay: $("overlay"), reducedMotion,
   onTap: (sprite) => onTap(sprite),
   onHover: (sprite) => onHover(sprite),
-  onHotspot: (id) => {
-    markFound(PLANTS[id] ? "plants" : EGG_OF[id]);
-    if (id === "book") album.open();
-    else if (DREIDELS[id]) dreidel.open(() => scene.roomRect(DREIDELS[id]));
-    else if (id === "wine") toast.tap();
-    else if (PLANTS[id]) plants.tap(id);
-    else if (id === "fire") fire.tap();
-    else if (id === "presents") presents.tap();
-    else eggs.tap(id);
-  },
+  onHotspot: (id) => extras.tap(id),
   onLayout: (view) => night.layout(view),
 });
 const app = $("app");
 const dialog = $("dialog");
-const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => scene.showBook(on) });
-const eggs = new Eggs({ scene, sound, reducedMotion, onFound: (egg) => markFound(egg) });
-scene.addLayer(eggs);
-const toast = new Toast({ scene, sound, reducedMotion });
-scene.addLayer(toast);
-const plants = new Plants({ scene, sound, reducedMotion, dark: () => !eggs.lampOn });
-scene.addLayer(plants);
-const fire = new Fire({ scene, sound, reducedMotion });
-scene.addLayer(fire);
-const presents = new Presents({ scene, sound });
-scene.addLayer(presents);
-const dreidel = new Dreidel({ sound, reducedMotion });
+// The hidden extras (public/js/extras/). found records each interaction for the family this browser signed up last.
+const found = createFound({ family: () => state.mine.at(-1) });
+const extras = setupExtras({ scene, sound, reducedMotion, found: found.mark, mine: () => state.mine });
 const night = new Night({ stage: $("stage"), reducedMotion, clock: scene });
 const again = $("again");
 const TUCK_MS = 7000;
@@ -88,35 +63,6 @@ function saveMine() {
   try { localStorage.setItem(SAVED, JSON.stringify(state.mine)); } catch {}
 }
 const mineById = (id) => state.mine.find((f) => f.id === id);
-
-// ---------- hidden things this browser found ----------
-// The one hook for a hidden extra: call markFound(egg) on each interaction with it, not only the first.
-// It tells the Worker (see track), and the hosts stop a hint after the guest finds its thing.
-// The found list stays for the next visit. A new egg name must also go in EGGS in src/interactions.ts.
-const FOUND = "hc.found";
-const found = new Set(loadFound());
-function loadFound() {
-  try { return JSON.parse(localStorage.getItem(FOUND)) || []; } catch { return []; }
-}
-function markFound(egg) {
-  if (!egg) return;
-  track(egg);
-  if (found.has(egg)) return;
-  found.add(egg);
-  try { localStorage.setItem(FOUND, JSON.stringify([...found])); } catch {}
-}
-
-// Records the interaction for the family this browser signed up last. A guest with no family sends nothing.
-// A guest who taps fast sends at most one call for each egg in `gapMs`. A failed call stays silent.
-const tracking = { gapMs: 5000, sentAt: new Map() };
-function track(egg) {
-  const family = state.mine.at(-1);
-  if (!family) return;
-  const now = performance.now();
-  if (now - (tracking.sentAt.get(egg) ?? -Infinity) < tracking.gapMs) return;
-  tracking.sentAt.set(egg, now);
-  api.interaction({ id: family.id, token: family.token, egg }).catch(() => {});
-}
 
 // ---------- Turnstile: Cloudflare's check that a real browser sends the address ----------
 let turnstileWidget = null;
@@ -528,12 +474,11 @@ function onTap(sprite) {
     sound.select();
     scene.pause(sprite, 3);
     scene.showNames(hostSprites(), 3);
-    scene.say(sprite, hostLine(sprite), 4);
+    scene.say(sprite, hostLine(sprite, (egg) => !found.has(egg) && extras.fits(egg)), 4);
     return;
   }
-  // A pet reacts to every tap. In your own family, the editor opens at the same time.
-  const pet = react(sprite, { time: scene.time, sound });
-  if (pet) markFound("pets");
+  // An extra can react to a tap on a guest (a pet does). In your own family, the editor opens at the same time.
+  const pet = extras.tapSprite(sprite);
   const saved = mineById(sprite.familyId);
   if (!saved) {
     const fam = scene.families.get(sprite.familyId);
@@ -544,25 +489,7 @@ function onTap(sprite) {
   openEditor(sprite, saved, { quiet: !!pet });
 }
 
-// Some hints make sense only for some guests: the pets hint needs a pet at the party,
-// and the silly looks hint needs a family of your own to dress up.
-const HINT_FITS = {
-  pets: () => scene.sprites.some(isPet),
-  silly: () => state.mine.length > 0,
-};
-
-// A random line for a host: never the line this host said last, and no hint for a thing the guest found.
-function hostLine(sprite) {
-  const lines = HOST_LINES[sprite.id]
-    .map((l) => (typeof l === "string" ? { text: l } : l))
-    .filter((l) => !l.egg || (!found.has(l.egg) && (HINT_FITS[l.egg]?.() ?? true)))
-    .filter((l) => l.text !== sprite.lastLine);
-  const line = lines[Math.floor(Math.random() * lines.length)];
-  sprite.lastLine = line.text;
-  return line.text;
-}
-
-// A pet's own sound plays in place of the editor's chime.
+// An extra's own sound (a pet's) plays in place of the editor's chime.
 function openEditor(sprite, saved, { quiet = false } = {}) {
   if (!quiet) sound.select();
   const input = h("input", { id: "f-bubble", autocomplete: "off", ...NO_PASSWORD_MANAGER, maxlength: 40, value: saved.bubbles[sprite.index] || "", placeholder: "Say something", "aria-label": "Say something" });
@@ -578,7 +505,7 @@ function openEditor(sprite, saved, { quiet = false } = {}) {
   const wear = async (look) => {
     sprite.img = await image(look.src);
     sprite.look = look.id;
-    if (look.silly) markFound("silly");
+    extras.look(sprite, look);
     saved.members[sprite.index].look = look.id;
     saveMine();
     sound.pop();
@@ -638,6 +565,6 @@ async function start() {
 
 // "?test" loads the test API for the end-to-end tests (public/js/test-api.js). A guest never loads it.
 if (new URLSearchParams(location.search).has("test")) {
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, toast, plants, fire, presents, album, found, tracking }); });
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found }); });
 }
 start();

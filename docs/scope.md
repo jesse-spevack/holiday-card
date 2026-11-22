@@ -25,7 +25,7 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
 - A small red book lies on the sofa. Nothing points to it. A tap opens it over the whole screen, with one photo from our year on each page.
 - A tap on the left half goes back, and a tap on the right half goes forward. Arrow keys, Escape, and a swipe work too.
 - Phones show one page at a time. Wide screens show two pages, after a title page.
-- Code: `public/js/album.js` and `public/album.css`. The book sprite: `art/scripts/book.py`.
+- Code: `public/js/extras/album.js` and `public/album.css`. The book sprite: `art/scripts/book.py`.
   The open book is pixel art that `public/js/album-art.js` draws at runtime. The photos stay smooth.
 - The book makes real paper sounds: a page flip for each turn, and a sound when the cover opens and closes.
   The recordings come from Kenney's "RPG Audio" pack (CC0, no credit required): `public/assets/sounds/` and its `LICENSE.txt`.
@@ -56,7 +56,8 @@ Nothing on screen points to these.
 - A tap on the floor lamp turns it off. The room goes dark blue, and the fire and the candles glow. A second tap turns it on.
 - With reduced motion, the Waymo and the Cybertruck stop in the window for a few seconds, and the star does not move.
   The Cybertruck is longer than a pane, so it stops with its nose and its light bar in a side pane.
-- Code: `public/js/eggs.js`, and the nights of Hanukkah in `public/js/hanukkah.js`. The tap areas are `HOTSPOTS` in `public/js/room.js`.
+- Code: in `public/js/extras/`, `waymo.js` and `cybertruck.js` on the shared `road.js`, `star.js`, `menorah.js` with the nights of Hanukkah in `hanukkah.js`, and `lamp.js`.
+  The tap boxes are in `public/js/room.js`.
 
 ## The toast (a hidden extra)
 
@@ -70,7 +71,7 @@ Nothing on screen points to these.
 - With reduced motion, the cups, the clinks, and the bubble stay, but nobody hops, the cups do not move, and the steam holds still.
 - The glass is 5 by 7 room pixels, and the mug is 6 by 6. Each has a dark outline, so it shows on the floor, the rug, and clothes.
   The code finds the hand in each sprite image: the arm that reaches out the farthest between the waist and the hips.
-- Code: `public/js/toast.js`. The clinks are `cheers()` in `public/js/sound.js`.
+- Code: `public/js/extras/toast.js`. The clinks are `cheers()` in `public/js/sound.js`.
 
 ## The plants (a hidden extra)
 
@@ -85,7 +86,7 @@ Nothing on screen points to these.
 - With the lamp off, the flowers and the petals take the dark blue of the room.
 - With reduced motion, the flowers open at once, and the petals rest on the floor for 3 seconds and then fade.
 - Audrey hints at the plants: "I bet the plants would love some attention."
-- Code: `public/js/plants.js`. The plants, their tap areas, and the flower spots are `PLANTS` in `public/js/room.js`.
+- Code: `public/js/extras/plants.js`. The plants, their tap areas, and the flower spots are `PLANTS` in `public/js/room.js`.
   The chime is `chime()` and the chord is `bouquet()` in `public/js/sound.js`.
 
 ## The fire (a hidden extra)
@@ -100,7 +101,7 @@ Nothing on screen points to these.
 - With the lamp off, the sparks and the flare still glow.
 - With reduced motion, the crackle and the flare stay, and a few sparks glow above the flames and fade where they are.
 - Jess hints at it: "Poke the fire. It likes attention."
-- Code: `public/js/fire.js`. The crackle is `crackle()` in `public/js/sound.js`.
+- Code: `public/js/extras/fire.js`. The crackle is `crackle()` in `public/js/sound.js`.
 
 ## The presents (a hidden extra)
 
@@ -111,11 +112,11 @@ Nothing on screen points to these.
 - The name of each kid shows under them while they talk. The kids stand still until Audrey finishes.
 - Three quick bells ring on the tap. A tap while the kids talk, or for 0.5 seconds after, does nothing.
 - Eddie hints at it: "Psst. Tap the presents!" He stops the hint after the guest finds the presents.
-- Code: `public/js/presents.js`. The bells are `gift()` in `public/js/sound.js`.
+- Code: `public/js/extras/presents.js`. The bells are `gift()` in `public/js/sound.js`.
 
 ## Tap areas
 
-- Each box in `HOTSPOTS` is the thing as drawn. A tap finds a thing from a little way off: on a touch screen, each thing gets
+- Each tap box (the `spots` of each extra, joined in `HOTSPOTS` in `public/js/registry.js`) is the thing as drawn. A tap finds a thing from a little way off: on a touch screen, each thing gets
   44 CSS pixels in each direction where the room allows. A mouse gets 20.
 - Where two areas overlap, the nearer thing wins. The window is a back area: it takes only the taps that no small thing takes.
 - The things on the sill stand closer than a finger, so each one gets a full finger of height and about 30 CSS pixels of width on a phone.
@@ -136,7 +137,7 @@ Nothing on screen points to these.
 - The close button, Escape, or a tap outside the game closes it, and the dreidel shrinks back to the sill.
 - With reduced motion, the game fades in, and a spin fades to the result with no whirr.
 - The dreidel is a small 3D model drawn pixel by pixel in code at 88x72, then scaled by a whole number. The letters are 12-pixel bitmaps.
-- Code: `public/js/dreidel.js` (the game), `public/js/dreidel-art.js` (the pixels), `public/js/dreidel-sound.js` (the sounds), `public/dreidel.css`.
+- Code: `public/js/extras/dreidel.js` (the game), `public/js/extras/dreidel-art.js` (the pixels), `public/js/extras/dreidel-sound.js` (the sounds), `public/dreidel.css`.
   The gelt coin sounds are `gelt-pile` and `gelt-few` in `public/assets/sounds/`, from the same Kenney pack.
 - For a test, `?test` exposes the game as `window.__hc.dreidel`. Set `rig = { face: "gimel", speed: 6 }` to choose the side and run the clock faster.
 
@@ -153,7 +154,7 @@ Nothing on screen points to these.
 - The room fills the screen, and the hosts talk in a pixel-art dialog box under it, like a handheld RPG.
 - The theme is cozy winter holidays with a feeling of gratitude. The hosts say things like "Happy holidays!",
   "Happy New Year!", and "We're so glad you're in our lives." No Hanukkah greetings.
-- About half of the host lines hint at a hidden extra, in the voice of that host (`HOST_LINES` in `public/js/scene.js`).
+- About half of the host lines hint at a hidden extra, in the voice of that host (the `hints` of each extra in `public/js/extras/`, joined in `HOST_LINES` in `public/js/hosts.js`).
   A hint stops after this browser finds its extra (`hc.found` in local storage). A host never says the same line twice in a row.
 - Details in the room: a menorah and dreidels on the window sill, wrapped presents under the window, latkes and cocoa,
   snow, blue and white bunting. No Christmas imagery.

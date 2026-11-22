@@ -2,9 +2,10 @@
 // Each grown-up holds a small red wine glass in one hand, and each kid and baby holds a mug of cocoa. The pets hold nothing.
 // Everyone lifts their cup and hops once. The glasses clink, one of the two big hosts says a toast,
 // and after about 2 seconds everyone lowers the cup.
-// The tap area is "wine" in HOTSPOTS (room.js). The scene draws this module as a layer (Scene.addLayer).
+// The tap area is WINE in room.js. The scene draws this module as a layer.
 
-import { eachPixel } from "./pixels.js";
+import { eachPixel } from "../pixels.js";
+import { WINE } from "../room.js";
 import { isPet } from "./pets.js";
 
 // The lines for the toast. One of Jess and Jesse says one, never the same line twice in a row.
@@ -272,3 +273,25 @@ export function findHand(data, w, h) {
   const i = at(x, y);
   return { x, y, skin: `rgb(${data[i]}, ${data[i + 1]}, ${data[i + 2]})` };
 }
+
+export default {
+  name: "toast",
+  spots: [{ id: "wine", ...WINE }],
+  hints: [
+    { host: "jessica", text: "Those glasses won't raise themselves." },
+    { host: "jesse", text: "Somebody should make a toast." },
+  ],
+  setup(ctx) {
+    const toast = new Toast(ctx);
+    return {
+      layer: toast,
+      tap: () => toast.tap(),
+      test: () => ({
+        // The toast: { on, age, speaker, line, lift, readyIn, people: [{ familyId, index, name, flip, hop, cup }] }.
+        // cup is { kind: "wine" or "cocoa", x, y, w, h, hand, lift } in room pixels. hand is the column of the hand that holds it.
+        toast: () => toast.state(),
+        toastLines: () => [...TOAST_LINES],
+      }),
+    };
+  },
+};

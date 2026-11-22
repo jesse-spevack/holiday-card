@@ -2,7 +2,7 @@ import { HttpError } from "./http";
 import { checkToken } from "./party";
 
 // The hidden extras that the page reports. A name that is not here gets a 400.
-// "presents" is for the extra that comes next.
+// Each name is the `name` of an extra in public/js/extras/. test/extras.test.ts fails when the two lists differ.
 export const EGGS = ["album", "cybertruck", "dreidel", "fire", "lamp", "menorah", "pets", "plants", "presents", "silly", "star", "toast", "waymo"] as const;
 export type Egg = (typeof EGGS)[number];
 

@@ -4,7 +4,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { e2e, OUT, tapRoom, sceneWait } from "./harness.mjs";
-import { hanukkahNight } from "../../public/js/hanukkah.js";
+import { hanukkahNight } from "../../public/js/extras/hanukkah.js";
 
 const env = await e2e();
 

@@ -2,7 +2,7 @@
 // The gelt coins play two short recordings from Kenney's RPG Audio pack (CC0, see public/assets/sounds/),
 // which the page's Sound loads. It uses that Sound for the on/off setting and the audio context.
 
-import { tone, whiteNoise } from "./sound.js";
+import { tone, whiteNoise } from "../sound.js";
 
 export class DreidelSound {
   constructor(sound) {

@@ -3,7 +3,7 @@
 Usage (from the repo root): python3 art/scripts/menorah.py
 The menorah on the window sill held six candles and the shamash. A Hanukkah menorah holds eight and the shamash,
 so this script paints one more candle at each end of the candle bar on public/assets/room.png.
-The candles on the menorah show the night of Hanukkah (public/js/hanukkah.js), so each night needs its own candle.
+The candles on the menorah show the night of Hanukkah (public/js/extras/hanukkah.js), so each night needs its own candle.
 The script sets exact pixels, so a second run gives the same image.
 Run art/scripts/og.py after a change, so the link preview shows it.
 """
@@ -16,7 +16,7 @@ ROOM = f"{REPO}/public/assets/room.png"
 # The colors of the candles that the room already has. "." keeps the pixel as it is.
 INK = {
     "t": (160, 118, 88),   # the warm pixel over a flame
-    "F": (254, 240, 159),  # flame. scene.js finds the candles by this color
+    "F": (254, 240, 159),  # flame. ambience.js finds the candles by this color
     "g": (102, 70, 60),    # warm light beside a flame
     "w": (80, 49, 36),     # wick
     "C": (248, 245, 241),  # candle, lit side

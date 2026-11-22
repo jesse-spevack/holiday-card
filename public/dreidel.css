@@ -1,4 +1,4 @@
-/* The hidden dreidel game (public/js/dreidel.js). The page loads this file only when a guest opens the game. */
+/* The hidden dreidel game (public/js/extras/dreidel.js). The page loads this file only when a guest opens the game. */
 .dreidel {
   position: fixed;
   inset: 0;

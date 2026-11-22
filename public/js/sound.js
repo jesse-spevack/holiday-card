@@ -43,7 +43,7 @@ export class Sound {
     [523, 659, 784, 1046].forEach((f, i) => this.tone(f, { at: 0.25 + i * 0.09, dur: 0.18, type: "square", gain: 0.035 }));
   }
   oops() { this.tone(220, { dur: 0.15, type: "triangle", gain: 0.06, slide: -80 }); }
-  // The hidden pet reactions (pets.js). The woof and the mrrp change a little on each tap.
+  // The hidden pet reactions (extras/pets.js). The woof and the mrrp change a little on each tap.
   woof() { if (this.ready()) woof(this.ctx, this.ctx.destination); }
   mrrp() { if (this.ready()) mrrp(this.ctx, this.ctx.destination); }
   puff() { if (this.ready()) puff(this.ctx, this.ctx.destination); }
@@ -111,7 +111,7 @@ export class Sound {
     }
   }
 
-  // A tap on the fire (fire.js): the fire roars up, then crackles and pops.
+  // A tap on the fire (extras/fire.js): the fire roars up, then crackles and pops.
   crackle() { if (this.ready()) crackle(this.ctx, this.ctx.destination); }
   // A tap on the presents: three quick bells that go up, like a ribbon pulled loose.
   gift() { [784, 988, 1319].forEach((f, i) => this.tone(f, { at: i * 0.07, dur: 0.3, type: "sine", gain: 0.04 })); }

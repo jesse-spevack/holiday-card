@@ -59,7 +59,7 @@ describe("the pets", { concurrency: true }, () => {
   test("the pet moves, the silly pets, reduced motion, and soft sounds", async () => {
     const { page } = await env.open();
     const facts = await page.evaluate(async () => {
-      const { petPose, reactionKind, drawPet } = await import("/js/pets.js");
+      const { petPose, reactionKind, drawPet } = await import("/js/extras/pets.js");
       const { woof, mrrp, puff } = await import("/js/sound.js");
       const lift = (still) => {
         const moves = [];

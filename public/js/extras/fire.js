@@ -2,10 +2,10 @@
 // The sparks fly up out of the fire, cool from white to yellow to orange to red, and go out in the chimney.
 // The embers rise more slowly, drift a little, and blink out. The fire flares brighter for a moment.
 // Each tap gives a new burst. MAX caps the sparks and embers, so many fast taps never slow the page.
-// The tap area is "fire" in HOTSPOTS (room.js). The scene draws this module as a layer (Scene.addLayer),
-// in front of the night tint of the lamp egg, so the sparks glow when the lamp is off.
+// The tap area is FIRE in room.js, the fireplace opening with its frame. The scene draws this module as a layer,
+// after the lamp in extras/index.js, so it draws in front of the lamp's night tint and the sparks glow when the lamp is off.
 
-import { ROOM_W, FIRE, rgb } from "./room.js";
+import { ROOM_W, FIRE, rgb } from "../room.js";
 
 // The dark inside of the fireplace in room.png, inside the frame. Edges are included.
 const HEARTH = { x0: 115, y0: 48, x1: 141, y1: 65 };
@@ -228,3 +228,21 @@ function hash(x, y, frame) {
   n = Math.imul(n ^ (n >>> 13), 1274126177);
   return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
 }
+
+export default {
+  name: "fire",
+  spots: [{ id: "fire", ...FIRE }],
+  hints: [{ host: "jessica", text: "Poke the fire. It likes attention." }],
+  setup(ctx) {
+    const fire = new Fire(ctx);
+    return {
+      layer: fire,
+      tap: () => fire.tap(),
+      test: () => ({
+        // The fire: { bursts, sparks, embers, flare, moving, box, max, bounds }. flare goes from 1 right after a tap to 0.
+        // box holds every spark and ember now, and bounds is the box they must stay in, both in room pixels.
+        fire: () => fire.state(),
+      }),
+    };
+  },
+};
