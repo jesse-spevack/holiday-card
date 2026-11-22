@@ -53,6 +53,18 @@ export const DREIDELS = {
 // The wine on the dining table (art/scripts/table_wine.py): two glasses and the bottle, with their shadow. A tap starts the toast (toast.js).
 export const WINE = { x: 228, y: 109, w: 16, h: 13 };
 
+// The six potted plants. A tap makes a plant bloom (plants.js). Each box is the plant as drawn, with its pot.
+// The plant by the armchair starts 5 pixels below its top leaf tips, so the floor lamp keeps a finger-sized tap area.
+// Each bloom is the center of one flower on the leaves, in room pixels. A "big" flower is 5 to 7 pixels across, a "small" one 5.
+export const PLANTS = {
+  "plant-shelf-left": { x: 53, y: 17, w: 14, h: 14, blooms: [[57, 19, "big"], [64, 22, "big"], [55, 25, "small"]] },
+  "plant-shelf-right": { x: 73, y: 18, w: 14, h: 16, blooms: [[80, 20, "big"], [75, 25, "small"], [85, 25, "small"]] },
+  "plant-wall": { x: 7, y: 68, w: 12, h: 16, blooms: [[10, 70, "small"], [16, 72, "small"]] },
+  "plant-armchair": { x: 39, y: 58, w: 17, h: 23, blooms: [[46, 57, "big"], [53, 61, "small"], [41, 61, "small"]] },
+  "plant-floor-big": { x: 6, y: 145, w: 34, h: 40, blooms: [[21, 148, "big"], [30, 146, "big"], [11, 157, "big"], [37, 157, "big"]] },
+  "plant-floor-small": { x: 34, y: 162, w: 13, h: 23, blooms: [[40, 165, "big"], [45, 170, "small"]] },
+};
+
 // Hidden things a tap finds. Each box is the thing as drawn, in room pixels.
 // The window is "back": it takes only the taps that no small thing in front of it takes.
 export const HOTSPOTS = [
@@ -62,6 +74,7 @@ export const HOTSPOTS = [
   { id: "menorah", x: 194, y: 39, w: 17, h: 19 },
   { id: "dreidel-right", x: 214, y: 45, w: 11, h: 15 },
   { id: "wine", ...WINE },
+  ...Object.entries(PLANTS).map(([id, { x, y, w, h }]) => ({ id, x, y, w, h })),
   { id: "window", x: 162, y: 6, w: 80, h: 38, back: true },
 ];
 

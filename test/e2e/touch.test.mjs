@@ -71,7 +71,7 @@ test("each hidden thing takes a finger-sized tap, and the hosts hint at the thin
   const edge = (await hc.sprite({ host: true, name: "Jesse" })).bubbleBox.right;
   assert.ok(edge <= 390, `the bubble stays on the screen: ${edge}`);
   // after the guest finds every hidden thing, the hosts only thank them
-  await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "toast");
+  await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "toast", "plants");
   const thanks = HOST_LINES.jesse.filter((l) => typeof l === "string");
   for (const line of await hear("Jesse", 8)) assert.ok(thanks.includes(line), `Jesse only thanks the guest now: ${line}`);
 });

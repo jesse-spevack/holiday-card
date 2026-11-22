@@ -6,7 +6,7 @@ The guide for agents who work on this repo. `CLAUDE.md` is a symlink to this fil
 
 `hi.verynormal.dev` collects names and mailing addresses for Jesse and Jess's holiday cards.
 The hosts ask one question at a time in a pixel-art dialog box. After a guest signs up, their family walks into a pixel-art winter party in our living room.
-The room has hidden extras: a photo album, a dreidel game, a passing Waymo, a toast, and more.
+The room has hidden extras: a photo album, a dreidel game, a passing Waymo, a toast, plants that bloom, and more.
 
 - What guests see, and the hidden extras: `docs/scope.md`
 - The form flow, its copy, and the API contract: `docs/form.md`
@@ -43,7 +43,7 @@ No build step. The browser loads ES modules as they are.
 | `public/js/api.js` | Every call to the Worker |
 | `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter; the page colors |
 | `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test` |
-| `public/js/room.js` | Every place in `room.png` that the code uses: the floor, the window, the fire, the menorah, the lamp, the book, the dreidels, the wine, and the tap areas (`HOTSPOTS`) |
+| `public/js/room.js` | Every place in `room.png` that the code uses: the floor, the window, the fire, the menorah, the lamp, the book, the dreidels, the wine, the plants, and the tap areas (`HOTSPOTS`) |
 | `public/js/scene.js` | The room canvas, the frame loop, sprites, hosts and their lines (`HOST_LINES`), and the arrival from below the room. Layers (`addLayer`) draw over it, and `onFrame` listeners run each frame |
 | `public/js/picker.js` | The look picker. Ages and looks come from `public/assets/looks.json` |
 | `public/js/pets.js` | Hidden pet reactions |
@@ -51,6 +51,7 @@ No build step. The browser loads ES modules as they are.
 | `public/js/night.js`, `public/night.css` | The snowy night, roof, and greeting around the room on a tall screen. It runs on the scene's frames |
 | `public/js/eggs.js` | The Waymo and the Cybertruck (one car on the road at a time, and Eddie calls out the truck), the shooting star, the menorah, and the floor lamp. A scene layer |
 | `public/js/toast.js` | The toast: a tap on the wine, and the whole party raises a cup (wine for grown-ups, cocoa for kids). A scene layer that draws a cup in each hand (`drawOn`) |
+| `public/js/plants.js` | The plants: a tap on a potted plant makes it bloom, and when every plant blooms, petals fall over the room. A scene layer. The plants are `PLANTS` in `room.js` |
 | `public/js/album.js`, `public/js/album-art.js`, `public/album.css` | The hidden photo album |
 | `public/js/dreidel.js`, `public/js/dreidel-art.js`, `public/js/dreidel-sound.js`, `public/dreidel.css` | The hidden dreidel game |
 | `public/assets/` | `room.png`, `book.png`, `og.png`, `icon.png`, the look sprites in `looks/`, and the sounds in `sounds/` |
