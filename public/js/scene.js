@@ -78,10 +78,12 @@ export class Scene {
   }
 
   // ---- camera ----
+  // A phone may crop the room's sides a lot to make it bigger. A wide screen crops at most a sliver.
   baseScale() {
     const w = this.stage.clientWidth;
     const h = this.stage.clientHeight;
-    return Math.max(2, Math.floor(Math.min((w * 1.35) / ROOM_W, h / ROOM_H)));
+    const crop = matchMedia("(min-width: 900px)").matches ? 1.06 : 1.35;
+    return Math.max(2, Math.floor(Math.min((w * crop) / ROOM_W, h / ROOM_H)));
   }
 
   focus(x, y, zoom = 0) {
