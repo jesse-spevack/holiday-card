@@ -120,12 +120,12 @@ async function assertWholeRoom(pg, what) {
   assert.ok(fit.ok, `${what}: ${JSON.stringify(fit)}`);
 }
 
-// After the thank-you, the dialog slides away within about 6 seconds and the top bar offers "Add another address".
+// After the thank-you, the dialog slides away within about 8 seconds and the top bar offers "Add another address".
 async function assertTucks(pg) {
   const started = Date.now();
-  await pg.locator("#dialog").waitFor({ state: "hidden", timeout: 6500 });
+  await pg.locator("#dialog").waitFor({ state: "hidden", timeout: 8500 });
   await pg.getByRole("button", { name: "Add another address" }).waitFor({ timeout: 500 });
-  assert.ok(Date.now() - started < 6500);
+  assert.ok(Date.now() - started < 8500);
 }
 
 const browser = await chromium.launch({ channel: "chrome" });
@@ -189,6 +189,7 @@ try {
   await page.getByRole("alert").filter({ hasText: "Something went wrong. Try again?" }).waitFor();
   await page.getByRole("button", { name: "Yes, send it" }).click();
   await say.filter({ hasText: "Thank you. You mean a lot to us." }).waitFor();
+  await page.locator("#dialog .hint").filter({ hasText: "Then poke around the room. A few things in here might surprise you." }).waitFor();
   assert.ok(await page.locator("#dialog").isVisible());
   await assertTucks(page);
   await assertWholeRoom(page, "phone, thank-you hidden");

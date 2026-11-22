@@ -21,7 +21,7 @@ Hints under the answer line:
 ## After confirm
 
 - Thank you. You mean a lot to us.
-- Your family is at our party now. Tap anyone in your family to change their look or give them something to say.
+- Your family is at our party now. Tap them to change a look or say something. Then poke around the room. A few things in here might surprise you.
 
 No card timing anywhere.
 
