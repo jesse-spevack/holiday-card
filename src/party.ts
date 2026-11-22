@@ -57,9 +57,7 @@ export async function updateMember(
   position: number,
   change: { look?: string; bubble?: string },
 ) {
-  const family = await db.prepare("SELECT token_hash FROM families WHERE id = ?").bind(familyId).first<{ token_hash: string }>();
-  if (!family) throw new HttpError(404, "not_found");
-  if (family.token_hash !== (await sha256(token))) throw new HttpError(403, "forbidden");
+  await checkToken(db, familyId, token);
 
   const statements = [];
   if (change.look !== undefined) {
@@ -74,6 +72,13 @@ export async function updateMember(
   if (!statements.length) return;
   const results = await db.batch(statements);
   if (results.some((r) => r.meta.changes === 0)) throw new HttpError(404, "not_found");
+}
+
+// The family's own token proves the call comes from the browser that signed it up.
+export async function checkToken(db: D1Database, familyId: string, token: string) {
+  const family = await db.prepare("SELECT token_hash FROM families WHERE id = ?").bind(familyId).first<{ token_hash: string }>();
+  if (!family) throw new HttpError(404, "not_found");
+  if (family.token_hash !== (await sha256(token))) throw new HttpError(403, "forbidden");
 }
 
 function randomToken(): string {

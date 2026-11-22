@@ -26,7 +26,9 @@
     { "name": "PLACES_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
     { "name": "WRITE_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } },
     { "name": "HOUSEHOLD_LIMIT", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } },
-    { "name": "SPRITE_LIMIT", "namespace_id": "1004", "simple": { "limit": 60, "period": 60 } }
+    { "name": "SPRITE_LIMIT", "namespace_id": "1004", "simple": { "limit": 60, "period": 60 } },
+    // The page sends at most one interaction for each egg in 5 seconds, so a guest stays far under this.
+    { "name": "INTERACTION_LIMIT", "namespace_id": "1005", "simple": { "limit": 60, "period": 60 } }
   ],
   // Listed here so `wrangler types` does not depend on a local .dev.vars file.
   "secrets": { "required": ["OPENROUTER_API_KEY", "GOOGLE_PLACES_KEY", "SHEET_SECRET", "TURNSTILE_SECRET"] },

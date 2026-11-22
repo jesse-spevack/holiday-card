@@ -1,6 +1,7 @@
 import { albumList, albumPhoto } from "./album";
 import { HttpError, field, json, rateLimit, readJson } from "./http";
 import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./household";
+import { readEgg, recordInteraction } from "./interactions";
 import { lookUpAddress, suggestAddresses } from "./places";
 import { BUBBLE_MAX, addFamily, partyVersion, readParty, updateMember, type Member } from "./party";
 import { addContact } from "./sheet";
@@ -36,6 +37,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       return submit(request, env);
     case "POST /api/sprite":
       return sprite(request, env);
+    case "POST /api/interaction":
+      return interaction(request, env);
     case "GET /api/party":
       return party(request, env, ctx);
     default:
@@ -123,6 +126,17 @@ async function sprite(request: Request, env: Env): Promise<Response> {
 
   await updateMember(env.DB, id, token, index, change);
   return json({ ok: true });
+}
+
+// The reply is empty, so it tells the page nothing more than "saved".
+async function interaction(request: Request, env: Env): Promise<Response> {
+  await rateLimit(env.INTERACTION_LIMIT, request);
+  const body = await readJson(request);
+  const id = field(body, "id", { max: 64 });
+  const token = field(body, "token", { max: 100 });
+  const egg = readEgg(body);
+  await recordInteraction(env.DB, id, token, egg);
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }
 
 // Each change moves the party version, so the cache key changes with it and a cached party is never stale.

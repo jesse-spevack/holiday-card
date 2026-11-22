@@ -6,7 +6,7 @@ import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
 import { HOTSPOTS, DREIDELS, FLOOR } from "./room.js";
 import { TOAST_LINES } from "./toast.js";
 
-export function testApi({ scene, sound, eggs, dreidel, toast, album, found }) {
+export function testApi({ scene, sound, eggs, dreidel, toast, album, found, tracking }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -132,6 +132,8 @@ export function testApi({ scene, sound, eggs, dreidel, toast, album, found }) {
     toast: () => toast.state(),
     toastLines: () => [...TOAST_LINES],
     found: (...eggs) => { for (const egg of eggs) found.add(egg); },
+    // The time in ms between two interaction calls for the same egg (app.js track). The page uses 5000.
+    trackGap: (ms) => { tracking.gapMs = ms; },
 
     // ---- the dreidel game ----
     // { face, speed }: the side to land on and how much faster the clock runs.

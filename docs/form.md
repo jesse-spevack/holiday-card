@@ -39,6 +39,7 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 | `GET /api/place?id=<placeId>&session=<uuid>` | | `{ "address": { "street", "city", "state", "zip", "formatted" } }` |
 | `POST /api/submit` | see below | `201 { "id", "token" }` |
 | `POST /api/sprite` | `{ "id", "token", "index", "look"?, "bubble"? }` (bubble at most 40 characters) | `{ "ok": true }` |
+| `POST /api/interaction` | `{ "id", "token", "egg" }` (egg from `EGGS` in `src/interactions.ts`) | `204` with no body |
 | `GET /api/party` | | `{ "families": [{ "id", "name", "members": [{"type","look"}], "bubbles": ["..."] }] }` |
 | `GET /album/list` | | The album pages and captions, from KV |
 | `GET /album/<hash>.jpg` | | One album photo, from KV |
