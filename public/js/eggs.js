@@ -1,5 +1,5 @@
 // Hidden extras in the living room. Nothing on screen points to them.
-// A Waymo drives past the window now and then. A tap on the window sends a shooting star,
+// A light blue Waymo van drives past the window now and then. A tap on the window sends a shooting star,
 // a tap on the menorah lights it again, and a tap on the floor lamp turns it off and on.
 // The tap areas are HOTSPOTS in scene.js.
 
@@ -19,22 +19,25 @@ const SHADE_OFF = [0xd0, 0xb3, 0x99];
 const NIGHT_TINT = [0x7c, 0x84, 0xb8];
 const FIRE_COLORS = new Set([0xaa5317, 0xfbe55d, 0xfef09f, 0xf5cf6f, 0xe1a468, 0xf8f5f1]);
 
-// The Waymo, facing right. O outline, W white body, S body shade, G window, D lidar dome, R tail light, H headlight, K tire, h hub.
+// The Waymo Ojai, the light blue van, facing right. O outline, L roof light, B blue body, S body shade, G window,
+// D lidar dome, R tail light, H headlight, K tire, h hub.
 const CAR = [
   "......OOO.....",
   ".....ODDDO....",
-  "...OOOOOOOOO..",
-  "..OWGGWGGGGO..",
-  ".OWWWWWWWWWWOO",
-  "ORWWWWWWWWWWWH",
+  ".OOOOOOOOOOO..",
+  "OLLLLLLLLLLLO.",
+  "OBGGGBGGGGGGO.",
+  "OBGGGBGGGGGGBO",
+  "OBBBBBBBBBBBBO",
+  "RBBBBBBBBBBBBH",
   "OSSOOSSSSOOSSO",
   ".OOKhOOOOKhOO.",
   "...OO....OO...",
 ];
-const CAR_COLORS = { O: "#1b1a2e", W: "#f8f5f1", S: "#bec6d2", G: "#273049", D: "#2a2f45", R: "#e0504a", H: "#fef09f", K: "#3c3e50", h: "#9da8b6" };
+const CAR_COLORS = { O: "#1b1a2e", L: "#c6e7fa", B: "#86c5ea", S: "#5a93bf", G: "#273049", D: "#2a2f45", R: "#e0504a", H: "#fef09f", K: "#3c3e50", h: "#9da8b6" };
 const CAR_W = CAR[0].length;
 const DOME = { x: 6, y: 1, w: 3 };
-const HEADLIGHT_Y = 5;
+const HEADLIGHT_Y = 7;
 const ROAD_Y = 47;
 const CAR_SPEED = 13;
 const CAR_PARKED = { x: 168, seconds: 5 };
