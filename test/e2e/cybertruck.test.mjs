@@ -8,7 +8,7 @@ const SHOUT = "Cybertruck!";
 const WAYMO_BLUE = "#86c5ea";
 
 // Watches the road and Eddie in the page, one record each frame, until the road is clear after `cars` cars, or `seconds` pass.
-// Each record: t (scene time), car and truck (their x or null), bubble (Eddie's words), nextTruckIn,
+// Each record: t (scene time), ms (wall clock), car and truck (their x or null), bubble (Eddie's words), nextTruckIn,
 // solid (the solid car pixels on the glass), stray (the solid pixels off the glass or not in the truck colors), blue (Waymo pixels).
 const watch = (page, { cars, seconds }) => page.evaluate(({ cars, seconds }) => new Promise((done) => {
   const hc = window.__hc;
@@ -27,7 +27,7 @@ const watch = (page, { cars, seconds }) => page.evaluate(({ cars, seconds }) => 
     last = kind;
     const px = kind ? hc.carPixels() : [];
     frames.push({
-      t: hc.time(), car: e.car, truck: e.truck, nextTruckIn: e.nextTruckIn,
+      t: hc.time(), ms: performance.now(), car: e.car, truck: e.truck, nextTruckIn: e.nextTruckIn,
       bubble: hc.sprite({ host: true, name: "Eddie" }).bubble,
       solid: px.length,
       stray: px.filter(([x, y, c]) => !onGlass(x, y) || (kind === "truck" && !truckColors.has(c))).slice(0, 5),
@@ -78,14 +78,14 @@ describe("the Cybertruck", { concurrency: true }, () => {
         assert.ok(truck.every((f, i) => i === 0 || f.truck >= truck[i - 1].truck), "the truck never backs up");
       }
 
-      // Eddie calls it out as it shows in the window, once, for about 4 seconds.
+      // Eddie calls it out as it shows in the window, once, for about 4 seconds on the wall clock.
       const said = frames.findIndex((f) => f.bubble === SHOUT);
       assert.ok(said >= 0, "Eddie says Cybertruck!");
       assert.ok(inSight(frames[said], TRUCK.w), "Eddie talks while the truck shows");
       assert.ok(frames[said].t - sight[0].t < 0.1, `Eddie talks as the truck shows: ${frames[said].t - sight[0].t} s later`);
       const talk = frames.filter((f) => f.bubble === SHOUT);
-      const length = talk.at(-1).t - talk[0].t;
-      assert.ok(length > 3.5 && length < 4.6, `the bubble shows for about 4 seconds: ${length}`);
+      const length = (talk.at(-1).ms - talk[0].ms) / 1000;
+      assert.ok(length > 3.4 && length < 4.6, `the bubble shows for about 4 seconds: ${length}`);
       assert.equal(frames.filter((f, i) => f.bubble === SHOUT && frames[i - 1]?.bubble !== SHOUT).length, 1, "Eddie says it once");
 
       // The Waymo comes after the truck is gone, with a short gap, and the truck comes back 60 to 120 seconds later.

@@ -103,12 +103,17 @@ describe("the toast", { concurrency: true }, () => {
         assert.equal(cup.lift, 1);
       }
 
-      // Everyone hops once, except with reduced motion.
-      let hopped = false;
-      for (let i = 0; i < 30 && !hopped; i++) {
-        hopped = (await hc.toast()).people.some((p) => p.hop > 0);
-        await page.waitForTimeout(30);
-      }
+      // Everyone hops once, except with reduced motion. The page checks each frame until the hops are over at 0.8 seconds
+      // of scene time, so a slow machine cannot miss the hop between two checks.
+      const hopped = await page.evaluate(() => new Promise((done) => {
+        const tick = () => {
+          const t = window.__hc.toast();
+          if (t.people.some((p) => p.hop > 0)) done(true);
+          else if (!t.on || t.age > 0.8) done(false);
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      }));
       assert.equal(hopped, reduce === "no-preference", "the hop");
       await page.waitForFunction(() => window.__hc.toast().age > 1.1);
       if (name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
