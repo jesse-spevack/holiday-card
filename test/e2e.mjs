@@ -54,6 +54,8 @@ await new Promise((r) => server.listen(0, r));
 const base = `http://127.0.0.1:${server.address().port}/?test`;
 await mkdir(OUT, { recursive: true });
 
+// The hosts by their sprite ids (scene.js HOSTS) and names.
+const HOSTS_BY_NAME = [{ id: "jessica", name: "Jess" }, { id: "jesse", name: "Jesse" }, { id: "daughter", name: "Audrey" }, { id: "son", name: "Eddie" }];
 const calls = [];
 let failSubmitOnce = true;
 async function fakeApi(route) {
@@ -964,6 +966,108 @@ try {
     const lee = await pointOn(pd, { familyId: "other1", index: 0 });
     await at(lee.x, lee.y);
     await pd.locator(".tag", { hasText: "The Lees" }).waitFor();
+    await ctx.close();
+  }
+
+  // Touch targets on a phone. The center of each hidden thing always finds it, a tap between two things on the
+  // sill finds the nearer one, and each thing takes a finger-sized area where the room allows.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const pt = await ctx.newPage();
+    pt.on("pageerror", (e) => errors.push(String(e)));
+    await pt.route("**/api/**", fakeApi);
+    await pt.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+    await pt.goto(base);
+    await pt.waitForFunction(() => window.__hc.scene.eggs.glassLayer && window.__hc.scene.book && window.__hc.scene.sprites.filter((s) => s.host && s.img).length === 4);
+    await stillHosts(pt);
+    // Note each hidden thing that a tap finds, but open nothing.
+    await pt.evaluate(() => { window.__hits = []; window.__hc.scene.onHotspot = (id) => window.__hits.push(id); });
+    const { HOTSPOTS, TAP_PX } = await pt.evaluate(async () => {
+      const m = await import("/js/scene.js");
+      return { HOTSPOTS: m.HOTSPOTS, TAP_PX: m.TAP_PX };
+    });
+    const box = (id) => HOTSPOTS.find((h) => h.id === id);
+    const center = (id) => ({ x: box(id).x + box(id).w / 2, y: box(id).y + box(id).h / 2 });
+    const between = (a, b, k) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+    const tapFinds = async ({ x, y }) => {
+      const p = await pt.evaluate(([x, y]) => {
+        const v = window.__hc.scene.view;
+        const r = document.getElementById("stage").getBoundingClientRect();
+        return { x: r.left + v.left + x * v.scale, y: r.top + v.top + y * v.scale };
+      }, [x, y]);
+      await pt.touchscreen.tap(p.x, p.y);
+      return pt.evaluate(() => window.__hits.splice(0).join(",") || null);
+    };
+    for (const h of HOTSPOTS) assert.equal(await tapFinds(center(h.id)), h.id, `a tap on the center of ${h.id}`);
+    for (const [a, b] of [["dreidel-left", "menorah"], ["menorah", "dreidel-right"]]) {
+      assert.equal(await tapFinds(between(center(a), center(b), 0.25)), a, `a quarter of the way from ${a} to ${b}`);
+      assert.equal(await tapFinds(between(center(a), center(b), 0.75)), b, `three quarters of the way from ${a} to ${b}`);
+    }
+    // In the 3-pixel gap between the menorah (x 194-210) and the right dreidel (x 214-224), each side finds its own thing.
+    assert.equal(await tapFinds({ x: 211.5, y: 50 }), "menorah");
+    assert.equal(await tapFinds({ x: 213.5, y: 50 }), "dreidel-right");
+    // Under the sill things, a tap finds the closer one: the menorah's base ends 2 pixels higher than the dreidels.
+    assert.equal(await tapFinds({ x: 200, y: 61 }), "menorah");
+    assert.equal(await tapFinds({ x: 192, y: 62 }), "dreidel-left");
+    // a near miss just above a dreidel finds the dreidel, not the window behind it, and the open sky still finds the window
+    assert.equal(await tapFinds({ x: center("dreidel-right").x, y: box("dreidel-right").y - 3 }), "dreidel-right");
+    assert.equal(await tapFinds({ x: 176, y: 22 }), "window");
+    // the thing a tap found shows its corners for a moment
+    await tapFinds(center("menorah"));
+    assert.equal(await pt.evaluate(() => window.__hc.scene.press?.box?.id), "menorah");
+    // the area that each thing takes, in CSS pixels, through its center
+    const areas = await pt.evaluate(async (px) => {
+      const { HOTSPOTS, pickSpot } = await import("/js/scene.js");
+      const scale = window.__hc.scene.view.scale;
+      const min = px / scale;
+      const out = {};
+      for (const h of HOTSPOTS) {
+        const cx = h.x + h.w / 2;
+        const cy = h.y + h.h / 2;
+        const reach = (dx, dy) => {
+          let d = 0;
+          while (pickSpot(HOTSPOTS, cx + dx * (d + 0.25), cy + dy * (d + 0.25), min)?.id === h.id) d += 0.25;
+          return d;
+        };
+        out[h.id] = { w: (reach(-1, 0) + reach(1, 0)) * scale, h: (reach(0, -1) + reach(0, 1)) * scale };
+      }
+      return out;
+    }, TAP_PX.touch);
+    for (const id of ["book", "lamp"]) assert.ok(areas[id].w >= 43 && areas[id].h >= 43, `${id}: ${JSON.stringify(areas[id])}`);
+    // The things on the sill stand closer than a finger, so each one gets a full finger of height and its share of the width.
+    for (const id of ["dreidel-left", "menorah", "dreidel-right"]) assert.ok(areas[id].w >= 27 && areas[id].h >= 40, `${id}: ${JSON.stringify(areas[id])}`);
+
+    // A tapped host says a line of their own, never the same line twice in a row, and a found thing drops out of the hints.
+    const { HOST_LINES } = await pt.evaluate(async () => ({ HOST_LINES: (await import("/js/scene.js")).HOST_LINES }));
+    const text = (l) => (typeof l === "string" ? l : l.text);
+    const hear = async (name, times) => {
+      const said = [];
+      for (let i = 0; i < times; i++) {
+        const p = await pointOn(pt, { host: true, name });
+        await pt.touchscreen.tap(p.x, p.y);
+        said.push(await pt.evaluate((n) => window.__hc.scene.sprites.find((s) => s.name === n).bubbleEl?.textContent, name));
+      }
+      return said;
+    };
+    for (const host of HOSTS_BY_NAME) {
+      const said = await hear(host.name, 16);
+      const own = HOST_LINES[host.id].map(text);
+      for (const [i, line] of said.entries()) {
+        assert.ok(own.includes(line), `${host.name} says their own line: ${line}`);
+        if (i) assert.notEqual(line, said[i - 1], `${host.name} repeats "${line}"`);
+      }
+      // the guest is a first-time guest with no family of their own, so no hint about silly looks
+      assert.ok(!said.includes("My favorite looks are the silly ones."), `${host.name} hints at silly looks with no family to dress`);
+    }
+    // a bubble near the edge of a phone stays on the screen
+    await pt.evaluate(() => Object.assign(window.__hc.scene.sprites.find((s) => s.name === "Jesse"), { x: 180 }));
+    await hear("Jesse", 1);
+    const edge = await pt.evaluate(() => window.__hc.scene.sprites.find((s) => s.name === "Jesse").bubbleEl.getBoundingClientRect().right);
+    assert.ok(edge <= 390, `the bubble stays on the screen: ${edge}`);
+    // after the guest finds every hidden thing, the hosts only thank them
+    await pt.evaluate(() => { for (const egg of ["album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly"]) window.__hc.found.add(egg); });
+    const thanks = HOST_LINES.jesse.filter((l) => typeof l === "string");
+    for (const line of await hear("Jesse", 8)) assert.ok(thanks.includes(line), `Jesse only thanks the guest now: ${line}`);
     await ctx.close();
   }
 

@@ -55,8 +55,10 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const rgb = (data, i) => (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
 
 export class Eggs {
-  constructor({ scene, sound, reducedMotion }) {
+  // onFound("waymo") runs each time the Waymo drives out of sight.
+  constructor({ scene, sound, reducedMotion, onFound = () => {} }) {
     this.scene = scene;
+    this.onFound = onFound;
     this.sound = sound;
     this.reducedMotion = reducedMotion;
     this.lampOn = true;
@@ -264,6 +266,7 @@ export class Eggs {
       if (!this.reducedMotion) this.car.x += this.car.dir * CAR_SPEED * dt;
       if (this.carGone()) {
         this.car = null;
+        this.onFound("waymo");
         this.nextCar = time + rand(...WAYMO_GAP);
       }
     }

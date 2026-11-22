@@ -23,16 +23,24 @@ export const FIRE = { x: 112, y: 44, w: 32, h: 24 };
 const CANDLES = { x0: 188, y0: 34, x1: 212, y1: 46 };
 // The photo album on the sofa (art/scripts/book.py). Its cover is the top 12x8 pixels.
 const BOOK = { x: 43, y: 99, w: 12, h: 8 };
-// Hidden things a tap finds, in room pixels. The first match wins, so put a small thing before a big one around it.
-// Each area is a little bigger than its thing, so a finger finds it on a phone.
+// Hidden things a tap finds. Each box is the thing as drawn, in room pixels.
+// The window is "back": it takes only the taps that no small thing in front of it takes.
 export const HOTSPOTS = [
-  { id: "book", x: 38, y: 94, w: 23, h: 23 },
-  { id: "lamp", x: 23, y: 26, w: 22, h: 51 },
-  { id: "dreidel-left", x: 181, y: 44, w: 13, h: 16 },
-  { id: "dreidel-right", x: 212, y: 44, w: 13, h: 16 },
-  { id: "menorah", x: 194, y: 37, w: 17, h: 16 },
-  { id: "window", x: 162, y: 6, w: 80, h: 38 },
+  { id: "book", x: 43, y: 99, w: 12, h: 12 },
+  { id: "lamp", x: 24, y: 28, w: 19, h: 50 },
+  { id: "dreidel-left", x: 183, y: 45, w: 11, h: 15 },
+  { id: "menorah", x: 194, y: 39, w: 17, h: 19 },
+  { id: "dreidel-right", x: 214, y: 45, w: 11, h: 15 },
+  { id: "window", x: 162, y: 6, w: 80, h: 38, back: true },
 ];
+// A tap finds a thing from a little way off. Each thing gets this much screen (in CSS pixels) in each direction
+// where the room allows. A finger needs more than a mouse. Where two areas overlap, the nearer thing wins.
+export const TAP_PX = { touch: 44, mouse: 20 };
+// Every hidden thing also reaches this far (in room pixels) past its edges.
+const TAP_PAD = 2;
+// The corners that show which thing a tap found.
+// Gold arms with a dark outline, so they show on the night glass, the wood, and the lamp light.
+const PRESS = { seconds: 0.45, gold: "#ffd27a", dark: "#2a1813", arm: 4, gap: 2 };
 
 // The two dreidels on the window sill, as drawn in room.png. The dreidel game grows from them.
 export const DREIDELS = {
@@ -47,14 +55,44 @@ export const HOSTS = [
   { id: "daughter", name: "Audrey", x: 98, y: 160, places: ["rug", "fire", "presents", "table"] },
   { id: "son", name: "Eddie", x: 114, y: 162, follow: "daughter" },
 ];
-export const HOST_LINES = [
-  "Happy holidays!",
-  "Happy New Year!",
-  "We're so glad you're in our lives.",
-  "Thank you for being here.",
-  "We're grateful for you.",
-  "So happy to see you!",
-];
+// What each host says when a guest taps them. Most lines thank the guest. A line with an egg hints at a hidden
+// thing in the room (app.js drops it after the guest finds that thing).
+const hint = (egg, text) => ({ egg, text });
+export const HOST_LINES = {
+  jessica: [
+    "Thank you for being here.",
+    "We're grateful for you.",
+    "So happy to see you!",
+    hint("album", "Have you seen our year? It's somewhere comfy."),
+    hint("menorah", "The candles by the window have a question."),
+    hint("star", "The window is good for wishes."),
+  ],
+  jesse: [
+    "Happy holidays!",
+    "Happy New Year!",
+    "We're so glad you're in our lives.",
+    hint("album", "Our whole year fits in one little book."),
+    hint("lamp", "This room is cozier with the lights low."),
+    hint("waymo", "Watch the street. Some cars drive themselves."),
+    hint("menorah", "Those candles love to be lit again."),
+  ],
+  daughter: [
+    "So happy you came!",
+    "Thanks for coming to our party!",
+    hint("dreidel", "The little tops on the sill look lonely."),
+    hint("star", "I saw a shooting star in our window!"),
+    hint("pets", "Have you met the pets? They know tricks."),
+    hint("silly", "My favorite looks are the silly ones."),
+  ],
+  son: [
+    "Hi! Happy holidays!",
+    "I'm glad you're here!",
+    hint("dreidel", "Bet you can't beat me at dreidel."),
+    hint("waymo", "I saw a van with nobody driving it!"),
+    hint("pets", "Some pets here are not normal pets."),
+    hint("lamp", "The fire looks so cool in the dark."),
+  ],
+};
 
 const WALK_SPEED = 22;
 
@@ -91,6 +129,9 @@ export class Scene {
     this.eggs = null;
     this.onLayout = () => {};
     this.bookHidden = false;
+    this.press = null;
+    stage.addEventListener("pointerdown", (e) => this.handlePress(e));
+    stage.addEventListener("pointercancel", () => { this.press = null; });
     stage.addEventListener("pointerup", (e) => this.handleTap(e));
     // Hover labels are for a mouse only. A phone shows them on tap.
     stage.addEventListener("pointermove", (e) => {
@@ -424,6 +465,37 @@ export class Scene {
     }
     this.eggs?.drawFront(g);
     for (const s of visible) if (s.react) drawPetMark(g, s, this.time, this.reducedMotion);
+    this.drawPress(g);
+  }
+
+  // Pixel corners around the thing that a finger or a mouse is on, like a cursor in an old game.
+  // They show while the press lasts and for a moment after it. They start one pixel out, then close in.
+  drawPress(g) {
+    const p = this.press;
+    if (!p) return;
+    const age = p.t0 === null ? 0 : this.time - p.t0;
+    if (age > PRESS.seconds || (p.sprite && !this.sprites.includes(p.sprite))) {
+      this.press = null;
+      return;
+    }
+    const b = p.sprite ? spriteBox(p.sprite, 0) : p.box;
+    const lift = p.sprite ? p.sprite.bob : 0;
+    const out = PRESS.gap + (this.reducedMotion || this.time - p.at > 0.08 ? 0 : 1);
+    const x0 = Math.round(b.x) - out;
+    const y0 = Math.round(b.y) - lift - out;
+    const x1 = Math.round(b.x + b.w) - 1 + out;
+    const y1 = Math.round(b.y + b.h) - lift - 1 + out;
+    const a = PRESS.arm;
+    // Each corner is two arms. The outline pass draws each arm one pixel bigger on every side.
+    const corners = (grow, color) => {
+      g.fillStyle = color;
+      for (const [x, y, sx, sy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) {
+        g.fillRect((sx > 0 ? x : x - a + 1) - grow, y - grow, a + grow * 2, 1 + grow * 2);
+        g.fillRect(x - grow, (sy > 0 ? y : y - a + 1) - grow, 1 + grow * 2, a + grow * 2);
+      }
+    };
+    corners(1, PRESS.dark);
+    corners(0, PRESS.gold);
   }
 
   flicker() {
@@ -468,7 +540,7 @@ export class Scene {
 
   updateOverlay() {
     for (const s of this.sprites) {
-      if (s.bubbleEl) this.pin(s.bubbleEl, s.x, s.y - (s.img?.height || 30) - 3);
+      if (s.bubbleEl) this.pinBubble(s);
     }
     this.placeNames();
     for (const fam of this.families.values()) {
@@ -480,6 +552,16 @@ export class Scene {
       this.pin(fam.tagEl, x, y + 3);
     }
     if (this.popEl && this.popSprite) this.pinPop();
+  }
+
+  // A bubble sits above its sprite, but it stays inside the stage near an edge.
+  pinBubble(s) {
+    const { left, scale } = this.view;
+    const gap = 8;
+    const half = s.bubbleWidth / 2;
+    const x = clamp(left + s.x * scale, gap + half, this.stage.clientWidth - gap - half);
+    s.bubbleEl.style.left = `${x - left}px`;
+    s.bubbleEl.style.top = `${((s.y - (s.img?.height || 30) - 3) / ROOM_H) * 100}%`;
   }
 
   // The editor popover sits above its sprite, but it stays inside the stage near an edge.
@@ -503,7 +585,9 @@ export class Scene {
     el.className = "bubble";
     el.textContent = text;
     this.overlay.append(el);
+    fitBubble(el);
     sprite.bubbleEl = el;
+    sprite.bubbleWidth = el.offsetWidth;
     this.updateOverlay();
     if (seconds) {
       sprite.bubbleTimer = setTimeout(() => {
@@ -595,21 +679,61 @@ export class Scene {
     this.popSprite = null;
   }
 
-  spriteAt(x, y) {
-    const hits = this.sprites.filter((s) => {
-      if (!s.img || this.time < s.popAt) return false;
-      const w = s.img.width;
-      return x >= s.x - w / 2 - 2 && x <= s.x + w / 2 + 2 && y >= s.y - s.img.height - 2 && y <= s.y + 2;
-    });
+  // The sprite under a point. A tap prefers a sprite it hits. Then, with `min` (the smallest target in room
+  // pixels, for a finger), it takes the nearest sprite whose area grown to that size holds the point.
+  spriteAt(x, y, min = 0) {
+    const shown = this.sprites.filter((s) => s.img && this.time >= s.popAt);
+    const hits = shown.filter((s) => inside(spriteBox(s, 2), x, y));
     // In a crowd, a tap prefers your own family, then whoever stands in front.
     hits.sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || b.y - a.y);
-    return hits[0] || null;
+    if (hits.length || !min) return hits[0] || null;
+    return nearest(shown.map((s) => ({ sprite: s, ...spriteBox(s, 2) })), x, y, min, 0)?.sprite || null;
   }
 
-  hotspotAt(x, y) {
-    const spot = HOTSPOTS.find((s) => x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h);
-    if (spot?.id === "book" && (!this.book || this.bookHidden)) return null;
-    return spot?.id ?? null;
+  // The hidden thing under a point, or null. `min` works as in spriteAt.
+  hotspotAt(x, y, min = 0) {
+    return this.hotspotBoxAt(x, y, min)?.id ?? null;
+  }
+
+  hotspotBoxAt(x, y, min = 0) {
+    const open = HOTSPOTS.filter((s) => s.id !== "book" || (this.book && !this.bookHidden));
+    return pickSpot(open, x, y, min);
+  }
+
+  // The smallest target in room pixels for this pointer at the camera's scale now.
+  tapMin(pointerType) {
+    return (pointerType === "mouse" ? TAP_PX.mouse : TAP_PX.touch) / this.view.scale;
+  }
+
+  // What a pointer event points at: { sprite } or { spot }, or null.
+  targetAt(e) {
+    const p = this.toRoom(e.clientX, e.clientY);
+    const min = this.tapMin(e.pointerType);
+    const sprite = this.spriteAt(p.x, p.y, min);
+    if (sprite) return { sprite };
+    const spot = this.hotspotBoxAt(p.x, p.y, min);
+    return spot ? { spot } : null;
+  }
+
+  // Show the corners on a target. `held` keeps them while the finger is down.
+  showPress(target, held) {
+    if (!target) {
+      this.press = null;
+      return;
+    }
+    const same = this.press && (target.sprite ? this.press.sprite === target.sprite : this.press.box === target.spot);
+    this.press = {
+      sprite: target.sprite || null,
+      box: target.spot || null,
+      at: same ? this.press.at : this.time,
+      t0: held ? null : this.time,
+    };
+  }
+
+  handlePress(e) {
+    if (this.popEl && this.popEl.contains(e.target)) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    this.showPress(this.targetAt(e), true);
   }
 
   // Where a box in room pixels is on the screen now.
@@ -628,16 +752,70 @@ export class Scene {
 
   handleTap(e) {
     if (this.popEl && this.popEl.contains(e.target)) return;
-    const p = this.toRoom(e.clientX, e.clientY);
-    const sprite = this.spriteAt(p.x, p.y);
-    if (!sprite) {
-      this.closePop();
-      const spot = this.hotspotAt(p.x, p.y);
-      if (spot) this.onHotspot(spot);
+    const target = this.targetAt(e);
+    this.showPress(target, false);
+    if (target?.sprite) {
+      this.onTap(target.sprite);
       return;
     }
-    this.onTap(sprite);
+    this.closePop();
+    if (target?.spot) this.onHotspot(target.spot.id);
   }
+}
+
+// A long line wraps into two balanced lines, but the box keeps the full max-width. So the box shrinks to its widest line.
+// The pop animation scales the box, so it waits until the measure is done.
+function fitBubble(el) {
+  el.style.animation = "none";
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const widest = Math.max(0, ...[...range.getClientRects()].map((r) => r.width));
+  const css = getComputedStyle(el);
+  const sides = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"].reduce((a, k) => a + parseFloat(css[k]), 0);
+  if (widest) el.style.width = `${Math.ceil(widest + sides) + 1}px`;
+  el.style.animation = "";
+}
+
+const inside = (b, x, y) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
+
+// A sprite's box in room pixels, `slack` pixels bigger on each side.
+function spriteBox(s, slack) {
+  const w = s.img.width;
+  const h = s.img.height;
+  return { x: s.x - w / 2 - slack, y: s.y - h - slack, w: w + slack * 2, h: h + slack * 2 };
+}
+
+// Grows a box to `min` room pixels across and down, and by `pad` pixels or more on each side.
+function grow(b, min, pad) {
+  const px = Math.max(pad, (min - b.w) / 2);
+  const py = Math.max(pad, (min - b.h) / 2);
+  return { x: b.x - px, y: b.y - py, w: b.w + px * 2, h: b.h + py * 2 };
+}
+
+// Of the boxes whose grown area holds the point, the one nearest to it. The distance is to the edge of the box,
+// so a tap on a thing always finds it, and a tap in the gap between two things finds the closer one.
+// When the point is inside two boxes, the nearer center wins.
+function nearest(boxes, x, y, min, pad) {
+  let best = null;
+  let bestEdge = Infinity;
+  let bestCenter = Infinity;
+  for (const b of boxes) {
+    if (!inside(grow(b, min, pad), x, y)) continue;
+    const edge = Math.hypot(Math.max(b.x - x, 0, x - (b.x + b.w)), Math.max(b.y - y, 0, y - (b.y + b.h)));
+    const center = Math.hypot(b.x + b.w / 2 - x, b.y + b.h / 2 - y);
+    if (edge < bestEdge || (edge === bestEdge && center < bestCenter)) {
+      best = b;
+      bestEdge = edge;
+      bestCenter = center;
+    }
+  }
+  return best;
+}
+
+// The hidden thing that a tap at (x, y) finds, with `min` as in Scene.spriteAt. The small things in front come
+// first, and the nearest one wins. A "back" thing (the window) takes a tap only inside its own box.
+export function pickSpot(spots, x, y, min = 0) {
+  return nearest(spots.filter((s) => !s.back), x, y, min, TAP_PAD) || spots.find((s) => s.back && inside(s, x, y)) || null;
 }
 
 function roomPixels(room) {
