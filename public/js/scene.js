@@ -345,7 +345,20 @@ export class Scene {
       const y = Math.max(...members.map((s) => s.y));
       this.pin(fam.tagEl, x, y + 3);
     }
-    if (this.popEl && this.popSprite) this.pin(this.popEl, this.popSprite.x, this.popSprite.y - (this.popSprite.img?.height || 30) - 4);
+    if (this.popEl && this.popSprite) this.pinPop();
+  }
+
+  // The editor popover sits above its sprite, but it stays inside the stage near an edge.
+  pinPop() {
+    const { popEl: el, popSprite: s } = this;
+    const { left, top, scale } = this.view;
+    const gap = 8;
+    const x = left + s.x * scale;
+    const y = top + (s.y - (s.img?.height || 30) - 4) * scale;
+    const cx = clamp(x, gap + el.offsetWidth / 2, this.stage.clientWidth - gap - el.offsetWidth / 2);
+    const bottom = clamp(y, gap + el.offsetHeight, this.stage.clientHeight - gap);
+    el.style.left = `${cx - left}px`;
+    el.style.top = `${bottom - top}px`;
   }
 
   say(sprite, text, seconds = 4) {

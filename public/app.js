@@ -17,6 +17,14 @@ const TUCK_MS = 5000;
 const SAVED = "hc.families";
 const POLL_MS = 30000;
 
+// "?new" shows the site as a first-time guest sees it. It forgets this browser's families
+// (the sound setting stays), then takes "new" out of the address, so a reload works as usual.
+if (new URLSearchParams(location.search).has("new")) {
+  try { localStorage.removeItem(SAVED); } catch {}
+  const rest = location.search.slice(1).split("&").filter((p) => p && decodeURIComponent(p.split("=")[0]) !== "new");
+  history.replaceState(history.state, "", location.pathname + (rest.length ? `?${rest.join("&")}` : "") + location.hash);
+}
+
 const newSession = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 const state = {
   step: 1,

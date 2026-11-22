@@ -101,6 +101,33 @@ const pointOn = (pg, want) => pg.evaluate((w) => {
   throw new Error(`no clear point on ${JSON.stringify(w)}`);
 }, want);
 
+// The whole room shows: the room's box sits inside the stage, and it touches two opposite edges.
+const wholeRoom = (pg) => pg.evaluate(() => {
+  const st = document.getElementById("stage").getBoundingClientRect();
+  const wr = document.getElementById("world").getBoundingClientRect();
+  const inside = wr.left >= st.left - 0.5 && wr.top >= st.top - 0.5 && wr.right <= st.right + 0.5 && wr.bottom <= st.bottom + 0.5;
+  const fills = wr.width > st.width - 1 || wr.height > st.height - 1;
+  return { ok: inside && fills, stage: [st.left, st.top, st.width, st.height], world: [wr.left, wr.top, wr.width, wr.height] };
+});
+async function assertWholeRoom(pg, what) {
+  // The camera eases, so give it a moment to settle.
+  await pg.waitForFunction(() => {
+    const st = document.getElementById("stage").getBoundingClientRect();
+    const wr = document.getElementById("world").getBoundingClientRect();
+    return wr.left >= st.left - 0.5 && wr.right <= st.right + 0.5 && wr.top >= st.top - 0.5 && wr.bottom <= st.bottom + 0.5;
+  }, null, { timeout: 3000 }).catch(() => {});
+  const fit = await wholeRoom(pg);
+  assert.ok(fit.ok, `${what}: ${JSON.stringify(fit)}`);
+}
+
+// After the thank-you, the dialog slides away within about 6 seconds and the top bar offers "Add another address".
+async function assertTucks(pg) {
+  const started = Date.now();
+  await pg.locator("#dialog").waitFor({ state: "hidden", timeout: 6500 });
+  await pg.getByRole("button", { name: "Add another address" }).waitFor({ timeout: 500 });
+  assert.ok(Date.now() - started < 6500);
+}
+
 const browser = await chromium.launch({ channel: "chrome" });
 const errors = [];
 try {
@@ -113,6 +140,10 @@ try {
 
   const say = page.locator("#say");
   await assert.doesNotReject(say.filter({ hasText: "Whose name goes on the envelope?" }).waitFor());
+  // a phone shows the whole room, wall to wall
+  await page.waitForFunction(() => window.__hc.scene.room);
+  await assertWholeRoom(page, "phone, step 1");
+  assert.ok(await page.getByRole("button", { name: "Add another address" }).isHidden());
   // password managers stay out of the dialog
   assert.equal(await page.getByLabel("Name on the envelope").getAttribute("data-1p-ignore"), "");
   assert.equal(await page.getByLabel("Name on the envelope").getAttribute("autocomplete"), "off");
@@ -155,6 +186,10 @@ try {
   await page.getByRole("alert").filter({ hasText: "Something went wrong. Try again?" }).waitFor();
   await page.getByRole("button", { name: "Yes, send it" }).click();
   await say.filter({ hasText: "Thank you. You mean a lot to us." }).waitFor();
+  assert.ok(await page.locator("#dialog").isVisible());
+  await assertTucks(page);
+  await assertWholeRoom(page, "phone, thank-you hidden");
+  await page.screenshot({ path: `${OUT}/5-tucked.png` });
 
   const submitted = calls.filter((c) => c.path === "/api/submit").at(-1).body;
   assert.equal(submitted.envelope, "The Garcia Family");
@@ -171,9 +206,7 @@ try {
   await page.mouse.move(2, 2);
   await page.locator(".tag").waitFor({ state: "detached" });
 
-  // hovering over the hosts shows each of their names (zoom back out first: the camera follows the new family)
-  await page.evaluate(() => window.__hc.scene.focus(128, 120, 0));
-  await page.waitForTimeout(100);
+  // hovering over the hosts shows each of their names (the camera is back on the whole room)
   const host = await pointOn(page, { host: true, name: "Jesse" });
   await page.mouse.move(host.x, host.y);
   await page.locator(".tag", { hasText: "Eddie" }).waitFor();
@@ -232,12 +265,51 @@ try {
   await picker.getByRole("button", { name: "Close" }).click();
   await picker.waitFor({ state: "detached" });
 
-  // coming back on the same browser goes straight to the party
+  // the editor stays inside the stage when its sprite stands at the room's right edge
+  await page.evaluate(() => {
+    const s = window.__hc.scene.sprites.find((x) => x.familyId === "fam12345" && x.index === 1);
+    Object.assign(s, { x: 196, y: 150, path: null, home: { x: 196, y: 150 } });
+  });
+  const edge = await spriteAt("fam12345", 1);
+  await page.mouse.click(edge.x, edge.y);
+  await page.getByLabel("Say something").waitFor();
+  const popFit = await page.evaluate(() => {
+    const st = document.getElementById("stage").getBoundingClientRect();
+    const pop = document.querySelector(".pop").getBoundingClientRect();
+    return { st: [st.left, st.top, st.right, st.bottom], pop: [pop.left, pop.top, pop.right, pop.bottom] };
+  });
+  assert.ok(popFit.pop[0] >= popFit.st[0] && popFit.pop[1] >= popFit.st[1] && popFit.pop[2] <= popFit.st[2] && popFit.pop[3] <= popFit.st[3], JSON.stringify(popFit));
+  await page.screenshot({ path: `${OUT}/6-edge-editor.png` });
+
+  // coming back on the same browser goes straight to the party, and the thank-you hides again
   await page.reload();
   await say.filter({ hasText: "Thank you. You mean a lot to us." }).waitFor();
   await page.waitForFunction(() => window.__hc.scene.sprites.filter((s) => s.familyId === "fam12345").length === 4);
   await page.waitForFunction(() => window.__hc.scene.sprites.some((s) => s.familyId === "other1"));
   await page.screenshot({ path: `${OUT}/7-return.png` });
+  await assertTucks(page);
+  await assertWholeRoom(page, "phone, return visit");
+  await page.screenshot({ path: `${OUT}/7-return-tucked.png` });
+
+  // "Add another address" in the top bar brings back step 1
+  await page.getByRole("button", { name: "Add another address" }).click();
+  await say.filter({ hasText: "Whose name goes on the envelope?" }).waitFor();
+  assert.ok(await page.locator("#dialog").isVisible());
+  assert.ok(await page.getByRole("button", { name: "Add another address" }).isHidden());
+  await assertWholeRoom(page, "phone, after restart");
+
+  // "?new" forgets this browser's families, starts at step 1, keeps the sound setting, and leaves the address clean
+  await page.evaluate(() => localStorage.setItem("hc.sound", "off"));
+  await page.goto(`${base}&new`);
+  await say.filter({ hasText: "Whose name goes on the envelope?" }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem("hc.families")), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("hc.sound")), "off");
+  assert.equal(await page.locator("#sound").getAttribute("aria-pressed"), "false");
+  assert.equal(new URL(page.url()).search, "?test");
+  await page.waitForFunction(() => window.__hc.scene.sprites.some((s) => s.familyId === "other1"));
+  assert.equal(await page.evaluate(() => window.__hc.scene.sprites.filter((s) => s.mine).length), 0);
+  await page.reload();
+  await say.filter({ hasText: "Whose name goes on the envelope?" }).waitFor();
 
   // first visit screenshot for review
   const fresh = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -248,6 +320,10 @@ try {
   await p2.locator("#say").filter({ hasText: "Whose name goes on the envelope?" }).waitFor();
   await p2.waitForTimeout(400);
   await p2.screenshot({ path: `${OUT}/1-start.png` });
+  await assertWholeRoom(p2, "phone 390x844");
+  await p2.setViewportSize({ width: 375, height: 667 });
+  await assertWholeRoom(p2, "phone 375x667");
+  await p2.screenshot({ path: `${OUT}/1-start-small.png` });
 
   // the real looks library: every image loads, and a new family gets sprites from it
   const real = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
@@ -290,17 +366,21 @@ try {
   await p4.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
   await p4.goto(base);
   await p4.waitForFunction(() => window.__hc.scene.sprites.filter((s) => s.host && s.img).length === 4);
-  const fit = await p4.evaluate(() => {
-    const st = document.getElementById("stage").getBoundingClientRect();
-    const wr = document.querySelector(".world").getBoundingClientRect();
-    return { st: { l: st.left, t: st.top, r: st.right, b: st.bottom }, wr: { l: wr.left, t: wr.top, r: wr.right, b: wr.bottom } };
-  });
-  assert.ok(fit.wr.l >= fit.st.l && fit.wr.t >= fit.st.t && fit.wr.r <= fit.st.r && fit.wr.b <= fit.st.b, JSON.stringify(fit));
-  assert.ok(fit.wr.b - fit.wr.t > fit.st.b - fit.st.t - 1 || fit.wr.r - fit.wr.l > fit.st.r - fit.st.l - 1, JSON.stringify(fit));
+  await assertWholeRoom(p4, "desktop");
   const deskHost = await pointOn(p4, { host: true, name: "Jesse" });
   await p4.mouse.move(deskHost.x, deskHost.y);
   await p4.locator(".tag", { hasText: "Eddie" }).waitFor();
   await p4.screenshot({ path: `${OUT}/8-desktop.png` });
+
+  // on a return visit to a wide screen, the dialog column hides too and the room grows into it
+  const deskStage = (await wholeRoom(p4)).stage[2];
+  await p4.evaluate(() => localStorage.setItem("hc.families", JSON.stringify([{ id: "fam12345", token: "tok", name: "The Garcia Family", members: [{ type: "adult", look: "t-mom" }], bubbles: [] }])));
+  await p4.reload();
+  await p4.locator("#say").filter({ hasText: "Thank you. You mean a lot to us." }).waitFor();
+  await assertTucks(p4);
+  await assertWholeRoom(p4, "desktop, thank-you hidden");
+  assert.ok((await wholeRoom(p4)).stage[2] > deskStage + 300);
+  await p4.screenshot({ path: `${OUT}/8-desktop-tucked.png` });
 
   // the hidden photo album: tap the book on the sofa, turn a page, close it
   const albumCalls = [];
