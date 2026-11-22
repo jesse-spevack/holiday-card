@@ -4,8 +4,9 @@
 
 import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
 import { HOTSPOTS, DREIDELS, FLOOR } from "./room.js";
+import { TOAST_LINES } from "./toast.js";
 
-export function testApi({ scene, sound, eggs, dreidel, found }) {
+export function testApi({ scene, sound, eggs, dreidel, toast, found }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -126,6 +127,10 @@ export function testApi({ scene, sound, eggs, dreidel, found }) {
       };
     },
     sendWaymo: () => eggs.waymo(),
+    // The toast: { on, age, speaker, line, lift, readyIn, people: [{ familyId, index, name, flip, hop, cup }] }.
+    // cup is { kind: "wine" or "cocoa", x, y, w, h, hand, lift } in room pixels. hand is the column of the hand that holds it.
+    toast: () => toast.state(),
+    toastLines: () => [...TOAST_LINES],
     found: (...eggs) => { for (const egg of eggs) found.add(egg); },
 
     // ---- the dreidel game ----

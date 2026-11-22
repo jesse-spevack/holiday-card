@@ -50,6 +50,9 @@ export const DREIDELS = {
   "dreidel-right": { x: 214, y: 45, w: 10, h: 14 },
 };
 
+// The wine on the dining table (art/scripts/table_wine.py): two glasses and the bottle, with their shadow. A tap starts the toast (toast.js).
+export const WINE = { x: 228, y: 109, w: 16, h: 13 };
+
 // Hidden things a tap finds. Each box is the thing as drawn, in room pixels.
 // The window is "back": it takes only the taps that no small thing in front of it takes.
 export const HOTSPOTS = [
@@ -58,6 +61,7 @@ export const HOTSPOTS = [
   { id: "dreidel-left", x: 183, y: 45, w: 11, h: 15 },
   { id: "menorah", x: 194, y: 39, w: 17, h: 19 },
   { id: "dreidel-right", x: 214, y: 45, w: 11, h: 15 },
+  { id: "wine", ...WINE },
   { id: "window", x: 162, y: 6, w: 80, h: 38, back: true },
 ];
 
