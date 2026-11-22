@@ -3,7 +3,7 @@ import { checkToken } from "./party";
 
 // The hidden extras that the page reports. A name that is not here gets a 400.
 // "presents" and "plants" are for the extras that come next.
-export const EGGS = ["album", "dreidel", "lamp", "menorah", "pets", "plants", "presents", "silly", "star", "toast", "waymo"] as const;
+export const EGGS = ["album", "cybertruck", "dreidel", "lamp", "menorah", "pets", "plants", "presents", "silly", "star", "toast", "waymo"] as const;
 export type Egg = (typeof EGGS)[number];
 
 export function isEgg(value: unknown): value is Egg {

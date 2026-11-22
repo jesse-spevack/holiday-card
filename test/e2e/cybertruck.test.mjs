@@ -1,7 +1,7 @@
 // The Cybertruck: now and then it drives past the window, and Eddie calls it out. It never shares the road with the Waymo.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT } from "./harness.mjs";
+import { e2e, OUT, GARCIA, assertTucks } from "./harness.mjs";
 
 const env = await e2e();
 const SHOUT = "Cybertruck!";
@@ -115,12 +115,24 @@ describe("the Cybertruck", { concurrency: true }, () => {
     });
   }
 
+  test("each drive-by counts for the family this browser signed up", async () => {
+    const { page, hc, calls } = await env.open({ mine: [GARCIA], reducedMotion: "reduce", wait: "eggs" });
+    await assertTucks(page);
+    await hc.sendCybertruck();
+    await page.waitForFunction(() => window.__hc.eggs().truck !== null);
+    await page.waitForFunction(() => window.__hc.eggs().truck === null, null, { timeout: 8000 });
+    await page.waitForTimeout(300);
+    const sent = calls.filter((c) => c.path === "/api/interaction").map((c) => c.body);
+    assert.deepEqual(sent, [{ id: GARCIA.id, token: GARCIA.token, egg: "cybertruck" }]);
+  });
+
   // For the PR: the truck in the window, on a phone and on a computer, and a close view of the window.
+  // With reduced motion, the truck stops in the right pane, so each screenshot shows the same frame.
   for (const [name, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
     test(`a screenshot of the Cybertruck, ${name}`, async () => {
-      const { page, hc } = await env.open({ viewport, wait: "eggs" });
+      const { page, hc } = await env.open({ viewport, reducedMotion: "reduce", wait: "eggs" });
       await hc.sendCybertruck(1);
-      await page.waitForFunction(() => window.__hc.eggs().truck >= 157);
+      await page.waitForFunction(() => window.__hc.sprite({ host: true, name: "Eddie" }).bubble);
       await page.screenshot({ path: `${OUT}/cybertruck-${name}.png` });
       const a = await hc.toScreen(156, 2);
       const b = await hc.toScreen(246, 64);
