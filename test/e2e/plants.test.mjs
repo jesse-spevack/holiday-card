@@ -63,10 +63,11 @@ describe("the plants", { concurrency: true }, () => {
       await hc.spySounds(["chime", "bouquet"]);
       for (const [k, id] of ids.slice(0, -1).entries()) {
         await tap(center(id));
-        const s = await hc.plants();
+        // The corners and the sparkles show for less than a second, so one call reads them right after the tap.
+        const s = await page.evaluate(() => ({ ...window.__hc.plants(), pressed: window.__hc.pressed() }));
         assert.deepEqual(s.bloomed, ids.slice(0, k + 1), `${id} blooms`);
         assert.ok(s.twinkles > 0, `${id} sparkles`);
-        assert.equal(await hc.pressed(), id);
+        assert.equal(s.pressed, id);
         assert.deepEqual(await hc.sounds(), [`chime:${k}`]);
         await allOpen(id);
         // Each flower sits on its plant, with its center color on the canvas at its center.
