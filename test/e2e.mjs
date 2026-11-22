@@ -1023,7 +1023,7 @@ try {
   await pw.mouse.move(2, 2);
   const talker = await pointOn(pw, { host: true, name: "Jess" });
   await pw.mouse.click(talker.x, talker.y);
-  await pw.locator(".bubble").waitFor();
+  await pw.waitForFunction(() => window.__hc.scene.sprites.find((s) => s.name === "Jess").bubbleEl);
   assert.equal(await pw.evaluate(() => window.__hc.scene.sprites.find((s) => s.name === "Jess").path), null);
   await walkCtx.close();
 
