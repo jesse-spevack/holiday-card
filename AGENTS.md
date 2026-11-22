@@ -170,6 +170,7 @@ The rules:
 - Take a screenshot of a moving thing on a stopped clock. To hold a CSS animation, pause it and set its `currentTime`.
 - Use `tuckNow(page)` when a test needs only the party after the thank-you. It skips the 7-second wait and settles the camera.
   Use `assertTucks` only to check the real wait.
+- A host says a random line. To check a hint, tap until the host says it, with `hearLine`. A fixed number of taps can miss it.
 - After `page.reload()` on a return visit, the camera zooms in on the family. Call `tuckNow` before a tap on the room.
 - Before a PR that adds or changes an e2e test, run `E2E_SLOW=6 pnpm e2e` too.
 

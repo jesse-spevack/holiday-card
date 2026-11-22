@@ -2,7 +2,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { e2e, OUT, GARCIA, tuckNow, tapRoom, waitForFamilies, interactions } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tuckNow, tapRoom, waitForFamilies, interactions, hearLine } from "./harness.mjs";
 
 const env = await e2e();
 const HINT = "Poke the fire. It likes attention.";
@@ -75,9 +75,7 @@ describe("the fire", { concurrency: true }, () => {
       };
       await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "toast");
       if (name === "phone") {
-        let heard = false;
-        for (let i = 0; i < 40 && !heard; i++) heard = (await hear("Jess")) === HINT;
-        assert.ok(heard, "Jess hints at the fire");
+        await hearLine(page, "Jess", HINT);
         await page.waitForFunction(() => window.__hc.sprites({ host: true }).every((s) => !s.bubble));
       }
 

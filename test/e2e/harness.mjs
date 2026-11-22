@@ -293,6 +293,20 @@ export async function tuckNow(page) {
   await api(page).advance(3);
 }
 
+// Taps the host `name` until the host says `line`, up to `times` taps, and returns the lines in order.
+// A host picks a random line each time, so a fixed number of taps can miss a line. With 60 taps, a miss is less likely than once in ten million runs.
+export async function hearLine(page, name, line, { touch = true, times = 60 } = {}) {
+  const hc = api(page);
+  const lines = [];
+  while (lines.length < times && lines.at(-1) !== line) {
+    const p = await hc.pointOn({ host: true, name });
+    await (touch ? page.touchscreen.tap(p.x, p.y) : page.mouse.click(p.x, p.y));
+    lines.push((await hc.sprite({ host: true, name })).bubble);
+  }
+  assert.equal(lines.at(-1), line, `${name} says "${line}": ${lines}`);
+  return lines;
+}
+
 // The words that the host types in the dialog, once the whole line shows.
 export const said = (pg, text) => pg.locator("#say").filter({ hasText: text }).waitFor();
 // Waits until the host has typed the whole line, so nothing in the dialog moves.

@@ -2,7 +2,7 @@
 // Eddie says his line in a bubble. When his bubble goes, Audrey says hers.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT, GARCIA, tapRoom, waitForFamilies, animationsDone, tuckNow, interactions } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tapRoom, waitForFamilies, animationsDone, tuckNow, interactions, hearLine } from "./harness.mjs";
 
 const env = await e2e();
 const EDDIE = "Happy Hanukkah! I hope your holiday season is filled with happiness.";
@@ -52,8 +52,7 @@ describe("the presents", { concurrency: true }, () => {
       // Eddie hints at the presents. The other hidden things are found, so the hint comes up soon.
       await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "toast");
       if (touch) {
-        const lines = await hear("Eddie", 12);
-        assert.ok(lines.includes(HINT), `Eddie hints at the presents: ${lines}`);
+        await hearLine(page, "Eddie", HINT);
         await page.waitForFunction(() => window.__hc.sprites({ host: true }).every((s) => !s.bubble));
       }
       // The corners of the last tap on a host go.

@@ -3,7 +3,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { e2e, OUT, GARCIA, tuckNow, tapRoom, waitForFamilies } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tuckNow, tapRoom, waitForFamilies, hearLine } from "./harness.mjs";
 
 const env = await e2e();
 // Two guest families. The Lees bring a dog, and a dog never holds a cup.
@@ -61,8 +61,8 @@ describe("the toast", { concurrency: true }, () => {
         return out;
       };
       if (name === "phone") {
-        const before = [...(await hear("Jesse", 12)), ...(await hear("Jess", 12))];
-        assert.ok(HINTS.every((h) => before.includes(h)), `the hosts hint at the toast: ${before}`);
+        await hearLine(page, "Jesse", HINTS[0]);
+        await hearLine(page, "Jess", HINTS[1]);
         await page.waitForFunction(() => window.__hc.sprites({ host: true }).every((s) => !s.bubble));
       }
 

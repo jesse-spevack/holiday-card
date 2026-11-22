@@ -3,7 +3,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { e2e, OUT, GARCIA, tuckNow, tapRoom, advanceUntil, interactions } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tuckNow, tapRoom, advanceUntil, interactions, hearLine } from "./harness.mjs";
 
 const env = await e2e();
 const HINT = "I bet the plants would love some attention.";
@@ -49,13 +49,7 @@ describe("the plants", { concurrency: true }, () => {
       assert.deepEqual((await hc.plants()).bloomed, []);
       if (name === "phone") {
         await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "toast");
-        const lines = [];
-        for (let i = 0; i < 8; i++) {
-          const p = await hc.pointOn({ host: true, name: "Audrey" });
-          await page.touchscreen.tap(p.x, p.y);
-          lines.push((await hc.sprite({ host: true, name: "Audrey" })).bubble);
-        }
-        assert.ok(lines.includes(HINT), `Audrey hints at the plants: ${lines}`);
+        await hearLine(page, "Audrey", HINT);
         await hc.stillHosts();
       }
 
