@@ -344,14 +344,14 @@ try {
       await pa.locator(".album-side.r figcaption", { hasText: "Snow in the yard" }).waitFor();
       await pa.touchscreen.tap(30, viewport.height / 2);
       await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
-      await pa.screenshot({ path: `${OUT}/9-album-phone.png` });
+      await pa.screenshot({ path: `${OUT}/album-phone.png` });
       await pa.getByRole("button", { name: "Close the album" }).click();
     } else {
       await pa.locator(".album-title", { hasText: "Our 2026" }).waitFor();
       await pa.keyboard.press("ArrowRight");
       await count.filter({ hasText: /^2-3 \/ 3$/ }).waitFor();
       await pa.waitForTimeout(600);
-      await pa.screenshot({ path: `${OUT}/10-album-desktop.png` });
+      await pa.screenshot({ path: `${OUT}/album-desktop.png` });
       await pa.mouse.click(100, viewport.height / 2);
       await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
       await pa.keyboard.press("Escape");
