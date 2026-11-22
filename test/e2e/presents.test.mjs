@@ -20,11 +20,11 @@ describe("the presents", { concurrency: true }, () => {
   for (const { name, viewport, touch } of VARIANTS) {
     test(`a tap on the presents gives a message from Eddie, then Audrey, on ${name}`, async () => {
       const { page, hc } = await env.open({ viewport, hasTouch: touch, isMobile: touch, party: PARTY, wait: "eggs" });
-      // The Lees and their dog stand on the rug, away from the presents and the kids, so no tap lands on them.
+      // The Lees and their dog stand at the front of the room, away from the presents and the kids, so no tap lands on them.
       await waitForFamilies(page, { other1: 2 });
       await hc.stillGuests();
-      await hc.place({ familyId: "other1", index: 0 }, 112, 140);
-      await hc.place({ familyId: "other1", index: 1 }, 126, 142);
+      await hc.place({ familyId: "other1", index: 0 }, 110, 152);
+      await hc.place({ familyId: "other1", index: 1 }, 124, 154);
       await hc.stillHosts();
       const { HOTSPOTS, TAP_PX } = await hc.constants();
       const box = (id) => HOTSPOTS.find((h) => h.id === id);
@@ -58,10 +58,13 @@ describe("the presents", { concurrency: true }, () => {
       }
       await sceneWait(page, 0.6);
 
-      // The kids stand near the presents, but not in front of them. A desktop test sees them at home, at the left edge.
+      // The kids stand near the presents, but not in front of them, and Jess and Jesse stand in front of the rug.
+      // A desktop test sees the kids at home, at the left edge.
       if (touch) {
-        await hc.place({ host: true, name: "Audrey" }, 138, 106);
-        await hc.place({ host: true, name: "Eddie" }, 154, 108);
+        await hc.place({ host: true, name: "Jess" }, 150, 150);
+        await hc.place({ host: true, name: "Jesse" }, 168, 152);
+        await hc.place({ host: true, name: "Audrey" }, 138, 110);
+        await hc.place({ host: true, name: "Eddie" }, 154, 112);
       }
 
       // the tap: Eddie says his line with his name under him, the kids stop, and three bells ring
@@ -137,7 +140,7 @@ describe("the presents", { concurrency: true }, () => {
         assert.equal(await finds({ x: box("presents").x + box("presents").w + 1.5, y: center("presents").y }), "presents");
 
         // After the guest finds the presents, Eddie drops the hint.
-        await hc.place({ host: true, name: "Eddie" }, 154, 108);
+        await hc.place({ host: true, name: "Eddie" }, 154, 112);
         const after = await hear("Eddie", 8);
         assert.ok(!after.includes(HINT), `no presents hint after the presents: ${after}`);
       }
