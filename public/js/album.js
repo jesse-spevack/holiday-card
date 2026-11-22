@@ -120,6 +120,7 @@ export class Album {
     const session = ++this.session;
     this.settle?.();
     this.isOpen = false;
+    this.sound.coverClose();
     this.busy = true;
     if (!this.reducedMotion && this.el && !this.el.hidden) {
       const to = this.bookRect();
