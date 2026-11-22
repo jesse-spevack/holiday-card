@@ -23,6 +23,9 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter ho
 - A tap on the left half goes back, and a tap on the right half goes forward. Arrow keys, Escape, and a swipe work too.
 - Phones show one page at a time. Wide screens show two pages, after a title page.
 - Code: `public/js/album.js` and `public/album.css`. The book sprite: `art/scripts/book.py`.
+- The book makes real paper sounds: a page flip for each turn, and a sound when the cover opens and closes.
+  The recordings come from Kenney's "RPG Audio" pack (CC0, no credit required): `public/assets/sounds/` and its `LICENSE.txt`.
+  They load after the first tap. Until they load, or if they fail, the book plays a synthesized swish.
 - The photos and the captions live in Workers KV (namespace `holiday-card-album`, binding `ALBUM`). The Worker serves them at `/album/list` and `/album/<hash>.jpg`.
 - Photos and captions never go in git. The repo is public, and the originals hold GPS data.
   The originals and `captions.json` stay in `~/Pictures/holiday-card-album/`.

@@ -10,7 +10,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const ROOT = new URL("../public/", import.meta.url).pathname;
 const ART = new URL("../art/assets/characters/", import.meta.url).pathname;
 const OUT = process.env.E2E_OUT || "build/e2e";
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json", ".m4a": "audio/mp4" };
 
 // Test looks use the committed sample guests, so the test does not depend on the looks library.
 // The ages and silly looks are out of order on purpose: the look picker sorts them.
@@ -388,6 +388,8 @@ try {
 
   // the hidden photo album: tap the book on the sofa, turn a page, close it
   const albumCalls = [];
+  const soundCalls = [];
+  const SOUND_FILES = ["book-close", "book-flip-1", "book-flip-2", "book-flip-3", "book-open"].map((n) => `/assets/sounds/${n}.m4a`);
   const fakeAlbum = async (route) => {
     const path = new URL(route.request().url()).pathname;
     albumCalls.push(path);
@@ -400,26 +402,51 @@ try {
   });
   for (const [name, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
     albumCalls.length = 0;
+    soundCalls.length = 0;
     const ctx = await browser.newContext({ viewport, hasTouch: name === "phone" });
     const pa = await ctx.newPage();
     pa.on("pageerror", (e) => errors.push(String(e)));
     await pa.route("**/api/**", fakeApi);
     await pa.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
     await pa.route("**/album/**", fakeAlbum);
+    // The phone cannot load the recorded book sounds, so it plays the swish. The desktop plays the recordings.
+    await pa.route("**/assets/sounds/**", (r) => {
+      soundCalls.push(new URL(r.request().url()).pathname);
+      return name === "phone" ? r.abort() : r.continue();
+    });
     await pa.goto(base);
     await pa.waitForFunction(() => window.__hc.scene.book && window.__hc.scene.sprites.some((s) => s.host));
     // the main page never loads the album until a guest opens it
     assert.deepEqual(albumCalls, []);
-    // count the album sounds, and still play them
+    // the main page loads no sound files until the first tap
+    assert.deepEqual(soundCalls, []);
+    // count the album sounds, still play them, and note what each one plays: a recording, the swish, or nothing
     await pa.evaluate(() => {
       const { sound } = window.__hc;
       window.__sounds = [];
-      for (const name of ["coverOpen", "pageTurn"]) {
+      const sources = [];
+      const make = AudioContext.prototype.createBufferSource;
+      AudioContext.prototype.createBufferSource = function () { const s = make.call(this); sources.push(s); return s; };
+      const heard = () => {
+        const made = sources.splice(0);
+        if (!made.length) return "silent";
+        const names = made.map((s) => Object.keys(sound.samples ?? {}).find((n) => sound.samples[n] === s.buffer));
+        if (names.every((n) => !n)) return "swish";
+        const rate = made[0].playbackRate.value;
+        if (made.length !== 1 || rate < 0.95 || rate > 1.05) return `odd: ${made.length} sources at rate ${rate}`;
+        return names[0].replace(/-\d$/, "");
+      };
+      for (const name of ["coverOpen", "pageTurn", "coverClose"]) {
         const play = sound[name].bind(sound);
-        sound[name] = () => { window.__sounds.push(name); play(); };
+        sound[name] = () => { sources.length = 0; play(); window.__sounds.push(`${name}: ${heard()}`); };
       }
     });
     const sounds = () => pa.evaluate(() => window.__sounds);
+    if (name === "desktop") {
+      // a first key press wakes the sound, and the recordings load before the book opens
+      await pa.keyboard.press("Shift");
+      await pa.waitForFunction(() => Object.keys(window.__hc.sound.samples ?? {}).length === 5);
+    }
     const book = await bookAt(pa);
     if (name === "phone") await pa.touchscreen.tap(book.x, book.y);
     else await pa.mouse.click(book.x, book.y);
@@ -428,7 +455,8 @@ try {
     const count = pa.locator(".album-count");
     await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
     await pa.locator("figcaption", { hasText: "A day at the lake" }).waitFor();
-    assert.deepEqual(await sounds(), ["coverOpen"]);
+    const opened = name === "phone" ? "coverOpen: swish" : "coverOpen: book-open";
+    assert.deepEqual(await sounds(), [opened]);
     assert.equal(await pa.locator(".pop").count(), 0, "the book never opens the sprite editor");
     assert.equal(await pa.evaluate(() => window.__hc.scene.bookHidden), true);
     if (name === "phone") {
@@ -439,8 +467,8 @@ try {
       await pa.locator(".album-side.r figcaption", { hasText: "Snow in the yard" }).waitFor();
       await pa.touchscreen.tap(30, viewport.height / 2);
       await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
-      // a tap forward and a tap back each turn a page with a swish
-      assert.deepEqual(await sounds(), ["coverOpen", "pageTurn", "pageTurn"]);
+      // a tap forward and a tap back each turn a page. The sound files did not load, so each turn plays the swish.
+      assert.deepEqual(await sounds(), [opened, "pageTurn: swish", "pageTurn: swish"]);
       await pa.screenshot({ path: `${OUT}/album-phone.png` });
       await pa.getByRole("button", { name: "Close the album" }).click();
     } else {
@@ -451,8 +479,8 @@ try {
       await pa.screenshot({ path: `${OUT}/album-desktop.png` });
       await pa.mouse.click(100, viewport.height / 2);
       await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
-      // an arrow key and a click each turn a page with a swish
-      assert.deepEqual(await sounds(), ["coverOpen", "pageTurn", "pageTurn"]);
+      // an arrow key and a click each turn a page with a recorded page flip
+      assert.deepEqual(await sounds(), [opened, "pageTurn: book-flip", "pageTurn: book-flip"]);
       // the swish is a short, gentle sound, and with the sound off it makes no sound at all
       const heard = await pa.evaluate(async () => {
         const { swish } = await import("/js/sound.js");
@@ -468,6 +496,7 @@ try {
         sound.on = false;
         sound.pageTurn();
         sound.coverOpen();
+        sound.coverClose();
         sound.on = true;
         sound.ctx = real;
         return { peak, ms: (last / 48000) * 1000, made };
@@ -479,6 +508,13 @@ try {
     }
     await dialogEl.waitFor({ state: "hidden" });
     await pa.waitForFunction(() => !window.__hc.scene.bookHidden);
+    // the book closes with a sound, and with the sound off nothing plays
+    const closed = name === "phone" ? "coverClose: swish" : "coverClose: book-close";
+    const off = name === "phone" ? [] : ["pageTurn: silent", "coverOpen: silent", "coverClose: silent"];
+    const turned = name === "phone" ? "pageTurn: swish" : "pageTurn: book-flip";
+    assert.deepEqual(await sounds(), [opened, turned, turned, ...off, closed]);
+    // each sound file loads one time
+    assert.deepEqual(soundCalls.sort(), SOUND_FILES);
     // the form still works after the album closes
     await pa.getByLabel("Name on the envelope").fill("The Garcia Family");
     await pa.getByRole("button", { name: "Next" }).click();
