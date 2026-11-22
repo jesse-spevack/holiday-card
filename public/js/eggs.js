@@ -1,5 +1,5 @@
 // Hidden extras in the living room. Nothing on screen points to them.
-// A light blue Waymo van drives past the window now and then. A tap on the window sends a shooting star,
+// A light blue Waymo van or a steel Cybertruck drives past the window now and then. A tap on the window sends a shooting star,
 // a tap on the menorah lights it again and asks about miracles, and a tap on the floor lamp turns it off and on.
 // The tap areas are HOTSPOTS in room.js. The scene draws this module as a layer (Scene.addLayer).
 
@@ -26,12 +26,40 @@ const CAR = [
   "...OO....OO...",
 ];
 const CAR_COLORS = { O: "#1b1a2e", L: "#c6e7fa", B: "#86c5ea", S: "#5a93bf", G: "#273049", D: "#2a2f45", R: "#e0504a", H: "#fef09f", K: "#3c3e50", h: "#9da8b6" };
-const CAR_W = CAR[0].length;
 const DOME = { x: 6, y: 1, w: 3 };
-const HEADLIGHT_Y = 7;
-const CAR_SPEED = 13;
-const CAR_PARKED = { x: 168, seconds: 5 };
-const WAYMO_GAP = [40, 90];
+
+// The Cybertruck, facing right: a steel wedge with one sharp peak, a long flat slope to the tail, and a steeper slope to the nose.
+// L steel edge in the light, S steel, T lower steel in shade, G glass, g glint, C black arches, sill, and bumpers,
+// K tire, h wheel cover, R tail light bar, W front light bar.
+const TRUCK = [
+  "..............LL............",
+  "..........LLLLGgLL..........",
+  "......LLLLSGGGgGGGLLL.......",
+  "..LLLLSSSSSGGgGGGGGGGLL.....",
+  "RLSSSSSSSSSSSSSSSSSSSSSLLL..",
+  "SSSCCCCCSSSSSSSSSSSSSCCCCCWW",
+  "SSCCKKKCCSSSSSSSSSSSCCKKKCCC",
+  "CTCKhhhKCTTTTTTTTTTTCKhhhKCC",
+  "CCCKhKhKCCCCCCCCCCCCCKhKhKCC",
+  "...KhhhK.............KhhhK..",
+  "....KKK...............KKK...",
+];
+const TRUCK_COLORS = { L: "#eef0f3", S: "#c4c8cf", T: "#a2a7b0", G: "#334058", g: "#55657f", C: "#1b1a2e", K: "#3c3e50", h: "#8a94a3", R: "#e0504a", W: "#ffffff" };
+
+// The cars that drive past the window, one at a time. Each car comes back `gap` seconds after it drives out of sight.
+// speed is in room pixels a second. light is the row of the headlight and the color of its beam on the snow.
+// With reduced motion, a car stops in the window at x = park[0] when it faces left, or park[1] when it faces right.
+// The Cybertruck is too long for one pane, so it stops with its nose and its light bar in an outer pane.
+export const CARS = {
+  waymo: { rows: CAR, colors: CAR_COLORS, speed: 13, gap: [40, 90], light: { y: 7, color: "#fff4c2" }, park: [168, 168] },
+  cybertruck: { rows: TRUCK, colors: TRUCK_COLORS, speed: 16, gap: [60, 120], light: { y: 5, color: "#eef6ff" }, park: [166, 208] },
+};
+for (const car of Object.values(CARS)) car.w = car.rows[0].length;
+// With reduced motion, a car stays this many seconds. After a car goes, the next car waits this many seconds or more.
+const PARKED_SECONDS = 5;
+const ROAD_CLEAR = 3;
+// Eddie calls out the Cybertruck once it shows in the window. If he talks already, he calls out after that, while the truck still shows.
+const SHOUT = { host: "son", text: "Cybertruck!", seconds: 4 };
 
 const STAR = { tail: 14, seconds: 1, fade: 0.4, still: 1.4 };
 // Words that show for a moment, centered on x with their top at y, in room pixels.
@@ -44,7 +72,7 @@ const LIGHTING = { pause: 0.7, step: 0.45, grow: 0.18 };
 const rand = (a, b) => a + Math.random() * (b - a);
 
 export class Eggs {
-  // onFound("waymo") runs each time the Waymo drives out of sight.
+  // onFound("waymo") or onFound("cybertruck") runs each time that car drives out of sight.
   constructor({ scene, sound, reducedMotion, onFound = () => {} }) {
     this.scene = scene;
     this.onFound = onFound;
@@ -55,7 +83,8 @@ export class Eggs {
     this.star = null;
     this.lighting = null;
     this.wisps = [];
-    this.nextCar = rand(...WAYMO_GAP);
+    // The scene time when each car comes next.
+    this.next = Object.fromEntries(Object.entries(CARS).map(([kind, car]) => [kind, rand(...car.gap)]));
   }
 
   // Called once the room image loads, with its RGBA pixels.
@@ -78,48 +107,71 @@ export class Eggs {
     else if (id === "lamp") this.toggleLamp();
   }
 
-  // ---- the Waymo ----
-  waymo() {
+  // ---- the cars: the Waymo and the Cybertruck ----
+  // Sends a car now, "waymo" or "cybertruck". dir 1 drives right, and -1 drives left.
+  // If another car is on the road, this car comes after that car goes.
+  send(kind, dir = Math.random() < 0.5 ? 1 : -1) {
+    if (this.car) {
+      this.next[kind] = this.scene.time;
+      return;
+    }
     const time = this.scene.time;
-    const dir = Math.random() < 0.5 ? 1 : -1;
+    const car = CARS[kind];
     if (this.reducedMotion) {
-      this.car = { x: CAR_PARKED.x, dir, until: time + CAR_PARKED.seconds };
+      this.car = { kind, car, x: car.park[dir > 0 ? 1 : 0], dir, until: time + PARKED_SECONDS };
     } else {
       // Start and end out of sight, with room for the headlight beam.
-      const x = dir > 0 ? PANES[0][0] - CAR_W - 10 : PANES[2][1] + 10;
-      this.car = { x, dir };
+      const x = dir > 0 ? PANES[0][0] - car.w - 10 : PANES[2][1] + 10;
+      this.car = { kind, car, x, dir };
     }
-    this.nextCar = Infinity;
+    this.next[kind] = Infinity;
   }
 
   carGone() {
     const c = this.car;
     if (this.reducedMotion) return this.scene.time > c.until;
-    return c.dir > 0 ? c.x > PANES[2][1] + 1 : c.x < PANES[0][0] - CAR_W - 1;
+    return c.dir > 0 ? c.x > PANES[2][1] + 1 : c.x < PANES[0][0] - c.car.w - 1;
+  }
+
+  // Some part of the car shows through the glass.
+  carInSight() {
+    const c = this.car;
+    return c.x + c.car.w - 1 >= PANES[0][0] && c.x <= PANES[2][1];
+  }
+
+  // Eddie calls out the Cybertruck, once for each pass, when he does not talk already.
+  shout() {
+    const c = this.car;
+    if (c.kind !== "cybertruck" || c.shouted || !this.carInSight()) return;
+    const eddie = this.scene.sprites.find((s) => s.id === SHOUT.host && s.img);
+    if (!eddie || eddie.bubbleEl) return;
+    this.scene.say(eddie, SHOUT.text, SHOUT.seconds);
+    c.shouted = true;
   }
 
   drawCar(g) {
     const c = this.car;
+    const { rows, colors, w, light } = c.car;
     const x0 = Math.round(c.x);
-    const y0 = ROAD_Y - CAR.length + 1;
-    const px = (col) => x0 + (c.dir > 0 ? col : CAR_W - 1 - col);
-    eachPixel(CAR, CAR_COLORS, (x, y, color) => {
+    const y0 = ROAD_Y - rows.length + 1;
+    const px = (col) => x0 + (c.dir > 0 ? col : w - 1 - col);
+    eachPixel(rows, colors, (x, y, color) => {
       g.fillStyle = color;
       g.fillRect(x0 + x, y0 + y, 1, 1);
     }, { flipX: c.dir < 0 });
-    // The lidar dome spins: a glint sweeps across it.
+    // The Waymo's lidar dome spins: a glint sweeps across it.
     const sweep = this.reducedMotion ? 1 : Math.floor(this.scene.time * 10) % (DOME.w + 1);
-    if (sweep < DOME.w) {
+    if (c.kind === "waymo" && sweep < DOME.w) {
       g.fillStyle = "#c8f0ff";
       g.fillRect(px(DOME.x + sweep), y0 + DOME.y, 1, 1);
     }
     // Soft headlight beams on the snow ahead.
-    g.fillStyle = "#fff4c2";
+    g.fillStyle = light.color;
     for (let i = 1; i <= 8; i++) {
       g.globalAlpha = 0.4 * (1 - i / 9);
-      const x = c.dir > 0 ? x0 + CAR_W - 1 + i : x0 - i;
+      const x = c.dir > 0 ? x0 + w - 1 + i : x0 - i;
       const spread = i > 5 ? 2 : i > 2 ? 1 : 0;
-      g.fillRect(x, y0 + HEADLIGHT_Y - Math.min(spread, 1), 1, 1 + spread + Math.min(spread, 1));
+      g.fillRect(x, y0 + light.y - Math.min(spread, 1), 1, 1 + spread + Math.min(spread, 1));
     }
     g.globalAlpha = 1;
   }
@@ -247,13 +299,20 @@ export class Eggs {
   // ---- the layer hooks that the scene calls ----
   update(dt) {
     const time = this.scene.time;
-    if (!this.car && time >= this.nextCar) this.waymo();
+    if (!this.car) {
+      // The car that is due first drives first. The other car waits for the road to clear.
+      const due = Object.keys(CARS).filter((kind) => time >= this.next[kind]).sort((a, b) => this.next[a] - this.next[b]);
+      if (due.length) this.send(due[0]);
+    }
     if (this.car) {
-      if (!this.reducedMotion) this.car.x += this.car.dir * CAR_SPEED * dt;
+      const c = this.car;
+      if (!this.reducedMotion) c.x += c.dir * c.car.speed * dt;
+      this.shout();
       if (this.carGone()) {
         this.car = null;
-        this.onFound("waymo");
-        this.nextCar = time + rand(...WAYMO_GAP);
+        this.onFound(c.kind);
+        for (const kind of Object.keys(CARS)) this.next[kind] = Math.max(this.next[kind], time + ROAD_CLEAR);
+        this.next[c.kind] = time + rand(...c.car.gap);
       }
     }
     const l = this.lighting;

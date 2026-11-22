@@ -384,6 +384,15 @@ describe("interaction", () => {
     expect(row.last_at > row.first_at).toBe(true);
   });
 
+  it("counts a Cybertruck drive-by", async () => {
+    const { id, token } = await submitFamily();
+
+    const response = await post("/api/interaction", { id, token, egg: "cybertruck" });
+
+    expect(response.status).toBe(204);
+    expect((await rows(id)).map(({ egg, count }) => ({ egg, count }))).toEqual([{ egg: "cybertruck", count: 1 }]);
+  });
+
   it("does not change the party version, so pages do not fetch the party again", async () => {
     const { id, token } = await submitFamily();
     const version = () => env.DB.prepare("SELECT version FROM party_version").first<number>("version");
