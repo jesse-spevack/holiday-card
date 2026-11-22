@@ -3,8 +3,9 @@
 // Each function takes and returns plain data, so a test can call it through page.evaluate.
 
 import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
-import { HOTSPOTS, DREIDELS, FLOOR } from "./room.js";
+import { HOTSPOTS, DREIDELS, FLOOR, WINDOW } from "./room.js";
 import { TOAST_LINES } from "./toast.js";
+import { CARS } from "./eggs.js";
 
 export function testApi({ scene, sound, eggs, dreidel, toast, album, found, tracking }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
@@ -116,17 +117,36 @@ export function testApi({ scene, sound, eggs, dreidel, toast, album, found, trac
       }
       return out;
     },
-    constants: () => ({ HOTSPOTS, DREIDELS, FLOOR, HOSTS, HOST_LINES, TAP_PX }),
+    constants: () => ({
+      HOTSPOTS, DREIDELS, FLOOR, HOSTS, HOST_LINES, TAP_PX, WINDOW,
+      TRUCK: { w: CARS.cybertruck.w, h: CARS.cybertruck.rows.length, colors: Object.values(CARS.cybertruck.colors) },
+    }),
 
     // ---- the hidden extras ----
     eggs: () => {
       const e = eggs;
       return {
-        star: !!e.star, lampOn: e.lampOn, car: e.car ? e.car.x : null, lighting: !!e.lighting,
-        menorahLit: e.menorahLit, flames: scene.flames.length, nextCarIn: e.nextCar - scene.time,
+        star: !!e.star, lampOn: e.lampOn, lighting: !!e.lighting, menorahLit: e.menorahLit, flames: scene.flames.length,
+        // The x of the Waymo or the Cybertruck while it is on the road, else null. Only one car is on the road at a time.
+        car: e.car?.kind === "waymo" ? e.car.x : null, truck: e.car?.kind === "cybertruck" ? e.car.x : null,
+        nextCarIn: e.next.waymo - scene.time, nextTruckIn: e.next.cybertruck - scene.time,
       };
     },
-    sendWaymo: () => eggs.waymo(),
+    sendWaymo: () => eggs.send("waymo"),
+    // dir 1 drives right, -1 drives left. With no dir, the truck picks a way.
+    sendCybertruck: (dir) => eggs.send("cybertruck", dir),
+    // The car on the road as the last frame drew it, cut to the window glass: each solid pixel as [x, y, "#rrggbb"] in room pixels.
+    carPixels: () => {
+      const { width, height } = eggs.sky;
+      const data = eggs.sky.getContext("2d").getImageData(0, 0, width, height).data;
+      const out = [];
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 255) continue;
+        const hex = "#" + [data[i], data[i + 1], data[i + 2]].map((v) => v.toString(16).padStart(2, "0")).join("");
+        out.push([(i / 4) % width, Math.floor(i / 4 / width), hex]);
+      }
+      return out;
+    },
     // The toast: { on, age, speaker, line, lift, readyIn, people: [{ familyId, index, name, flip, hop, cup }] }.
     // cup is { kind: "wine" or "cocoa", x, y, w, h, hand, lift } in room pixels. hand is the column of the hand that holds it.
     toast: () => toast.state(),
