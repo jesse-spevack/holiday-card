@@ -2,7 +2,7 @@
 // Eddie says his line in a bubble. When his bubble goes, Audrey says hers.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT, GARCIA, tapRoom, sceneWait, waitForFamilies, animationsDone, assertTucks } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tapRoom, waitForFamilies, animationsDone, tuckNow, interactions } from "./harness.mjs";
 
 const env = await e2e();
 const EDDIE = "Happy Hanukkah! I hope your holiday season is filled with happiness.";
@@ -56,7 +56,8 @@ describe("the presents", { concurrency: true }, () => {
         assert.ok(lines.includes(HINT), `Eddie hints at the presents: ${lines}`);
         await page.waitForFunction(() => window.__hc.sprites({ host: true }).every((s) => !s.bubble));
       }
-      await sceneWait(page, 0.6);
+      // The corners of the last tap on a host go.
+      await hc.advance(0.6);
 
       // The kids stand near the presents, but not in front of them, and Jess and Jesse stand in front of the rug.
       // A desktop test sees the kids at home, at the left edge.
@@ -67,9 +68,12 @@ describe("the presents", { concurrency: true }, () => {
         await hc.place({ host: true, name: "Eddie" }, 154, 112);
       }
 
-      // the tap: Eddie says his line with his name under him, the kids stop, and three bells ring
+      // the tap: Eddie says his line with his name under him, the kids stop, and three bells ring.
+      // The scene clock stops for the checks right after the tap, so the corners of the tap still show.
       await hc.spySounds(["gift", "select"]);
+      await hc.pause();
       await tap(center("presents"));
+      await hc.advance(1 / 60);
       assert.equal(await hc.pressed(), "presents");
       const start = await hc.presents();
       assert.ok(start.on, "a tap on the presents starts the messages");
@@ -81,6 +85,7 @@ describe("the presents", { concurrency: true }, () => {
       assert.equal((await kid("Audrey")).bubble, null, "Audrey waits for her turn");
       fits(eddie, "Eddie");
       assert.deepEqual(await hc.sounds(), ["gift"]);
+      await hc.play();
       const found = await page.evaluate(() => JSON.parse(localStorage.getItem("hc.found")));
       assert.ok(found.includes("presents"), `the presents count as found: ${found}`);
       await animationsDone(page);
@@ -92,13 +97,17 @@ describe("the presents", { concurrency: true }, () => {
       assert.deepEqual(await hc.sounds(), []);
 
       // Eddie's bubble goes, and then Audrey says her line. The two bubbles never show at the same time.
-      let both = false;
-      for (let i = 0; i < 300; i++) {
-        const [e, a] = [await kid("Eddie"), await kid("Audrey")];
-        if (e.bubble && a.bubble) both = true;
-        if (a.bubble) break;
-        await page.waitForTimeout(25);
-      }
+      // The page checks each frame until Audrey talks. The bubbles go on the wall clock, so the scene clock runs too.
+      const both = await page.evaluate(() => new Promise((done) => {
+        let both = false;
+        const look = () => {
+          const [e, a] = ["Eddie", "Audrey"].map((name) => window.__hc.sprite({ host: true, name }).bubble);
+          both ||= !!(e && a);
+          if (a) done(both);
+          else requestAnimationFrame(look);
+        };
+        look();
+      }));
       assert.equal(both, false, "Eddie and Audrey talk one at a time");
       const turn = await hc.presents();
       assert.equal(turn.speaker, "Audrey");
@@ -113,9 +122,9 @@ describe("the presents", { concurrency: true }, () => {
       await page.screenshot({ path: `${OUT}/presents-audrey-${name}.png` });
 
       // After Audrey's line, the messages end. After a short rest, a tap gives them again.
-      await page.waitForFunction(() => !window.__hc.presents().on, null, { timeout: 8000 });
       await page.waitForFunction(() => !window.__hc.sprites({ host: true }).some((s) => s.bubble));
-      await sceneWait(page, (await hc.presents()).readyIn + 0.05);
+      await hc.advance((await hc.presents()).readyIn + 0.05);
+      assert.equal((await hc.presents()).on, false);
       await tap(center("presents"));
       assert.equal((await kid("Eddie")).bubble, EDDIE);
       assert.deepEqual(await hc.sounds(), ["gift"]);
@@ -149,16 +158,14 @@ describe("the presents", { concurrency: true }, () => {
 
   test("each tap on the presents tells the Worker, also a tap while the kids talk", async () => {
     const { page, hc, calls } = await env.open({ hasTouch: true, isMobile: true, mine: [GARCIA], wait: "eggs" });
-    await assertTucks(page);
+    await tuckNow(page);
     await hc.stillHosts();
     await hc.trackGap(0);
     const c = await hc.spotCenter("presents");
     await tapRoom(page, c.x, c.y);
     await tapRoom(page, c.x, c.y);
     assert.equal((await hc.sprite({ host: true, name: "Eddie" })).bubble, EDDIE);
-    await page.waitForTimeout(300);
-    const sent = calls.filter((x) => x.path === "/api/interaction").map((x) => x.body);
     const egg = { id: GARCIA.id, token: GARCIA.token, egg: "presents" };
-    assert.deepEqual(sent, [egg, egg]);
+    assert.deepEqual(await interactions(page, calls), [egg, egg]);
   });
 });

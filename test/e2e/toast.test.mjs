@@ -3,7 +3,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { e2e, OUT, GARCIA, assertTucks, tapRoom, sceneWait, waitForFamilies } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tuckNow, tapRoom, waitForFamilies } from "./harness.mjs";
 
 const env = await e2e();
 // Two guest families. The Lees bring a dog, and a dog never holds a cup.
@@ -30,7 +30,7 @@ describe("the toast", { concurrency: true }, () => {
     test(`a tap on the wine starts a toast, on ${name}`, async () => {
       const { page, hc } = await env.open({ viewport, hasTouch: touch, isMobile: touch, reducedMotion: reduce, party: PARTY, mine: [GARCIA], wait: "eggs" });
       await waitForFamilies(page, FAMILIES);
-      await assertTucks(page);
+      await tuckNow(page);
       // Everyone stands in three loose rows, so the screenshots show each cup.
       const spots = [
         [{ familyId: "other1", index: 0 }, 100, 110], [{ familyId: "other1", index: 1 }, 122, 110],
@@ -66,19 +66,11 @@ describe("the toast", { concurrency: true }, () => {
         await page.waitForFunction(() => window.__hc.sprites({ host: true }).every((s) => !s.bubble));
       }
 
-      // the tap: everyone except the dog holds a cup, one of the big hosts says a toast line, and the glasses clink
+      // the tap: everyone except the dog holds a cup, one of the big hosts says a toast line, and the glasses clink.
+      // The scene clock stops, so the toast waits for each check, and the test moves the clock by hand.
       await hc.spySounds(["cheers", "select"]);
+      await hc.pause();
       await tapWine();
-      // Note the highest hop in each frame of the toast. The hop is short, and a busy machine can miss it between two polls.
-      await page.evaluate(() => {
-        window.hopped = 0;
-        const watch = () => {
-          const t = window.__hc.toast();
-          window.hopped = Math.max(window.hopped, ...t.people.map((p) => p.hop));
-          if (t.on) requestAnimationFrame(watch);
-        };
-        watch();
-      });
       const start = await hc.toast();
       assert.ok(start.on, "a tap on the wine starts a toast");
       assert.equal(await hc.pressed(), "wine");
@@ -92,15 +84,29 @@ describe("the toast", { concurrency: true }, () => {
       assert.ok(found.includes("toast"), `the toast counts as found: ${found}`);
 
       // A second tap during the toast does nothing: no new toast, no sound, the same line.
-      // It comes right after the first tap, so a slow machine still taps well inside the toast.
+      await hc.advance(0.1);
       await tapWine();
       const again = await hc.toast();
       assert.ok(again.on && again.age > start.age, `the toast goes on: ${JSON.stringify({ on: again.on, age: again.age })}`);
       assert.equal(again.line, start.line);
       assert.deepEqual(await hc.sounds(), []);
 
-      // The cups go up. Each cup sits in the hand at its sprite's side, below the shoulders and above the feet.
-      await page.waitForFunction(() => window.__hc.toast().lift === 1);
+      // Everyone hops once, except with reduced motion. The hop ends 0.7 seconds into the toast.
+      // The page notes the highest hop and the lift at each step of 1/60 second, up to 1.1 seconds into the toast.
+      const steps = await page.evaluate(() => {
+        const out = [];
+        while (window.__hc.toast().age < 1.1) {
+          window.__hc.advance(1 / 60);
+          const t = window.__hc.toast();
+          out.push({ age: t.age, lift: t.lift, hop: Math.max(...t.people.map((p) => p.hop)) });
+        }
+        return out;
+      });
+      assert.equal(steps.some((s) => s.hop > 0), reduce === "no-preference", "the hop");
+      assert.ok(steps.every((s) => s.hop === 0 || s.age < 0.7), "the hop ends 0.7 seconds into the toast");
+      assert.ok(steps.filter((s) => s.age >= 0.12).every((s) => s.lift === 1), "the cups go up");
+
+      // The cups are up. Each cup sits in the hand at its sprite's side, below the shoulders and above the feet.
       const mid = await hc.toast();
       const sprites = await hc.sprites();
       for (const p of mid.people) {
@@ -121,13 +127,8 @@ describe("the toast", { concurrency: true }, () => {
         assert.equal(cup.lift, 1);
       }
 
-      // Everyone hops once, except with reduced motion. The hop ends 0.7 seconds into the toast.
-      // A slow test can reach this point after the toast ends. Then it takes no screenshot.
-      await page.waitForFunction(() => { const t = window.__hc.toast(); return !t.on || t.age > 1.1; });
-      assert.equal(await page.evaluate(() => window.hopped > 0), reduce === "no-preference", "the hop");
-      const shot = (await hc.toast()).on;
-      if (shot && name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
-      if (shot && name === "phone") {
+      if (name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
+      if (name === "phone") {
         // The room canvas at 6 screen pixels for each room pixel, around grown-ups with wine and kids with cocoa.
         const png = await page.evaluate(({ x, y, w, h, k }) => {
           const out = document.createElement("canvas");
@@ -141,9 +142,12 @@ describe("the toast", { concurrency: true }, () => {
         await writeFile(`${OUT}/toast-zoom.png`, Buffer.from(png, "base64"));
       }
 
-      // The cups go down and away after about 2 seconds.
-      await page.waitForFunction(() => !window.__hc.toast().on, null, { timeout: 4000 });
+      // The cups go down and away 2.75 seconds into the toast.
+      await hc.advance(2.75 - mid.age - 0.05);
+      assert.ok((await hc.toast()).on, "the toast lasts 2.75 seconds");
+      await hc.advance(0.1);
       const end = await hc.toast();
+      assert.ok(!end.on, "the toast ends after 2.75 seconds");
       assert.ok(end.readyIn > 0, "a short rest after the toast");
       assert.deepEqual(end.people, []);
       // a tap in the rest after the toast does nothing
@@ -151,13 +155,15 @@ describe("the toast", { concurrency: true }, () => {
       assert.equal((await hc.toast()).on, false);
       assert.deepEqual(await hc.sounds(), []);
       // after the rest, a new toast starts, with a new line
-      await sceneWait(page, end.readyIn + 0.05);
+      await hc.advance(end.readyIn + 0.05);
       await tapWine();
       const next = await hc.toast();
       assert.ok(next.on, "a new toast after the rest");
       assert.notEqual(next.line, start.line);
       assert.deepEqual(await hc.sounds(), [`cheers:${PEOPLE}`]);
-      await page.waitForFunction(() => !window.__hc.toast().on, null, { timeout: 4000 });
+      await hc.advance(3);
+      assert.equal((await hc.toast()).on, false);
+      await hc.play();
 
       if (touch) {
         // The wine takes a finger-sized tap on a phone.
@@ -165,7 +171,7 @@ describe("the toast", { concurrency: true }, () => {
         assert.ok(areas.wine.w >= 43 && areas.wine.h >= 43, `wine: ${JSON.stringify(areas.wine)}`);
         // A host by the table still wins a tap on the host.
         await hc.place({ host: true, name: "Jesse" }, 180, 128);
-        await sceneWait(page, (await hc.toast()).readyIn + 0.05);
+        await hc.advance((await hc.toast()).readyIn + 0.05);
         await hear("Jesse", 1);
         assert.equal((await hc.toast()).on, false, "a tap on a host by the table is not a toast");
       }

@@ -155,6 +155,7 @@ function showError(text) {
 // ---------- steps ----------
 function go(step) {
   clearTimeout(tuckTimer);
+  tuckTimer = null;
   state.step = step;
   scene.closePop();
   ({ 1: stepEnvelope, 2: stepHousehold, 3: stepAddress, unit: stepUnit, 4: stepConfirm, done: stepDone }[step])();
@@ -339,10 +340,14 @@ function stepDone() {
   frame("Thank you. You mean a lot to us.",
     h("p", { class: "hint" }, "Your family is at our party now. Tap them to change a look or say something. Then poke around the room. A few things in here might surprise you."),
     btn("Add another address", restart, "link"));
-  tuckTimer = setTimeout(() => {
-    tuck(true);
-    scene.focus(ROOM_W / 2, ROOM_H / 2, 0);
-  }, TUCK_MS);
+  tuckTimer = setTimeout(tuckAway, TUCK_MS);
+}
+
+function tuckAway() {
+  clearTimeout(tuckTimer);
+  tuckTimer = null;
+  tuck(true);
+  scene.focus(ROOM_W / 2, ROOM_H / 2, 0);
 }
 
 // A tucked dialog gives its space to the room. The top bar then shows "Add another address".
@@ -565,6 +570,11 @@ async function start() {
 
 // "?test" loads the test API for the end-to-end tests (public/js/test-api.js). A guest never loads it.
 if (new URLSearchParams(location.search).has("test")) {
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found }); });
+  // tuckNow tucks the thank-you at once, as the timer does after TUCK_MS. It is true when the dialog is tucked.
+  const tuckNow = () => {
+    if (tuckTimer) tuckAway();
+    return app.classList.contains("tucked");
+  };
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found, tuckNow }); });
 }
 start();

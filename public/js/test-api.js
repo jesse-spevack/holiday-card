@@ -9,7 +9,7 @@ import { HOSTS, HOST_LINES } from "./hosts.js";
 import { HOTSPOTS } from "./registry.js";
 import { FLOOR, WINDOW } from "./room.js";
 
-export function testApi({ scene, sound, extras, found }) {
+export function testApi({ scene, sound, extras, found, tuckNow }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -58,6 +58,19 @@ export function testApi({ scene, sound, extras, found }) {
     }),
     time: () => scene.time,
     scale: () => scene.view.scale,
+
+    // ---- the clock ----
+    // The scene clock drives everything that moves in the room. pause() stops it: the room still draws and takes taps,
+    // but nothing moves until advance() or play(). The wall-clock timers still run: the bubbles, the words, and the tuck.
+    pause: () => { scene.paused = true; },
+    play: () => { scene.paused = false; },
+    // Moves the scene clock `seconds` ahead at once, stopped or not, and returns the new time.
+    advance: (seconds) => {
+      scene.advance(seconds);
+      return scene.time;
+    },
+    // Tucks the thank-you now, as app.js does after 7 seconds. True when the dialog is tucked.
+    tuckNow,
 
     // ---- sprites ----
     sprites: (want) => find(want).map(plain),
@@ -137,6 +150,8 @@ export function testApi({ scene, sound, extras, found }) {
     found: (...names) => { for (const name of names) found.seen.add(name); },
     // The time in ms between two interaction calls for the same extra (found.js). The page uses 5000.
     trackGap: (ms) => { found.tracking.gapMs = ms; },
+    // The number of interaction calls that the page sent. A test waits until the fake API has them all (interactions in harness.mjs).
+    interactionsSent: () => found.tracking.sent,
 
     // ---- sounds ----
     // Notes each call to the named sounds and still plays them. sounds() returns the calls since the last call.

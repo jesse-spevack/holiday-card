@@ -1,7 +1,7 @@
 // The hidden pet reactions: a tap on a dog or a cat makes it hop or stretch, with a sound.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT, assertTucks, sceneWait, waitForFamilies } from "./harness.mjs";
+import { e2e, OUT, tuckNow, waitForFamilies } from "./harness.mjs";
 
 const env = await e2e();
 const PARKS = { families: [{ id: "pets1", name: "The Parks", members: [{ type: "adult", look: "t-dad" }, { type: "dog", look: "t-dog" }, { type: "cat", look: "t-cat" }], bubbles: ["", "", ""] }] };
@@ -12,7 +12,7 @@ describe("the pets", { concurrency: true }, () => {
   test("a tap on a pet makes it react, and your own pet opens the editor too", async () => {
     const { page, hc } = await env.open({ deviceScaleFactor: 2, hasTouch: true, party: PARKS, mine: GARCIAS, wait: "room" });
     await waitForFamilies(page, { pets1: 3, fam12345: 2 });
-    await assertTucks(page);
+    await tuckNow(page);
     // the guests stand still in clear spots, so a tap lands where the test aims
     const spots = [[{ familyId: "pets1", index: 0 }, 104, 118], [{ familyId: "pets1", index: 1 }, 124, 118], [{ familyId: "pets1", index: 2 }, 144, 118],
       [{ familyId: "fam12345", index: 0 }, 132, 148], [{ familyId: "fam12345", index: 1 }, 152, 148]];
@@ -20,6 +20,8 @@ describe("the pets", { concurrency: true }, () => {
     await hc.stillGuests();
     await hc.stillHosts();
     await hc.spySounds(["woof", "mrrp", "select"]);
+    // The scene clock stops, so each screenshot shows the reaction at a set time after the tap.
+    await hc.pause();
     const reaction = async (want) => (await hc.sprite(want)).react;
 
     // another family's dog hops, woofs, and still shows the family's name
@@ -28,7 +30,7 @@ describe("the pets", { concurrency: true }, () => {
     await page.locator(".tag", { hasText: "The Parks" }).waitFor();
     assert.equal((await reaction({ familyId: "pets1", type: "dog" }))?.kind, "dog");
     assert.deepEqual(await hc.sounds(), ["woof"]);
-    await sceneWait(page, 0.09);
+    await hc.advance(0.09);
     await page.screenshot({ path: `${OUT}/pet-dog.png` });
 
     // another family's cat stretches, says mrrp, and shows a heart
@@ -37,7 +39,7 @@ describe("the pets", { concurrency: true }, () => {
     await page.locator(".tag", { hasText: "The Parks" }).waitFor();
     assert.equal((await reaction({ familyId: "pets1", type: "cat" }))?.kind, "cat");
     assert.deepEqual(await hc.sounds(), ["mrrp"]);
-    await sceneWait(page, 0.3);
+    await hc.advance(0.3);
     await page.screenshot({ path: `${OUT}/pet-cat.png` });
     assert.equal(await page.locator(".pop").count(), 0, "another family's pet never opens the editor");
 

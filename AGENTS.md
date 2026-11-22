@@ -106,6 +106,7 @@ pnpm dev            # wrangler dev at http://localhost:8787, with local D1 and K
 pnpm test           # Worker tests. Must pass before a PR.
 pnpm e2e            # the page in Google Chrome with a fake API, 4 files at a time. Screenshots go to build/e2e.
 node --test test/e2e/album.test.mjs   # one feature only
+E2E_SLOW=6 pnpm e2e # each page with a CPU 6 times slower, to find a test that depends on a fast machine
 pnpm typecheck
 pnpm preview        # upload this branch as a preview and print its URL
 pnpm interactions   # read only: the hidden extras that each family played with, from the production D1. Add --local for pnpm dev
@@ -145,6 +146,32 @@ To test an extra:
   `eggs`, `constants`, and `loaded` join the objects of every extra.
 - Add `test/e2e/<name>.test.mjs`. Find its tap area with `hc.spotCenter(id)` and tap with `tapRoom`.
 - Run `pnpm test`, `pnpm typecheck`, and `pnpm e2e`.
+
+## Write a stable e2e test
+
+`pnpm e2e` runs 4 files at a time, and the pages of a file run at the same time. On a busy machine, one frame can take 100 ms or more.
+A test must give the same result on a slow machine.
+
+The page has two clocks:
+
+- The scene clock (`hc.time()`) moves everything in the room: the walks, the sparks, the toast, the cars, and the camera.
+  A frame adds 0.05 seconds or less, so on a slow machine the scene clock is slower than the wall clock.
+- The wall clock runs the bubbles, the words on the room, the tuck of the thank-you, the dreidel spin, and the CSS animations.
+
+The rules:
+
+- Do not wait for a fixed time (`waitForTimeout`). Wait for a state.
+- For a thing on the scene clock, stop the clock with `hc.pause()` before the tap. Then move it with `hc.advance(seconds)` or `advanceUntil(page, check)`.
+  A stopped clock keeps a short state until the test reads it, for example the corners of a tap (0.45 seconds) or a hop.
+- Do not give a wall-clock time limit to a wait for a scene-clock state. Use `advanceUntil`, or `sceneWait` while the clock runs.
+- To see a short state while the clock runs, watch it in the page with `requestAnimationFrame`. Start the watch before the action.
+- Do not sleep until a call reaches the fake API. `interactions(page, calls)` waits for each interaction call that the page sent. `until(cond)` waits for other state in Node.
+- Measure a wall-clock time in the page with `performance.now()`. The test sees each change late, so `Date.now()` in the test is wrong.
+- Take a screenshot of a moving thing on a stopped clock. To hold a CSS animation, pause it and set its `currentTime`.
+- Use `tuckNow(page)` when a test needs only the party after the thank-you. It skips the 7-second wait and settles the camera.
+  Use `assertTucks` only to check the real wait.
+- After `page.reload()` on a return visit, the camera zooms in on the family. Call `tuckNow` before a tap on the room.
+- Before a PR that adds or changes an e2e test, run `E2E_SLOW=6 pnpm e2e` too.
 
 ## Check a branch: preview
 

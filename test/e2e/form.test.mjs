@@ -242,7 +242,7 @@ describe("the form", { concurrency: true }, () => {
     await page.locator(".tag", { hasText: "Eddie" }).waitFor();
     await page.screenshot({ path: `${OUT}/8-desktop.png` });
     // with reduced motion, the hosts stay at home
-    await page.waitForFunction(() => window.__hc.time() > 5);
+    await hc.advance(5);
     const { HOSTS } = await hc.constants();
     const away = (await hc.sprites({ host: true })).filter((s) => {
       const home = HOSTS.find((h) => h.name === s.name);
@@ -256,10 +256,9 @@ describe("the form", { concurrency: true }, () => {
     await page.reload();
     await said(page, "Thank you. You mean a lot to us.");
     await assertTucks(page);
-    // The room grows into the dialog's column as the column slides away, so wait for the end of the move.
-    await page.waitForFunction((w) => document.getElementById("stage").getBoundingClientRect().width > w + 300, stageWidth, { timeout: 3000 }).catch(() => {});
     await assertWholeRoom(page, "desktop, thank-you hidden");
     // This page has reduced motion, so the column does not slide: the stage has its new width at once.
+    // The reduced-motion rule in style.css comes after the wide-screen rules. In the other order, the column slides here too.
     const grown = await wholeRoom(page);
     assert.ok(grown.stage[2] > stageWidth + 300, `the stage grows from ${stageWidth}: ${JSON.stringify(grown)}`);
     await assertWholeRoom(page, "desktop, room grown");
