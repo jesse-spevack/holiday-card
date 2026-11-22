@@ -23,6 +23,7 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter ho
 - A tap on the left half goes back, and a tap on the right half goes forward. Arrow keys, Escape, and a swipe work too.
 - Phones show one page at a time. Wide screens show two pages, after a title page.
 - Code: `public/js/album.js` and `public/album.css`. The book sprite: `art/scripts/book.py`.
+  The open book is pixel art that `public/js/album-art.js` draws at runtime. The photos stay smooth.
 - The book makes real paper sounds: a page flip for each turn, and a sound when the cover opens and closes.
   The recordings come from Kenney's "RPG Audio" pack (CC0, no credit required): `public/assets/sounds/` and its `LICENSE.txt`.
   They load after the first tap. Until they load, or if they fail, the book plays a synthesized swish.

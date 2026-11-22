@@ -459,6 +459,23 @@ try {
     assert.deepEqual(await sounds(), [opened]);
     assert.equal(await pa.locator(".pop").count(), 0, "the book never opens the sprite editor");
     assert.equal(await pa.evaluate(() => window.__hc.scene.bookHidden), true);
+    // the book is pixel art scaled by a whole number, and the photos stay smooth
+    const art = await pa.evaluate(() => {
+      const side = document.querySelector(".album-side.r");
+      const u = parseFloat(getComputedStyle(document.querySelector(".album")).getPropertyValue("--u"));
+      const img = document.querySelector(".album-print img");
+      return {
+        u, w: side.getBoundingClientRect().width, h: side.getBoundingClientRect().height,
+        bg: getComputedStyle(side).backgroundImage.slice(0, 26),
+        book: getComputedStyle(document.querySelector(".album-book")).imageRendering,
+        img: getComputedStyle(img).imageRendering,
+      };
+    });
+    assert.ok(Number.isInteger(art.u) && art.u >= 2, `book pixel ${art.u}`);
+    assert.ok(Number.isInteger(art.w / art.u) && Number.isInteger(art.h / art.u), `side ${art.w}x${art.h} at ${art.u}`);
+    assert.equal(art.bg, 'url("data:image/png;base64');
+    assert.ok(["pixelated", "crisp-edges"].includes(art.book), art.book);
+    assert.equal(art.img, "auto");
     if (name === "phone") {
       // only the current page and the next one load
       assert.deepEqual(albumCalls.filter((c) => c.endsWith(".jpg")).sort(), ["/album/0000000000000001.jpg", "/album/0000000000000002.jpg"]);

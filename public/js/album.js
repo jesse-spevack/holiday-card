@@ -1,6 +1,9 @@
 // The hidden photo album. Nothing on the page points to it. A guest finds the small red book on the sofa
 // and taps it. The book flies up, opens, and shows one photo from our year on each page.
 // The photos and captions come from the Worker (/album/list), never from the repo.
+// The book is pixel art like the room (album-art.js), and it moves in a few steps like a sprite.
+
+import { sideArt, coverArt, spriteArt, CORNER_SIZE, FLAKE_SIZE } from "./album-art.js";
 
 const CSS = "/album.css";
 const TITLE = "Our 2026";
@@ -10,7 +13,14 @@ const OPEN_MS = 650;
 const TURN_MS = 420;
 const CLOSE_MS = 300;
 const SWIPE_PX = 40;
-const EASE = "cubic-bezier(0.3, 0.1, 0.3, 1)";
+const FLY = "steps(6, jump-end)";
+const OPEN = "steps(6, jump-end)";
+const SLIDE = "steps(4, jump-end)";
+const TURN = "steps(5, jump-end)";
+const FADE = "steps(4, jump-end)";
+// About this many book pixels across one side.
+const BOOK_PIXELS = 115;
+const MAT = 2;
 
 const h = (tag, cls, ...children) => {
   const el = document.createElement(tag);
@@ -76,8 +86,8 @@ export class Album {
       const b = this.book.getBoundingClientRect();
       this.book.style.transformOrigin = `${r.left - b.left}px 0px`;
       const start = `translate(${from.left - r.left}px, ${from.top - r.top}px) scale(${from.width / r.width}, ${from.height / r.height})`;
-      this.shade.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FLY_MS });
-      await this.play([this.book.animate([{ transform: start }, { transform: closed }], { duration: FLY_MS, easing: EASE, fill: "forwards" })]);
+      this.shade.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FLY_MS, easing: FADE });
+      await this.play([this.book.animate([{ transform: start }, { transform: closed }], { duration: FLY_MS, easing: FLY, fill: "forwards" })]);
       if (session !== this.session) return;
     }
     this.book.style.transform = closed;
@@ -105,10 +115,10 @@ export class Album {
       done();
     } else {
       const turn = this.spread
-        ? cover.animate([{ transform: "rotateY(0deg)" }, { transform: "rotateY(-180deg)" }], { duration: OPEN_MS, easing: EASE, fill: "forwards" })
-        : cover.animate([{ transform: "rotateY(0deg)", opacity: 1 }, { transform: "rotateY(-90deg)", opacity: 1, offset: 0.9 }, { transform: "rotateY(-90deg)", opacity: 0 }], { duration: OPEN_MS, easing: "ease-in", fill: "forwards" });
+        ? cover.animate([{ transform: "rotateY(0deg)" }, { transform: "rotateY(-180deg)" }], { duration: OPEN_MS, easing: OPEN, fill: "forwards" })
+        : cover.animate([{ transform: "rotateY(0deg)", opacity: 1 }, { transform: "rotateY(-90deg)", opacity: 1, offset: 0.9 }, { transform: "rotateY(-90deg)", opacity: 0 }], { duration: OPEN_MS, easing: OPEN, fill: "forwards" });
       // The book slides to the center before the cover passes the spine, so the open book never leaves the screen.
-      const slide = this.book.animate([{ transform: closed }, { transform: "translate(0px, 0px)" }], { duration: OPEN_MS * 0.55, easing: "ease-out", fill: "forwards" });
+      const slide = this.book.animate([{ transform: closed }, { transform: "translate(0px, 0px)" }], { duration: OPEN_MS * 0.55, easing: SLIDE, fill: "forwards" });
       await this.play([turn, slide], done);
       if (session !== this.session) return;
     }
@@ -129,9 +139,9 @@ export class Album {
       this.book.style.transformOrigin = `${r.left - b.left}px 0px`;
       const end = `translate(${to.left - r.left}px, ${to.top - r.top}px) scale(${to.width / r.width}, ${to.height / r.height})`;
       const current = getComputedStyle(this.book).transform;
-      this.shade.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CLOSE_MS, fill: "forwards" });
+      this.shade.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CLOSE_MS, easing: FADE, fill: "forwards" });
       await this.play([
-        this.book.animate([{ transform: current === "none" ? "translate(0px, 0px)" : current, opacity: 1 }, { transform: end, opacity: 0.2 }], { duration: CLOSE_MS, easing: "ease-in", fill: "forwards" }),
+        this.book.animate([{ transform: current === "none" ? "translate(0px, 0px)" : current, opacity: 1 }, { transform: end, opacity: 0.2 }], { duration: CLOSE_MS, easing: FLY, fill: "forwards" }),
       ]);
       if (session !== this.session) return;
     }
@@ -203,15 +213,17 @@ export class Album {
     this.closeBtn = h("button", "album-close");
     this.closeBtn.type = "button";
     this.closeBtn.setAttribute("aria-label", "Close the album");
-    this.closeBtn.innerHTML = '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square"><path d="M5 5l14 14M19 5L5 19"></path></svg>';
-    this.prev = h("button", "album-arrow", "‹");
-    this.next = h("button", "album-arrow", "›");
+    this.closeBtn.innerHTML = pixelIcon(CLOSE_ICON);
+    this.prev = h("button", "album-arrow");
+    this.next = h("button", "album-arrow");
+    this.prev.innerHTML = pixelIcon(ARROW_ICON, true);
+    this.next.innerHTML = pixelIcon(ARROW_ICON);
     this.prev.type = this.next.type = "button";
     this.prev.setAttribute("aria-label", "Previous page");
     this.next.setAttribute("aria-label", "Next page");
     this.count = h("span", "album-count");
     this.count.setAttribute("aria-live", "polite");
-    this.el = h("div", "album", this.shade, h("div", "album-stage", this.book), this.closeBtn, h("div", "album-foot", this.prev, this.count, this.next));
+    this.el = h("div", "album", this.shade, h("div", "album-stage", this.book), this.closeBtn, h("div", "album-foot", this.prev, h("div", "album-count-box", this.count), this.next));
     this.el.hidden = true;
     this.el.tabIndex = -1;
     this.el.setAttribute("role", "dialog");
@@ -247,6 +259,49 @@ export class Album {
     return h("div", "album-cover", h("div", "album-label", TITLE));
   }
 
+  paint() {
+    const { u, cols, rows } = this.size;
+    const key = `${u} ${cols} ${rows} ${this.spread}`;
+    if (this.painted !== key) {
+      this.painted = key;
+      this.paper = this.draw(u, cols, rows);
+    }
+    const { paper } = this;
+    this.size.paperW = this.size.sideW - (paper.outer + paper.inner) * u;
+    this.size.paperH = this.size.sideH - (paper.top + paper.bottom) * u;
+  }
+
+  draw(u, cols, rows) {
+    const s = this.el.style;
+    const right = sideArt(cols, rows, "r", this.spread);
+    const left = sideArt(cols, rows, "l", true);
+    const cover = coverArt(cols, rows);
+    const sprites = spriteArt();
+    s.setProperty("--art-r", `url(${right.url})`);
+    s.setProperty("--art-l", `url(${left.url})`);
+    s.setProperty("--art-cover", `url(${cover.url})`);
+    s.setProperty("--art-sheet-r", `url(${sideArt(cols, rows, "r", this.spread, true).url})`);
+    s.setProperty("--art-sheet-l", `url(${sideArt(cols, rows, "l", true, true).url})`);
+    s.setProperty("--art-corner-tl", `url(${sprites.cornerTL})`);
+    s.setProperty("--art-corner-tr", `url(${sprites.cornerTR})`);
+    s.setProperty("--art-corner-bl", `url(${sprites.cornerBL})`);
+    s.setProperty("--art-corner-br", `url(${sprites.cornerBR})`);
+    s.setProperty("--art-flake", `url(${sprites.flake})`);
+    const paper = right.paper;
+    const px = (n) => `${n * u}px`;
+    s.setProperty("--paper-top", px(paper.top));
+    s.setProperty("--paper-bottom", px(paper.bottom));
+    s.setProperty("--paper-outer", px(paper.outer));
+    s.setProperty("--paper-inner", px(paper.inner));
+    s.setProperty("--paper-inner-l", px(left.paper.inner));
+    const { plate } = cover;
+    s.setProperty("--plate-x", px(plate.x));
+    s.setProperty("--plate-y", px(plate.y));
+    s.setProperty("--plate-w", px(plate.w));
+    s.setProperty("--plate-h", px(plate.h));
+    return paper;
+  }
+
   // A turning page: front shows now, back shows after a half turn.
   leaf(front, back) {
     front.classList.add("front");
@@ -275,9 +330,9 @@ export class Album {
       page.el = h("figure", "album-photo", page.print, h("figcaption", "", page.caption));
       this.sizePrint(page);
     } else if (page.kind === "title") {
-      page.el = h("div", "album-title", h("h2", "", TITLE), h("p", "", FAMILY));
+      page.el = h("div", "album-title", h("i", "album-flake"), h("h2", "", TITLE), h("p", "", FAMILY));
     } else if (page.kind === "end") {
-      page.el = h("div", "album-end", h("p", "", "Happy holidays!"));
+      page.el = h("div", "album-end", h("i", "album-flake"), h("p", "", "Happy holidays!"));
     } else {
       page.el = h("div", "album-end", h("p", "", "No photos yet."));
     }
@@ -319,6 +374,7 @@ export class Album {
   }
 
   // ---- sizes ----
+  // The book is a whole number of book pixels, and each book pixel is a whole number of screen pixels.
   layout() {
     const vw = innerWidth;
     const vh = innerHeight;
@@ -326,40 +382,45 @@ export class Album {
     const across = this.spread ? 2 : 1;
     const ratio = this.spread ? 0.76 : 0.7;
     const availW = vw - 32;
-    const availH = vh - 136;
+    const availH = vh - 144;
     let sideH = Math.min(availH, 900);
     let sideW = sideH * ratio;
     if (sideW * across > availW) {
       sideW = availW / across;
       sideH = sideW / ratio;
     }
-    sideW = Math.floor(sideW);
-    sideH = Math.floor(sideH);
-    const rim = sideW < 420 ? 8 : 12;
-    const pad = Math.round(Math.min(32, Math.max(14, sideW * 0.06)));
+    const u = Math.max(2, Math.min(6, Math.round(sideW / BOOK_PIXELS)));
+    const cols = Math.floor(sideW / u);
+    const rows = Math.floor(sideH / u);
+    sideW = cols * u;
+    sideH = rows * u;
+    const pad = u * Math.max(3, Math.round((sideW * 0.04) / u));
     const font = sideW < 420 ? 18 : 22;
     const cap = Math.round(font * 1.3 * 2 + 14);
-    this.size = { sideW, sideH, rim, pad, font, cap };
+    this.size = { u, cols, rows, sideW, sideH, pad, font, cap };
     this.el.classList.toggle("spread", this.spread);
     const s = this.el.style;
+    s.setProperty("--u", `${u}px`);
     s.setProperty("--side-w", `${sideW}px`);
     s.setProperty("--side-h", `${sideH}px`);
-    s.setProperty("--rim", `${rim}px`);
     s.setProperty("--pad", `${pad}px`);
     s.setProperty("--cap", `${cap}px`);
     s.setProperty("--cap-font", `${font}px`);
+    s.setProperty("--corner", `${CORNER_SIZE * u}px`);
+    s.setProperty("--flake", `${FLAKE_SIZE * u}px`);
+    this.paint();
     for (const page of this.photos) if (page.el) this.sizePrint(page);
   }
 
-  // Fit the photo inside the page, above the caption, with a white border like a print.
+  // Fit the photo inside the page, above the caption, in a white mat with a pixel outline and shadow.
   sizePrint(page) {
-    const { sideW, sideH, rim, pad, cap } = this.size;
-    const border = 6;
-    const w = sideW - rim * 2 - pad * 2 - border * 2 - 8;
-    const hh = sideH - rim * 2 - pad * 2 - cap - border * 2 - 8;
+    const { u, paperW, paperH, pad, cap } = this.size;
+    const frame = (MAT * 2 + 3) * u;
+    const w = paperW - pad * 2 - frame;
+    const hh = paperH - pad * 2 - cap - frame;
     const k = Math.min(w / page.w, hh / page.h);
-    page.img.style.width = `${Math.floor(page.w * k)}px`;
-    page.img.style.height = `${Math.floor(page.h * k)}px`;
+    page.img.style.width = `${Math.floor((page.w * k) / u) * u}px`;
+    page.img.style.height = `${Math.floor((page.h * k) / u) * u}px`;
   }
 
   resize() {
@@ -409,15 +470,17 @@ export class Album {
       leaf = this.leaf(this.sideWith("r", p[to]));
       frames = [{ transform: "rotateY(-90deg)", opacity: 0 }, { transform: "rotateY(-90deg)", opacity: 1, offset: 0.1 }, { transform: "rotateY(0deg)", opacity: 1 }];
     }
-    const anim = leaf.animate(frames, { duration: TURN_MS, easing: this.spread ? EASE : dir > 0 ? "ease-in" : "ease-out", fill: "forwards" });
+    const anim = leaf.animate(frames, { duration: TURN_MS, easing: TURN, fill: "forwards" });
     this.play([anim], () => {
       leaf.remove();
       this.show();
     });
   }
 
+  // A page that turns: paper only, with no board under it.
   sideWith(which, page) {
     const side = this.side(which);
+    side.classList.add("sheet");
     this.fill(side, page);
     return side;
   }
@@ -448,4 +511,35 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 function decoded(el) {
   const img = el.querySelector("img");
   return img?.decode ? img.decode().catch(() => {}) : Promise.resolve();
+}
+
+// Small icons drawn as pixels, like the room. Each "#" is one square.
+const CLOSE_ICON = [
+  "##....##",
+  "###..###",
+  ".######.",
+  "..####..",
+  "..####..",
+  ".######.",
+  "###..###",
+  "##....##",
+];
+const ARROW_ICON = [
+  "..#.....",
+  "..##....",
+  "..###...",
+  "..####..",
+  "..####..",
+  "..###...",
+  "..##....",
+  "..#.....",
+];
+
+function pixelIcon(rows, flip = false) {
+  const n = rows.length;
+  let rects = "";
+  rows.forEach((row, y) => [...row].forEach((c, x) => {
+    if (c === "#") rects += `<rect x="${flip ? n - 1 - x : x}" y="${y}" width="1" height="1"/>`;
+  }));
+  return `<svg aria-hidden="true" width="${n * 3}" height="${n * 3}" viewBox="0 0 ${n} ${n}" fill="currentColor" shape-rendering="crispEdges">${rects}</svg>`;
 }
