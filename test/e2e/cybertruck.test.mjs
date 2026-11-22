@@ -76,10 +76,6 @@ describe("the Cybertruck", { concurrency: true }, () => {
       if (reduce === "reduce") {
         assert.ok(truck.every((f) => f.truck === truck[0].truck), "the parked truck holds still");
         assert.ok(span > 4.5 && span < 5.5, `the truck stays about 5 seconds: ${span}`);
-        // The parked truck stays in an outer pane, clear of the candles and their glow.
-        const xs = (await hc.eggs()).candles.map((c) => c.x);
-        const [x0, x1] = [truck[0].truck, truck[0].truck + TRUCK.w - 1];
-        assert.ok(x1 < Math.min(...xs) - 1 || x0 > Math.max(...xs) + 1, `the parked truck (${x0} to ${x1}) is clear of the candles (${xs})`);
       } else {
         const speed = (truck.at(-1).truck - truck[0].truck) / span;
         assert.ok(speed > 14 && speed < 18, `the truck drives right at about 16 room pixels a second: ${speed}`);
@@ -132,6 +128,23 @@ describe("the Cybertruck", { concurrency: true }, () => {
     await advanceUntil(page, (hc) => hc.eggs().truck !== null);
     await advanceUntil(page, (hc) => hc.eggs().truck === null);
     assert.deepEqual(await interactions(page, calls), [{ id: GARCIA.id, token: GARCIA.token, egg: "cybertruck" }]);
+  });
+
+  test("with reduced motion, the parked truck stays clear of the menorah candles", async () => {
+    const { page, hc } = await env.open({ mine: [GARCIA], reducedMotion: "reduce", wait: "eggs" });
+    await tuckNow(page);
+    await hc.pause();
+    const { TRUCK } = await hc.constants();
+    const xs = (await hc.eggs()).candles.map((c) => c.x);
+    // Facing left (-1) and facing right (1), the truck parks in an outer pane. No part of it is next to a candle or its glow.
+    for (const dir of [-1, 1]) {
+      await hc.sendCybertruck(dir);
+      await advanceUntil(page, (hc) => hc.eggs().truck !== null);
+      const x0 = (await hc.eggs()).truck;
+      const x1 = x0 + TRUCK.w - 1;
+      assert.ok(x1 < Math.min(...xs) - 1 || x0 > Math.max(...xs) + 1, `facing ${dir}, the parked truck (${x0} to ${x1}) is clear of the candles (${xs})`);
+      await advanceUntil(page, (hc) => hc.eggs().truck === null);
+    }
   });
 
   test("Audrey calls out the Waymo once it shows in the window", async () => {
