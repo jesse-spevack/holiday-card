@@ -259,7 +259,10 @@ describe("the form", { concurrency: true }, () => {
     // The room grows into the dialog's column as the column slides away, so wait for the end of the move.
     await page.waitForFunction((w) => document.getElementById("stage").getBoundingClientRect().width > w + 300, stageWidth, { timeout: 3000 }).catch(() => {});
     await assertWholeRoom(page, "desktop, thank-you hidden");
-    assert.ok((await wholeRoom(page)).stage[2] > stageWidth + 300);
+    // The stage grows into the column over a short transition, so wait for it. A slow machine takes longer.
+    await page.waitForFunction((w) => document.getElementById("stage").getBoundingClientRect().width > w + 300, stageWidth, { timeout: 5000 }).catch(() => {});
+    assert.ok((await wholeRoom(page)).stage[2] > stageWidth + 300, `the stage grows: ${stageWidth} to ${(await wholeRoom(page)).stage[2]}`);
+    await assertWholeRoom(page, "desktop, room grown");
     // a wide desktop has no bands above and below the room, so it stays plain
     assert.deepEqual(await nightState(page), { sky: false, greeting: false });
     await page.screenshot({ path: `${OUT}/8-desktop-tucked.png` });

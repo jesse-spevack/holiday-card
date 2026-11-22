@@ -50,7 +50,7 @@ describe("the toast", { concurrency: true }, () => {
       const lines = await hc.toastLines();
 
       // A host who has not seen the toast hints at it. The other hidden things are found, so the hint shows up soon.
-      await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly");
+      await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "fire");
       const hear = async (host, times) => {
         const out = [];
         for (let i = 0; i < times; i++) {

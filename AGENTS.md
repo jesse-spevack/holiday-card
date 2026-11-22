@@ -50,6 +50,7 @@ No build step. The browser loads ES modules as they are.
 | `public/js/sound.js` | Sound effects with Web Audio, and the recorded sounds. `tone()` and the noise buffers are shared with `dreidel-sound.js` |
 | `public/js/night.js`, `public/night.css` | The snowy night, roof, and greeting around the room on a tall screen. It runs on the scene's frames |
 | `public/js/eggs.js` | The Waymo and the Cybertruck (one car on the road at a time, and Eddie calls out the truck), the shooting star, the menorah, and the floor lamp. A scene layer |
+| `public/js/fire.js` | The fire: a tap on the fireplace gives a crackle, a flare, and a burst of sparks up the chimney. A scene layer |
 | `public/js/toast.js` | The toast: a tap on the wine, and the whole party raises a cup (wine for grown-ups, cocoa for kids). A scene layer that draws a cup in each hand (`drawOn`) |
 | `public/js/plants.js` | The plants: a tap on a potted plant makes it bloom, and when every plant blooms, petals fall over the room. A scene layer. The plants are `PLANTS` in `room.js` |
 | `public/js/album.js`, `public/js/album-art.js`, `public/album.css` | The hidden photo album |

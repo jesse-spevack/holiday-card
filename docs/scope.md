@@ -83,6 +83,20 @@ Nothing on screen points to these.
 - Code: `public/js/plants.js`. The plants, their tap areas, and the flower spots are `PLANTS` in `public/js/room.js`.
   The chime is `chime()` and the chord is `bouquet()` in `public/js/sound.js`.
 
+## The fire (a hidden extra)
+
+- A tap on the fire, in the fireplace opening, gives a loud happy crackle: a warm roar, two or three pops, and a run of small crackles.
+- The fire flares: the fireplace fills with warm light, the flames burn brighter and lick past their edges, and the hearth glow grows.
+  The flare fades in about 0.9 seconds.
+- A burst of 16 sparks and 8 embers flies up out of the fire. The sparks cool from white to yellow, to orange, to red, and go out.
+  Over the cream stone, a spark is orange or red, so it shows. The embers rise more slowly, drift, and blink out.
+- The sparks stay over the fireplace and the chimney above it. They never fly across the room.
+- Each tap gives a new burst and a new crackle. At most 140 sparks and embers show at one time, so fast taps never slow the page.
+- With the lamp off, the sparks and the flare still glow.
+- With reduced motion, the crackle and the flare stay, and a few sparks glow above the flames and fade where they are.
+- Jess hints at it: "Poke the fire. It likes attention."
+- Code: `public/js/fire.js`. The crackle is `crackle()` in `public/js/sound.js`.
+
 ## Tap areas
 
 - Each box in `HOTSPOTS` is the thing as drawn. A tap finds a thing from a little way off: on a touch screen, each thing gets
