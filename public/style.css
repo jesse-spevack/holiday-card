@@ -200,3 +200,92 @@ button, input { font: inherit; }
   .dialog { grid-area: dialog; align-self: center; margin: 0 24px; max-height: calc(100dvh - 160px); }
   .turnstile { grid-area: turnstile; padding-bottom: 24px; }
 }
+
+/* ---------- look picker ---------- */
+.picker {
+  --s: 2;
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(27, 26, 46, 0.72);
+  display: flex; align-items: center; justify-content: center;
+}
+.picker.pets { --s: 3; }
+.picker-panel {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.picker-head {
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 12px 8px 16px;
+  border-bottom: 2px solid var(--line);
+}
+.picker-head h2 { margin: 0; font-size: 21px; font-weight: 600; }
+.picker-close {
+  width: 44px; height: 44px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--ink);
+  border: 2px solid var(--line); font-size: 18px; cursor: pointer;
+}
+.picker-body {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 4px 12px 20px;
+}
+.picker-section h3 {
+  margin: 16px 4px 8px;
+  font-family: var(--label); font-weight: 400; font-size: 13px; letter-spacing: 0.06em;
+  color: var(--gold);
+}
+.picker-grid {
+  display: grid; gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--mw) * var(--s) * 1px + 12px), 1fr));
+}
+.look-tile {
+  position: relative;
+  height: calc((var(--mh) + 7) * var(--s) * 1px);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0 0 calc(3px * var(--s));
+  background: var(--night);
+  border: 2px solid var(--line);
+  overflow: hidden; cursor: pointer;
+}
+.look-tile::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0;
+  height: calc(9px * var(--s));
+  background: url(/assets/room.png) calc(-100px * var(--s)) calc(-158px * var(--s)) / calc(256px * var(--s)) auto;
+  image-rendering: pixelated;
+}
+.look-tile img {
+  position: relative;
+  width: calc(var(--w) * var(--s) * 1px);
+  height: calc(var(--h) * var(--s) * 1px);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+}
+.look-tile:focus-visible { border-color: var(--ink); outline: none; }
+@media (hover: hover) { .look-tile:hover { border-color: var(--ink); } }
+.look-tile[aria-current] { border: 3px solid var(--gold); }
+.look-now {
+  position: absolute; top: 0; left: 0;
+  padding: 1px 5px 2px;
+  background: var(--gold); color: var(--night);
+  font-family: var(--label); font-size: 10px;
+}
+.picker-close:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.pop .btn { padding: 0 8px; white-space: nowrap; }
+@media (min-width: 700px) and (min-height: 560px) {
+  .picker { --s: 3; }
+  .picker.pets { --s: 4; }
+  .picker-panel {
+    position: relative; inset: auto;
+    width: min(820px, calc(100vw - 64px));
+    max-height: min(88vh, 920px);
+    border: 4px solid var(--ink);
+    box-shadow: 0 0 0 4px var(--night);
+    padding: 0;
+  }
+  .picker-body { padding: 4px 16px 24px; }
+}
