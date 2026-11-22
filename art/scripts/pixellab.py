@@ -1,7 +1,7 @@
 """Shared helpers for the PixelLab scripts (looks.py and props.py).
 
 The key comes from the PIXELLAB_KEY environment variable. If it is not set, the scripts read it from
-1Password with `op read`, at PIXELLAB_OP_REF (default op://keys/PixelLab/credential).
+1Password with `op read`, at PIXELLAB_OP_REF (default op://keys/CozyChat/PIXEL_LAB_KEY).
 The key stays in memory. No script writes it to a file.
 """
 import base64, functools, io, json, os, subprocess, sys, time, urllib.request
@@ -25,7 +25,7 @@ FLOOR = (217, 160, 102, 255)  # the room floor color, behind the review sheets
 def key():
     if os.environ.get("PIXELLAB_KEY"):
         return os.environ["PIXELLAB_KEY"]
-    ref = os.environ.get("PIXELLAB_OP_REF", "op://keys/PixelLab/credential")
+    ref = os.environ.get("PIXELLAB_OP_REF", "op://keys/CozyChat/PIXEL_LAB_KEY")
     try:
         return subprocess.run(["op", "read", ref], capture_output=True, check=True, text=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
