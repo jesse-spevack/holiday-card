@@ -50,6 +50,7 @@ No build step. The browser loads ES modules as they are.
 | `public/js/sound.js` | Sound effects with Web Audio, and the recorded sounds. `tone()` and the noise buffers are shared with `dreidel-sound.js` |
 | `public/js/night.js`, `public/night.css` | The snowy night, roof, and greeting around the room on a tall screen. It runs on the scene's frames |
 | `public/js/eggs.js` | The Waymo and the Cybertruck (one car on the road at a time, and Eddie calls out the truck), the shooting star, the menorah, and the floor lamp. A scene layer |
+| `public/js/hanukkah.js` | The night of Hanukkah 2026 in the guest's own time. The menorah burns one candle for each night |
 | `public/js/fire.js` | The fire: a tap on the fireplace gives a crackle, a flare, and a burst of sparks up the chimney. A scene layer |
 | `public/js/toast.js` | The toast: a tap on the wine, and the whole party raises a cup (wine for grown-ups, cocoa for kids). A scene layer that draws a cup in each hand (`drawOn`) |
 | `public/js/plants.js` | The plants: a tap on a potted plant makes it bloom, and when every plant blooms, petals fall over the room. A scene layer. The plants are `PLANTS` in `room.js` |
@@ -68,6 +69,7 @@ Python scripts with Pillow, run from the repo root. The docstring at the top of 
 | `art/scripts/pixellab.py` | The PixelLab calls, the key lookup, and the sprite cleanup that `looks.py` and `props.py` share |
 | `art/scripts/props.py` | Prop variations (presents, dreidel) to paint into `public/assets/room.png` by hand |
 | `art/scripts/table_wine.py` | The wine bottle and glasses, drawn pixel by pixel on `public/assets/room.png` |
+| `art/scripts/menorah.py` | The two end candles that make the menorah hold eight candles and the shamash, drawn pixel by pixel on `public/assets/room.png` |
 | `art/scripts/book.py` | The photo album sprite on the sofa, `public/assets/book.png` |
 | `art/scripts/og.py` | The link preview, `public/assets/og.png`. Run it after each change to the room or the hosts |
 | `art/scripts/album.py` | The album photos in KV. See "Data rules" |

@@ -1,10 +1,12 @@
 // Hidden extras in the living room. Nothing on screen points to them.
 // A light blue Waymo van or a steel Cybertruck drives past the window now and then. A tap on the window sends a shooting star,
 // a tap on the menorah lights it again and asks about miracles, and a tap on the floor lamp turns it off and on.
+// During Hanukkah, the menorah burns one candle for each night (hanukkah.js).
 // The tap areas are HOTSPOTS in room.js. The scene draws this module as a layer (Scene.addLayer).
 
 import { ROOM_W, ROOM_H, FIRE, WINDOW, ROAD_Y, MENORAH, LAMP, LAMP_YELLOW, WALL, SHADE_OFF, FIRE_COLORS, rgb, isNight } from "./room.js";
 import { eachPixel } from "./pixels.js";
+import { hanukkahNight } from "./hanukkah.js";
 
 const PANES = WINDOW.glass.panes;
 // With the lamp off, the room goes this dark blue. plants.js darkens its falling petals with it too.
@@ -87,6 +89,10 @@ export class Eggs {
     this.star = null;
     this.lighting = null;
     this.wisps = [];
+    // The clock for the nights of Hanukkah. The test API sets it.
+    this.now = () => new Date();
+    // The indices in scene.flames of the candles that burn when the menorah does not light.
+    this.burning = new Set();
     // The scene time when each car comes next.
     this.next = Object.fromEntries(Object.entries(CARS).map(([kind, car]) => [kind, rand(...car.gap)]));
   }
@@ -97,11 +103,28 @@ export class Eggs {
     this.lampOffLayer = lampOff(pixels);
     const fire = (x, y, i) => x >= FIRE.x && x < FIRE.x + FIRE.w && y >= FIRE.y && y < FIRE.y + FIRE.h && FIRE_COLORS.has(rgb(pixels, i));
     this.tintLayer = layer((x, y, i) => !isGlass(pixels, x, y, i) && !fire(x, y, i), NIGHT_TINT);
-    // An unlit candle shows the night sky two pixels above its flame.
-    this.skyAbove = this.scene.flames.map(({ x, y }) => {
-      const i = ((y - 2) * ROOM_W + x) * 4;
-      return `rgb(${pixels[i]}, ${pixels[i + 1]}, ${pixels[i + 2]})`;
+    // An unlit candle shows the window glass where its flame and its warm glow were.
+    // The glow is each pixel round the flame that is not glass: one pixel to each side, and two pixels up.
+    // The glass color comes from four pixels above the flame. A glow pixel between two candles goes dark only when both are out.
+    const at = (x, y) => (y * ROOM_W + x) * 4;
+    const glow = new Map();
+    this.scene.flames.forEach(({ x, y }, i) => {
+      const glass = rgb(pixels, at(x, y - 4));
+      for (let dy = -2; dy <= 0; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (rgb(pixels, at(x + dx, y + dy)) === glass) continue;
+          const key = `${x + dx},${y + dy}`;
+          if (!glow.has(key)) glow.set(key, { x: x + dx, y: y + dy, color: `#${glass.toString(16).padStart(6, "0")}`, of: [] });
+          glow.get(key).of.push(i);
+        }
+      }
     });
+    this.glow = [...glow.values()];
+    // The shamash is the highest flame. The other candles go from left to right.
+    const flames = this.scene.flames;
+    this.shamash = flames.findIndex((f) => f.y === Math.min(...flames.map((q) => q.y)));
+    this.candles = flames.map((f, i) => i).filter((i) => i !== this.shamash).sort((a, b) => flames[a].x - flames[b].x);
+    this.burning = new Set(this.tonight());
     this.sky = canvas();
   }
 
@@ -254,36 +277,45 @@ export class Eggs {
   }
 
   // ---- the menorah ----
-  // The flames go out, then light one by one: the raised shamash first, then left to right.
+  // The candles that burn now, in the order they light: the raised shamash first, then left to right.
+  // During Hanukkah, one candle burns for each night, from the right end, so the newest candle is the leftmost one.
+  // Outside Hanukkah, every candle burns.
+  tonight() {
+    const night = hanukkahNight(this.now());
+    return [this.shamash, ...(night ? this.candles.slice(-night) : this.candles)];
+  }
+
+  // The flames go out, then tonight's candles light one by one, in the order of tonight().
   relight() {
     if (this.lighting) return;
     const flames = this.scene.flames;
-    const order = flames.map((f, i) => i).sort((a, b) => flames[a].y - flames[b].y || flames[a].x - flames[b].x);
+    const order = this.tonight();
     const rank = new Map(order.map((i, k) => [i, k]));
-    this.lighting = { t0: this.scene.time, rank, played: 0, total: flames.length };
-    this.wisps = flames.map(({ x, y }) => ({ x, y: y - 1, t0: this.scene.time }));
+    this.lighting = { t0: this.scene.time, rank, played: 0, total: order.length };
+    this.wisps = [...this.burning].map((i) => ({ x: flames[i].x, y: flames[i].y - 1, t0: this.scene.time }));
     if (this.words?.of === MIRACLES) this.hush();
     this.sound.snuff();
   }
 
   flame(i) {
     const l = this.lighting;
-    if (!l) return "lit";
+    if (!l) return this.burning.has(i) ? "lit" : "out";
+    if (!l.rank.has(i)) return "out";
     const age = this.scene.time - (l.t0 + LIGHTING.pause + l.rank.get(i) * LIGHTING.step);
     return age < 0 ? "out" : age < LIGHTING.grow ? "new" : "lit";
   }
 
   // How many candles burn, for the tests.
   get menorahLit() {
-    return this.lighting ? this.lighting.played : this.scene.flames.length;
+    return this.lighting ? this.lighting.played : this.burning.size;
   }
 
   drawUnlit(g) {
-    this.scene.flames.forEach(({ x, y }, i) => {
-      if (this.flame(i) !== "out") return;
-      g.fillStyle = this.skyAbove[i];
-      g.fillRect(x, y - 1, 1, 2);
-    });
+    for (const { x, y, color, of } of this.glow) {
+      if (!of.every((i) => this.flame(i) === "out")) continue;
+      g.fillStyle = color;
+      g.fillRect(x, y, 1, 1);
+    }
     const now = this.scene.time;
     this.wisps = this.wisps.filter((w) => now - w.t0 < 1);
     g.fillStyle = "#c9ccd6";
@@ -326,8 +358,14 @@ export class Eggs {
       while (l.played < due) this.sound.chime(l.played++);
       if (time > l.t0 + LIGHTING.pause + (l.total - 1) * LIGHTING.step + LIGHTING.grow) {
         this.lighting = null;
+        this.burning = new Set(l.rank.keys());
         this.say(MIRACLES);
       }
+    }
+    // At 4 pm during Hanukkah, the candle for the new night lights. Each night burns a different number of candles.
+    if (!l && this.shamash !== undefined) {
+      const order = this.tonight();
+      if (order.length !== this.burning.size) this.burning = new Set(order);
     }
   }
 
@@ -345,7 +383,7 @@ export class Eggs {
       s.drawImage(this.glassLayer, 0, 0);
       g.drawImage(this.sky, 0, 0);
     }
-    if (this.lighting || this.wisps.length) this.drawUnlit(g);
+    if (this.lighting || this.wisps.length || this.burning.size < this.scene.flames.length) this.drawUnlit(g);
   }
 
   // Over everything: with the lamp off, the room goes dark blue, and the fire and the candles glow.
