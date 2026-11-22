@@ -406,6 +406,16 @@ try {
     await pa.waitForFunction(() => window.__hc.scene.book && window.__hc.scene.sprites.some((s) => s.host));
     // the main page never loads the album until a guest opens it
     assert.deepEqual(albumCalls, []);
+    // count the album sounds, and still play them
+    await pa.evaluate(() => {
+      const { sound } = window.__hc;
+      window.__sounds = [];
+      for (const name of ["coverOpen", "pageTurn"]) {
+        const play = sound[name].bind(sound);
+        sound[name] = () => { window.__sounds.push(name); play(); };
+      }
+    });
+    const sounds = () => pa.evaluate(() => window.__sounds);
     const book = await bookAt(pa);
     if (name === "phone") await pa.touchscreen.tap(book.x, book.y);
     else await pa.mouse.click(book.x, book.y);
@@ -414,6 +424,7 @@ try {
     const count = pa.locator(".album-count");
     await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
     await pa.locator("figcaption", { hasText: "A day at the lake" }).waitFor();
+    assert.deepEqual(await sounds(), ["coverOpen"]);
     assert.equal(await pa.locator(".pop").count(), 0, "the book never opens the sprite editor");
     assert.equal(await pa.evaluate(() => window.__hc.scene.bookHidden), true);
     if (name === "phone") {
@@ -424,6 +435,8 @@ try {
       await pa.locator(".album-side.r figcaption", { hasText: "Snow in the yard" }).waitFor();
       await pa.touchscreen.tap(30, viewport.height / 2);
       await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
+      // a tap forward and a tap back each turn a page with a swish
+      assert.deepEqual(await sounds(), ["coverOpen", "pageTurn", "pageTurn"]);
       await pa.screenshot({ path: `${OUT}/album-phone.png` });
       await pa.getByRole("button", { name: "Close the album" }).click();
     } else {
@@ -434,6 +447,30 @@ try {
       await pa.screenshot({ path: `${OUT}/album-desktop.png` });
       await pa.mouse.click(100, viewport.height / 2);
       await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
+      // an arrow key and a click each turn a page with a swish
+      assert.deepEqual(await sounds(), ["coverOpen", "pageTurn", "pageTurn"]);
+      // the swish is a short, gentle sound, and with the sound off it makes no sound at all
+      const heard = await pa.evaluate(async () => {
+        const { swish } = await import("/js/sound.js");
+        const ctx = new OfflineAudioContext(1, 48000, 48000);
+        swish(ctx, ctx.destination);
+        const data = (await ctx.startRendering()).getChannelData(0);
+        let peak = 0, last = 0;
+        data.forEach((v, i) => { if (Math.abs(v) > peak) peak = Math.abs(v); if (Math.abs(v) > 0.001) last = i; });
+        const { sound } = window.__hc;
+        let made = 0;
+        const real = sound.ctx;
+        sound.ctx = { state: "running", currentTime: 0, createBufferSource: () => { made++; throw new Error("no sound when off"); } };
+        sound.on = false;
+        sound.pageTurn();
+        sound.coverOpen();
+        sound.on = true;
+        sound.ctx = real;
+        return { peak, ms: (last / 48000) * 1000, made };
+      });
+      assert.ok(heard.peak > 0.02 && heard.peak < 0.15, `swish peak ${heard.peak}`);
+      assert.ok(heard.ms > 200 && heard.ms < 500, `swish length ${heard.ms} ms`);
+      assert.equal(heard.made, 0);
       await pa.keyboard.press("Escape");
     }
     await dialogEl.waitFor({ state: "hidden" });
