@@ -117,6 +117,6 @@
 .dreidel.big .dreidel-panel { padding: 16px 22px 14px; }
 .dreidel.big .dreidel-letter { width: 84px; height: 84px; }
 .dreidel.big .dreidel-result { min-height: 88px; gap: 20px; }
-.dreidel.big .dreidel-name { font-size: 30px; }
+.dreidel.big .dreidel-name, .dreidel.big .dreidel-result:has(.dreidel-letter:not([hidden])) .dreidel-name { font-size: 32px; }
 .dreidel.big .dreidel-says { font-size: 25px; }
 .dreidel.big .dreidel-gelt { font-size: 18px; margin-top: 12px; }
