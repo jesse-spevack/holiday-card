@@ -10,7 +10,7 @@
     "e2e": "node test/e2e.mjs",
     "typecheck": "pnpm types && tsc --noEmit",
     "db:migrate": "wrangler d1 migrations apply holiday-card --remote",
-    "types": "wrangler types --env-file .dev.vars.example",
+    "types": "wrangler types",
     "postinstall": "pnpm types"
   },
   "devDependencies": {

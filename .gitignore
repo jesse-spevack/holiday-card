@@ -12,5 +12,5 @@ __pycache__/
 .env.*
 apps-script/Secret.js
 
-# pnpm types makes it from wrangler.jsonc and .dev.vars.example.
+# pnpm types makes it from wrangler.jsonc.
 worker-configuration.d.ts

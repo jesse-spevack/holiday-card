@@ -23,8 +23,8 @@ One Cloudflare Worker serves the static files in `public/` and the API. `wrangle
 | File | Owns |
 |---|---|
 | `src/worker.ts` | The router and the handlers for each route |
-| `src/http.ts` | `HttpError`, JSON replies, field checks, rate limits |
-| `src/family-parser.ts` | `POST /api/household`: one OpenRouter call that turns "who lives at your house" into members |
+| `src/http.ts` | `HttpError`, JSON replies, field checks, rate limits, and `callService` (one timeout and error shape for every outside service) |
+| `src/household.ts` | `POST /api/household`: one OpenRouter call that turns "who lives at your house" into members |
 | `src/places.ts` | `GET /api/places` and `GET /api/place`: Google Places address suggestions and details |
 | `src/turnstile.ts` | The Turnstile check on `POST /api/submit` |
 | `src/sheet.ts` | Sends the contact to the Apps Script, which adds a Sheet row |
@@ -149,7 +149,8 @@ Never write a secret value in a file in this repo. Names only.
 
 Google Cloud caps Places at 500 suggestions and 200 address lookups a day. A preview and `pnpm dev` with a real key use the same quota.
 
-`worker-configuration.d.ts` is generated, and git ignores it. `pnpm types` makes it again after a change to `wrangler.jsonc` or `.dev.vars.example`.
+`worker-configuration.d.ts` is generated, and git ignores it. `pnpm types` makes it again after a change to `wrangler.jsonc`.
+A new secret goes in `secrets.required` in `wrangler.jsonc`, in `.dev.vars.example`, and in the table above.
 
 ## Working rules
 
