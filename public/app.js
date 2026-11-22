@@ -9,12 +9,13 @@ import { Dreidel } from "./js/dreidel.js";
 import { Eggs } from "./js/eggs.js";
 import { react, isPet } from "./js/pets.js";
 import { Night } from "./js/night.js";
+import { Toast } from "./js/toast.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sound = new Sound();
 // The hidden thing that each tap area finds, for the hosts' hints.
-const EGG_OF = { book: "album", lamp: "lamp", "dreidel-left": "dreidel", "dreidel-right": "dreidel", menorah: "menorah", window: "star" };
+const EGG_OF = { book: "album", lamp: "lamp", "dreidel-left": "dreidel", "dreidel-right": "dreidel", menorah: "menorah", window: "star", wine: "toast" };
 // The modules make their random choices in this order (snow, the first Waymo, the dreidel's snow). Keep it.
 const scene = new Scene({
   stage: $("stage"), world: $("world"), canvas: $("canvas"), overlay: $("overlay"), reducedMotion,
@@ -24,6 +25,7 @@ const scene = new Scene({
     markFound(EGG_OF[id]);
     if (id === "book") album.open();
     else if (DREIDELS[id]) dreidel.open(() => scene.roomRect(DREIDELS[id]));
+    else if (id === "wine") toast.tap();
     else eggs.tap(id);
   },
   onLayout: (view) => night.layout(view),
@@ -33,6 +35,8 @@ const dialog = $("dialog");
 const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => scene.showBook(on) });
 const eggs = new Eggs({ scene, sound, reducedMotion, onFound: (egg) => markFound(egg) });
 scene.addLayer(eggs);
+const toast = new Toast({ scene, sound, reducedMotion });
+scene.addLayer(toast);
 const dreidel = new Dreidel({ sound, reducedMotion });
 const night = new Night({ stage: $("stage"), reducedMotion, clock: scene });
 const again = $("again");
@@ -606,6 +610,6 @@ async function start() {
 
 // "?test" loads the test API for the end-to-end tests (public/js/test-api.js). A guest never loads it.
 if (new URLSearchParams(location.search).has("test")) {
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, found }); });
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, toast, found }); });
 }
 start();

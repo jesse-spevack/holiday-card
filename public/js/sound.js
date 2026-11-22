@@ -96,6 +96,21 @@ export class Sound {
   // A soft sparkle for a shooting star.
   sparkle() { [1568, 2093, 2637, 3136, 4186].forEach((f, i) => this.tone(f, { at: i * 0.06, dur: 0.4, type: "sine", gain: 0.03 })); }
 
+  // Glasses clink for a toast. A crowd of `people` makes 3 to 5 clinks, close together, each a little different.
+  // A clink is a bright ping with two higher overtones that die away fast, like thin glass.
+  cheers(people = 4) {
+    const count = Math.max(3, Math.min(5, Math.ceil(people / 2)));
+    let at = 0;
+    for (let i = 0; i < count; i++) {
+      const f = 2300 + Math.random() * 900;
+      const gain = 0.035 * (1 - i * 0.12);
+      this.tone(f, { at, dur: 0.45, type: "sine", gain });
+      this.tone(f * 2.41, { at, dur: 0.22, type: "sine", gain: gain * 0.45 });
+      this.tone(f * 4.13, { at, dur: 0.08, type: "sine", gain: gain * 0.25 });
+      at += 0.06 + Math.random() * 0.1;
+    }
+  }
+
   // A soft bell. Each step is one note higher on a pentatonic scale, from C5.
   chime(step = 0) {
     const semis = [0, 2, 4, 7, 9][step % 5] + 12 * Math.floor(step / 5);

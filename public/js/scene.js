@@ -32,6 +32,7 @@ export const HOST_LINES = {
     hint("album", "Have you seen our year? It's somewhere comfy."),
     hint("menorah", "The candles by the window have a question."),
     hint("star", "The window is good for wishes."),
+    hint("toast", "Those glasses won't raise themselves."),
   ],
   jesse: [
     "Happy holidays!",
@@ -41,6 +42,7 @@ export const HOST_LINES = {
     hint("lamp", "This room is cozier with the lights low."),
     hint("waymo", "Watch the street. Some cars drive themselves."),
     hint("menorah", "Those candles love to be lit again."),
+    hint("toast", "Somebody should make a toast."),
   ],
   daughter: [
     "So happy you came!",
@@ -125,7 +127,8 @@ export class Scene {
   }
 
   // A layer is an object with any of these: prepare(pixels) once the room loads, update(dt) each frame,
-  // drawBack(g) over the room image, drawFront(g) over the sprites, and flame(i) for the state of candle i.
+  // drawBack(g) over the room image, drawOn(g, sprite, x, y) right after each sprite (x, y is its top-left corner),
+  // drawFront(g) over the sprites, and flame(i) for the state of candle i.
   addLayer(layer) {
     this.layers.push(layer);
   }
@@ -176,9 +179,10 @@ export class Scene {
   }
 
   // ---- sprites ----
+  // bob is the step of a walk. rise is the hop that a layer gives a sprite (toast.js). Both lift the sprite in pixels.
   addSprite(s) {
     const sprite = {
-      x: 0, y: 0, flip: false, bob: 0, path: null, wander: false, popAt: this.time,
+      x: 0, y: 0, flip: false, bob: 0, rise: 0, path: null, wander: false, popAt: this.time,
       nextMove: this.time + rand(2, 6), ...s,
     };
     this.sprites.push(sprite);
@@ -456,7 +460,7 @@ export class Scene {
       const age = this.time - s.popAt;
       const hop = !this.reducedMotion && age < 0.25 ? Math.round(Math.sin((age / 0.25) * Math.PI) * 4) : 0;
       const x = Math.round(s.x - s.img.width / 2);
-      const y = Math.round(s.y - s.img.height - s.bob - hop);
+      const y = Math.round(s.y - s.img.height - s.bob - hop - s.rise);
       if (s.react) {
         drawPet(g, s, x, y, this.time, this.reducedMotion);
       } else if (s.flip) {
@@ -467,6 +471,7 @@ export class Scene {
       } else {
         g.drawImage(s.img, x, y);
       }
+      for (const layer of this.layers) layer.drawOn?.(g, s, x, y);
     }
     for (const layer of this.layers) layer.drawFront?.(g);
     for (const s of visible) if (s.react) drawPetMark(g, s, this.time, this.reducedMotion);
@@ -484,7 +489,7 @@ export class Scene {
       return;
     }
     const b = p.sprite ? spriteBox(p.sprite, 0) : p.box;
-    const lift = p.sprite ? p.sprite.bob : 0;
+    const lift = p.sprite ? p.sprite.bob + p.sprite.rise : 0;
     const out = PRESS.gap + (this.reducedMotion || this.time - p.at > 0.08 ? 0 : 1);
     const x0 = Math.round(b.x) - out;
     const y0 = Math.round(b.y) - lift - out;

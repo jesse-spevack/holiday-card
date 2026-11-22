@@ -47,7 +47,20 @@ Nothing on screen points to these.
   Only one of these two lines shows at a time. A new line replaces the old line.
 - A tap on the floor lamp turns it off. The room goes dark blue, and the fire and the candles glow. A second tap turns it on.
 - With reduced motion, the Waymo stops in the window for a few seconds, and the star does not move.
-- Code: `public/js/eggs.js`. The tap areas are `HOTSPOTS` in `public/js/scene.js`.
+- Code: `public/js/eggs.js`. The tap areas are `HOTSPOTS` in `public/js/room.js`.
+
+## The toast (a hidden extra)
+
+- A tap on the wine on the dining table (the two glasses or the bottle) starts a toast.
+- Each person at the party lifts a small red wine glass in one hand and hops once. The hosts and every guest family do this. The pets do not.
+- The glasses clink: 3 to 5 bright clinks close together, more for a bigger party. The sound button mutes them.
+- Jess or Jesse says a toast in a bubble: "To 2027!", "To all of you!", "To friends near and far!", "Cheers to another year together!",
+  "To old friends and new ones!", or "To the people we love!". The same line never comes twice in a row.
+- After about 2 seconds, everyone lowers the glass, and the glasses go away. A tap during the toast, or for 0.6 seconds after it, does nothing.
+- With reduced motion, the glasses, the clinks, and the bubble stay, but nobody hops, and the glasses do not move.
+- The glass is 5 by 7 room pixels, with a dark outline, so it shows on the floor, the rug, and clothes.
+  The code finds the hand in each sprite image: the arm that reaches out the farthest between the waist and the hips.
+- Code: `public/js/toast.js`. The clinks are `cheers()` in `public/js/sound.js`.
 
 ## Tap areas
 
