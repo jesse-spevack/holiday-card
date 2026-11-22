@@ -85,13 +85,25 @@
 @keyframes dreidel-blink { 70% { opacity: 0.45; } }
 .dreidel-result:has(.dreidel-letter:not([hidden])) .dreidel-name { font-size: 24px; }
 
+.dreidel-note {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+.dreidel-note:empty { display: none; }
+
+/* The gelt counts use Silkscreen, which has clear digits at a small size. */
 .dreidel-gelt {
   display: flex;
   justify-content: space-between;
-  margin-top: 8px;
-  font-size: 15px;
+  margin-top: 10px;
+  font-family: var(--label);
+  font-size: 14px;
   color: var(--muted);
 }
+.dreidel-change { color: var(--gold); margin: 0 0.5em; }
+.dreidel-change:empty { display: none; }
 
 .dreidel-close {
   position: absolute;
@@ -119,4 +131,5 @@
 .dreidel.big .dreidel-result { min-height: 88px; gap: 20px; }
 .dreidel.big .dreidel-name, .dreidel.big .dreidel-result:has(.dreidel-letter:not([hidden])) .dreidel-name { font-size: 32px; }
 .dreidel.big .dreidel-says { font-size: 25px; }
-.dreidel.big .dreidel-gelt { font-size: 18px; margin-top: 12px; }
+.dreidel.big .dreidel-gelt { font-size: 18px; margin-top: 14px; }
+.dreidel.big .dreidel-note { font-size: 19px; }

@@ -884,18 +884,23 @@ try {
       await pd.waitForFunction((n) => window.__hc.dreidel.spins === n + 1 && document.querySelector(".dreidel").dataset.state === "result", spins, { timeout: 5000 });
       return game.getAttribute("data-face");
     };
+    // [side, name, meaning, pot, you, the change shown next to the pot and the guest, the refill line]
     const expected = [
-      ["gimel", "Gimel", "Take it all!", 0, 12],
-      ["shin", "Shin", "Put one in", 3, 11],
-      ["hei", "Hei", "Take half", 1, 13],
-      ["nun", "Nun", "Nothing happens", 3, 13],
+      ["gimel", "Gimel", "Take it all!", 0, 12, ["-4", "+4"], ""],
+      ["shin", "Shin", "Put one in", 3, 11, ["+1", "-1"], "The pot refills with two gelt."],
+      ["hei", "Hei", "Take half", 1, 13, ["-2", "+2"], ""],
+      // Nun changes nothing, so both counts stay the same and show no change
+      ["nun", "Nun", "Nothing happens", 1, 13, ["", ""], ""],
+      ["nun", "Nun", "Nothing happens", 1, 13, ["", ""], ""],
     ];
-    for (const [face, title, says, pot, you] of expected) {
+    for (const [face, title, says, pot, you, change, note] of expected) {
       assert.equal(await spinTo(face), face);
       assert.equal(await pd.locator(".dreidel-name").textContent(), title);
       assert.equal(await pd.locator(".dreidel-says").textContent(), says);
-      assert.equal(await pd.locator(".dreidel-pot").textContent(), `Pot: ${pot} gelt`);
-      assert.equal(await pd.locator(".dreidel-you").textContent(), `You: ${you} gelt`);
+      assert.equal(await pd.locator(".dreidel-pot").textContent(), `Pot: ${pot}`);
+      assert.equal(await pd.locator(".dreidel-you").textContent(), `You: ${you}`);
+      assert.deepEqual(await pd.locator(".dreidel-change").allTextContents(), change, `${face} change`);
+      assert.equal(await pd.locator(".dreidel-note").textContent(), note);
       const heard = await sounds();
       assert.ok(heard.includes("clack") && heard.at(-1) === `result:${face}`, `${face}: ${heard}`);
       if (reduce === "reduce") assert.ok(!heard.includes("whirr") && !heard.includes("tick"), `reduced: ${heard}`);

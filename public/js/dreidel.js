@@ -49,6 +49,9 @@ export class Dreidel {
     this.rig = null;
     this.pot = POT;
     this.you = YOU;
+    // What the last spin changed, for the words under the dreidel, so no count moves without a reason.
+    this.change = { pot: 0, you: 0 };
+    this.note = "";
     this.face = null;
     this.spins = 0;
     this.pose = { x: CX, theta: 0, tilt: 0, hop: 0 };
@@ -185,11 +188,14 @@ export class Dreidel {
     this.letter.setAttribute("aria-hidden", "true");
     this.nameEl = h("p", "dreidel-name");
     this.saysEl = h("p", "dreidel-says");
+    this.noteEl = h("p", "dreidel-note");
     this.potEl = h("span", "dreidel-pot");
     this.youEl = h("span", "dreidel-you");
-    this.words = h("div", "dreidel-words", this.nameEl, this.saysEl);
+    this.potChange = h("span", "dreidel-change");
+    this.youChange = h("span", "dreidel-change");
+    this.words = h("div", "dreidel-words", this.nameEl, this.saysEl, this.noteEl);
     this.words.setAttribute("aria-live", "polite");
-    const panel = h("div", "dreidel-panel", h("div", "dreidel-result", this.letter, this.words), h("div", "dreidel-gelt", this.potEl, this.youEl));
+    const panel = h("div", "dreidel-panel", h("div", "dreidel-result", this.letter, this.words), h("div", "dreidel-gelt", h("span", "", this.potEl, this.potChange), h("span", "", this.youChange, this.youEl)));
     this.card = h("button", "dreidel-card", this.canvas, panel);
     this.card.type = "button";
     this.card.setAttribute("aria-label", "Spin the dreidel");
@@ -224,8 +230,8 @@ export class Dreidel {
   layout() {
     if (!this.el) return;
     const fit = (panel) => Math.max(1, Math.min(Math.floor((innerWidth - 32) / W), Math.floor((innerHeight - 64 - panel - 40) / H)));
-    let k = fit(140);
-    if (k >= 7) k = Math.max(6, fit(190));
+    let k = fit(160);
+    if (k >= 7) k = Math.max(6, fit(215));
     this.k = k;
     this.el.style.setProperty("--k", k);
     this.el.classList.toggle("big", k >= 7);
@@ -242,8 +248,12 @@ export class Dreidel {
     if (face) drawLetter(this.letter.getContext("2d"), face.id);
     this.nameEl.textContent = face ? face.name : this.state === "spinning" ? "Spinning..." : "Tap to spin";
     this.saysEl.textContent = face ? face.says : this.state === "spinning" ? "" : "Spin the dreidel and see where it lands.";
-    this.potEl.textContent = `Pot: ${this.pot} gelt`;
-    this.youEl.textContent = `You: ${this.you} gelt`;
+    this.noteEl.textContent = this.note;
+    this.potEl.textContent = `Pot: ${this.pot}`;
+    this.youEl.textContent = `You: ${this.you}`;
+    const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `${n}` : "");
+    this.potChange.textContent = face ? signed(this.change.pot) : "";
+    this.youChange.textContent = face ? signed(this.change.you) : "";
   }
 
   key(e) {
@@ -264,9 +274,17 @@ export class Dreidel {
     if (!this.isOpen || this.busy || this.motion) return;
     const rig = this.rig || {};
     const k = rig.face ? FACES.findIndex((f) => f.id === rig.face) : Math.floor(Math.random() * 4);
-    // An empty pot gets two coins from the table, and a guest with no gelt gets five more.
-    if (this.pot < 2) this.pot += 2;
-    if (this.you < 1) this.you += 5;
+    // An empty pot gets two coins from the table, and a guest with no gelt gets five more. A note says so.
+    const notes = [];
+    if (this.pot === 0) {
+      this.pot = 2;
+      notes.push("The pot refills with two gelt.");
+    }
+    if (this.you === 0) {
+      this.you = 5;
+      notes.push("You get five new gelt.");
+    }
+    this.note = notes.join(" ");
     this.state = "spinning";
     this.spins++;
     this.text();
@@ -384,6 +402,7 @@ export class Dreidel {
     this.face = k;
     this.state = "result";
     const id = FACES[k].id;
+    const before = { pot: this.pot, you: this.you };
     if (id === "gimel") {
       this.you += this.pot;
       this.pot = 0;
@@ -395,6 +414,7 @@ export class Dreidel {
       this.you -= 1;
       this.pot += 1;
     }
+    this.change = { pot: this.pot - before.pot, you: this.you - before.you };
     if (this.isOpen) this.sound.result(id);
     this.text();
   }
