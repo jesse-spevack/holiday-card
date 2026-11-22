@@ -40,7 +40,7 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
 
 Nothing on screen points to these.
 
-- Now and then (every 40 to 90 seconds), a small Waymo drives past outside the window, behind the frame and the menorah.
+- Now and then (every 40 to 90 seconds), a small Waymo drives past outside the window, behind the frame and the menorah. Audrey says "Waymo!" as it passes.
 - Now and then (every 60 to 120 seconds), a steel Cybertruck drives past on the same road, and Eddie says "Cybertruck!" in a bubble for 4 seconds.
   If Eddie talks already, he says it after his line, while the truck still shows. Only one car is on the road at a time.
   A car that comes while the other car drives waits until the road is clear, then 3 seconds more.
