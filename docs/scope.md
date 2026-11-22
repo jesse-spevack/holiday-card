@@ -46,6 +46,22 @@ Nothing on screen points to these.
 - With reduced motion, the Waymo stops in the window for a few seconds, and the star does not move.
 - Code: `public/js/eggs.js`. The tap areas are `HOTSPOTS` in `public/js/scene.js`. The first match wins, so a small thing goes before a big thing around it.
 
+## Dreidel game (a hidden extra)
+
+- Two small dreidels stand on the window sill, beside the menorah. A tap on either one grows it to fill the screen.
+- A tap on the dreidel, Space, or Enter spins it. It whirrs, slows, wobbles with wooden ticks, and falls on one side with a clack.
+  Each side has the same chance.
+- The words under it show the letter, its name, and its meaning: Nun "Nothing happens", Gimel "Take it all!", Hei "Take half", Shin "Put one in".
+- A pot and the guest's pile of gelt change with each result. The gelt is pretend. Nun changes nothing, Gimel takes the pot, Hei takes half (rounded up), and Shin puts one in.
+  After a result, a gold +n or -n shows next to each count that changed.
+- Before a spin, an empty pot gets 2 gelt, and a guest with no gelt gets 5. A short line says so, for example "The pot refills with two gelt.".
+- The close button, Escape, or a tap outside the game closes it, and the dreidel shrinks back to the sill.
+- With reduced motion, the game fades in, and a spin fades to the result with no whirr.
+- The dreidel is a small 3D model drawn pixel by pixel in code at 88x72, then scaled by a whole number. The letters are 12-pixel bitmaps.
+- Code: `public/js/dreidel.js` (the game), `public/js/dreidel-art.js` (the pixels), `public/js/dreidel-sound.js` (the sounds), `public/dreidel.css`.
+  The gelt coin sounds are `gelt-pile` and `gelt-few` in `public/assets/sounds/`, from the same Kenney pack.
+- For a test, `?test` exposes the game as `window.__hc.dreidel`. Set `rig = { face: "gimel", speed: 6 }` to choose the side and run the clock faster.
+
 ## Privacy
 
 - The party shows the household name only.

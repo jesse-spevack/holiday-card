@@ -18,6 +18,7 @@ The pixel-art living room party is decoration and a thank-you.
 | Sound effects | `public/js/sound.js` |
 | Snowy night around the room (sky, roof, greeting) | `public/js/night.js`, `public/night.css` |
 | Hidden photo album (the book on the sofa) | `public/js/album.js`, `public/album.css`, `src/album.ts` |
+| Hidden dreidel game (the dreidels on the window sill) | `public/js/dreidel.js`, `public/js/dreidel-art.js`, `public/js/dreidel-sound.js`, `public/dreidel.css` |
 | Hidden room extras (Waymo, shooting star, menorah, floor lamp) | `public/js/eggs.js`, with the tap areas in `HOTSPOTS` in `public/js/scene.js` |
 | Markup and styles | `public/index.html`, `public/style.css` |
 | Server (Cloudflare Worker) | `src/worker.ts` and the files next to it |

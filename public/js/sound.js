@@ -1,4 +1,5 @@
 // Small sound effects made with Web Audio. The photo album also plays a few recorded book sounds.
+// The dreidel game makes its own sounds in dreidel-sound.js, and plays its gelt recordings from here.
 
 const KEY = "hc.sound";
 
@@ -71,7 +72,7 @@ export class Sound {
     if (this.samples || !this.ctx) return;
     const ctx = this.ctx;
     this.samples = {};
-    for (const name of [...FLIPS, "book-open", "book-close"]) {
+    for (const name of [...FLIPS, "book-open", "book-close", ...GELT]) {
       fetch(`/assets/sounds/${name}.m4a`)
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${name}: ${r.status}`))))
         .then((data) => ctx.decodeAudioData(data))
@@ -134,6 +135,8 @@ export class Sound {
 
 // Page turns from Kenney's RPG Audio pack (CC0). See public/assets/sounds/LICENSE.txt.
 const FLIPS = ["book-flip-1", "book-flip-2", "book-flip-3"];
+// Gelt coins for the dreidel game, from the same pack.
+const GELT = ["gelt-pile", "gelt-few"];
 
 // One second of pink noise for each audio context. Every swish starts at a random place in it.
 // Pink noise has less hiss than white noise, so the swish sounds like soft paper.

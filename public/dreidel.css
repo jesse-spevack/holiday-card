@@ -1,0 +1,135 @@
+/* The hidden dreidel game (public/js/dreidel.js). The page loads this file only when a guest opens the game. */
+.dreidel {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.dreidel[hidden], .dreidel [hidden] { display: none !important; }
+.dreidel:focus { outline: none; }
+.dreidel-shade { position: absolute; inset: 0; background: rgba(15, 14, 28, 0.95); }
+
+.dreidel-stage {
+  position: absolute;
+  inset: 0;
+  padding: max(64px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* The play area: the dreidel on the sill, and the words under it, in the frame of the hosts' dialog box. */
+.dreidel-card {
+  pointer-events: auto;
+  display: block;
+  width: calc(var(--card-w) + 8px);
+  padding: 0;
+  background: var(--panel);
+  color: var(--ink);
+  border: 4px solid var(--ink);
+  box-shadow: 0 0 0 4px var(--night), 0 12px 0 4px rgba(0, 0, 0, 0.3);
+  font-family: var(--pixel);
+  text-align: left;
+  cursor: pointer;
+  transform-origin: 0 0;
+}
+.dreidel-card:focus { outline: none; }
+.dreidel-card:focus-visible { outline: 3px solid var(--gold); outline-offset: 6px; }
+.dreidel-canvas {
+  display: block;
+  width: var(--card-w);
+  height: var(--canvas-h);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.dreidel-panel {
+  border-top: 4px solid var(--ink);
+  padding: 12px 16px 10px;
+}
+.dreidel-result {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+}
+.dreidel-letter {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: var(--night);
+  border: 2px solid var(--line);
+}
+.dreidel-words { min-width: 0; }
+.dreidel-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--gold);
+}
+.dreidel-says {
+  margin: 2px 0 0;
+  font-size: 19px;
+  line-height: 1.3;
+  min-height: 1.3em;
+}
+.dreidel[data-state="idle"] .dreidel-name { animation: dreidel-blink 1.6s steps(1) infinite; }
+@keyframes dreidel-blink { 70% { opacity: 0.45; } }
+.dreidel-result:has(.dreidel-letter:not([hidden])) .dreidel-name { font-size: 24px; }
+
+.dreidel-note {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+.dreidel-note:empty { display: none; }
+
+/* The gelt counts use Silkscreen, which has clear digits at a small size. */
+.dreidel-gelt {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-family: var(--label);
+  font-size: 14px;
+  color: var(--muted);
+}
+.dreidel-change { color: var(--gold); margin: 0 0.5em; }
+.dreidel-change:empty { display: none; }
+
+.dreidel-close {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--night);
+  color: var(--ink);
+  border: 2px solid var(--line);
+  cursor: pointer;
+}
+.dreidel-close:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dreidel[data-state="idle"] .dreidel-name { animation: none; }
+}
+
+/* On a big screen the words grow with the dreidel. */
+.dreidel.big .dreidel-panel { padding: 16px 22px 14px; }
+.dreidel.big .dreidel-letter { width: 84px; height: 84px; }
+.dreidel.big .dreidel-result { min-height: 88px; gap: 20px; }
+.dreidel.big .dreidel-name, .dreidel.big .dreidel-result:has(.dreidel-letter:not([hidden])) .dreidel-name { font-size: 32px; }
+.dreidel.big .dreidel-says { font-size: 25px; }
+.dreidel.big .dreidel-gelt { font-size: 18px; margin-top: 14px; }
+.dreidel.big .dreidel-note { font-size: 19px; }

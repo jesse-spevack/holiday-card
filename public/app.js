@@ -1,8 +1,9 @@
-import { Scene, HOSTS, HOST_LINES, ROOM_W, ROOM_H, loadImage } from "./js/scene.js";
+import { Scene, HOSTS, HOST_LINES, ROOM_W, ROOM_H, loadImage, DREIDELS } from "./js/scene.js";
 import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
 import { openPicker } from "./js/picker.js";
 import { Album } from "./js/album.js";
+import { Dreidel } from "./js/dreidel.js";
 import { Eggs } from "./js/eggs.js";
 import { react } from "./js/pets.js";
 import { Night } from "./js/night.js";
@@ -15,7 +16,12 @@ const app = $("app");
 const dialog = $("dialog");
 const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => { scene.bookHidden = !on; } });
 scene.eggs = new Eggs({ scene, sound, reducedMotion });
-scene.onHotspot = (id) => (id === "book" ? album.open() : scene.eggs.tap(id));
+const dreidel = new Dreidel({ sound, reducedMotion });
+scene.onHotspot = (id) => {
+  if (id === "book") album.open();
+  else if (DREIDELS[id]) dreidel.open(() => scene.roomRect(DREIDELS[id]));
+  else scene.eggs.tap(id);
+};
 const night = new Night({ stage: $("stage"), reducedMotion });
 scene.onLayout = (view) => night.layout(view);
 const again = $("again");
@@ -563,5 +569,5 @@ async function start() {
   }
 }
 
-if (new URLSearchParams(location.search).has("test")) window.__hc = { scene, state, sound };
+if (new URLSearchParams(location.search).has("test")) window.__hc = { scene, state, sound, dreidel };
 start();
