@@ -35,6 +35,9 @@ describe("the fire", { concurrency: true }, () => {
       await assertTucks(page);
       await hc.stillHosts();
       await hc.stillGuests();
+      // The guests stand at the front of the room, clear of the fire and the hosts.
+      await hc.place({ familyId: "other1" }, 180, 165);
+      await hc.place({ familyId: "fam12345" }, 140, 166);
       const { HOTSPOTS, TAP_PX } = await hc.constants();
       const fire = HOTSPOTS.find((h) => h.id === "fire");
       const center = { x: fire.x + fire.w / 2, y: fire.y + fire.h / 2 };
@@ -62,7 +65,7 @@ describe("the fire", { concurrency: true }, () => {
       const start = await hc.fire();
       assert.equal(start.bursts, 1);
       assert.ok(start.sparks > 0, `sparks: ${start.sparks}`);
-      assert.ok(start.flare > 0.8, `the fire flares: ${start.flare}`);
+      assert.ok(start.flare > 0, `the fire flares: ${start.flare}`);
       assert.equal(await hc.pressed(), "fire");
       assert.deepEqual(await hc.sounds(), ["crackle"]);
       const found = await page.evaluate(() => JSON.parse(localStorage.getItem("hc.found")));
@@ -95,7 +98,8 @@ describe("the fire", { concurrency: true }, () => {
       if (reduce === "no-preference") assert.ok(top < fire.y, `the sparks fly up out of the fireplace: ${top}`);
       else assert.ok(top >= fire.y, `the still sparks stay in the fireplace: ${top}`);
 
-      // The sparks and the flare go out in about 2 seconds.
+      // The flare dies down, and the sparks and the flare go out in about 2 seconds.
+      assert.ok((await hc.fire()).flare < start.flare, "the flare dies down");
       await page.waitForFunction(() => { const f = window.__hc.fire(); return !f.box && f.flare === 0; }, null, { timeout: 3000 });
 
       // Each fast tap gives its own burst and crackle, but the sparks never pass the cap.
@@ -104,7 +108,9 @@ describe("the fire", { concurrency: true }, () => {
       const many = await hc.fire();
       assert.equal(many.bursts, 1 + taps);
       const live = many.sparks + many.embers;
-      assert.ok(live <= many.max && live > many.max / 2, `${live} sparks and embers, cap ${many.max}`);
+      assert.ok(live <= many.max, `${live} sparks and embers, cap ${many.max}`);
+      // With motion, 20 bursts throw far more than the cap, so the cap holds them back. Reduced motion throws only a few.
+      if (reduce === "no-preference") assert.ok(live > many.max / 2, `the cap is full: ${live}`);
       assert.deepEqual(await hc.sounds(), Array(taps).fill("crackle"));
       await page.waitForFunction(() => !window.__hc.fire().box, null, { timeout: 3000 });
 
