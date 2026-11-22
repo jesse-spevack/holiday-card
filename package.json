@@ -8,8 +8,10 @@
     "deploy": "scripts/deploy.sh",
     "test": "vitest run",
     "e2e": "node test/e2e.mjs",
-    "typecheck": "tsc --noEmit",
-    "db:migrate": "wrangler d1 migrations apply holiday-card --remote"
+    "typecheck": "pnpm types && tsc --noEmit",
+    "db:migrate": "wrangler d1 migrations apply holiday-card --remote",
+    "types": "wrangler types --env-file .dev.vars.example",
+    "postinstall": "pnpm types"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.6.0",

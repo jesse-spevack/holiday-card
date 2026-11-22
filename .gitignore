@@ -1,6 +1,16 @@
 node_modules/
 .wrangler/
-.dev.vars
-apps-script/Secret.js
 build/
 __pycache__/
+.DS_Store
+
+# Local secrets. Never commit them: the repo is public.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+apps-script/Secret.js
+
+# pnpm types makes it from wrangler.jsonc and .dev.vars.example.
+worker-configuration.d.ts
