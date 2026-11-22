@@ -83,6 +83,163 @@
    "w": 20,
    "h": 35,
    "desc": "man, beard, glasses, red sweater"
+  },
+  {
+   "id": "adult-13",
+   "src": "assets/looks/adult-13.png",
+   "w": 18,
+   "h": 30,
+   "desc": "man, bald, gray beard, mustard cardigan"
+  },
+  {
+   "id": "adult-14",
+   "src": "assets/looks/adult-14.png",
+   "w": 19,
+   "h": 32,
+   "desc": "older woman, silver hair, red glasses"
+  },
+  {
+   "id": "adult-15",
+   "src": "assets/looks/adult-15.png",
+   "w": 18,
+   "h": 36,
+   "desc": "man, undercut, black puffer vest"
+  },
+  {
+   "id": "adult-16",
+   "src": "assets/looks/adult-16.png",
+   "w": 19,
+   "h": 37,
+   "desc": "woman, long braid, emerald sweater"
+  },
+  {
+   "id": "adult-17",
+   "src": "assets/looks/adult-17.png",
+   "w": 20,
+   "h": 38,
+   "desc": "man, red curls, plaid flannel"
+  },
+  {
+   "id": "adult-19",
+   "src": "assets/looks/adult-19.png",
+   "w": 19,
+   "h": 34,
+   "desc": "woman, yellow head wrap"
+  },
+  {
+   "id": "adult-20",
+   "src": "assets/looks/adult-20.png",
+   "w": 20,
+   "h": 33,
+   "desc": "man, long hair, gray beanie"
+  },
+  {
+   "id": "adult-21",
+   "src": "assets/looks/adult-21.png",
+   "w": 20,
+   "h": 30,
+   "desc": "grandpa, white beard, suspenders"
+  },
+  {
+   "id": "adult-22",
+   "src": "assets/looks/adult-22.png",
+   "w": 19,
+   "h": 39,
+   "desc": "woman, blond ponytail, purple jacket"
+  },
+  {
+   "id": "adult-23",
+   "src": "assets/looks/adult-23.png",
+   "w": 20,
+   "h": 36,
+   "desc": "man, navy turban, beard"
+  },
+  {
+   "id": "adult-24",
+   "src": "assets/looks/adult-24.png",
+   "w": 21,
+   "h": 35,
+   "desc": "woman, curly hair, snowflake sweater"
+  },
+  {
+   "id": "adult-25",
+   "src": "assets/looks/adult-25.png",
+   "w": 20,
+   "h": 32,
+   "desc": "robot",
+   "silly": true
+  },
+  {
+   "id": "adult-26",
+   "src": "assets/looks/adult-26.png",
+   "w": 20,
+   "h": 36,
+   "desc": "green alien",
+   "silly": true
+  },
+  {
+   "id": "adult-27",
+   "src": "assets/looks/adult-27.png",
+   "w": 24,
+   "h": 36,
+   "desc": "astronaut",
+   "silly": true
+  },
+  {
+   "id": "adult-28",
+   "src": "assets/looks/adult-28.png",
+   "w": 25,
+   "h": 40,
+   "desc": "wizard",
+   "silly": true
+  },
+  {
+   "id": "adult-29",
+   "src": "assets/looks/adult-29.png",
+   "w": 32,
+   "h": 39,
+   "desc": "snowman",
+   "silly": true
+  },
+  {
+   "id": "adult-30",
+   "src": "assets/looks/adult-30.png",
+   "w": 20,
+   "h": 36,
+   "desc": "knight",
+   "silly": true
+  },
+  {
+   "id": "adult-31",
+   "src": "assets/looks/adult-31.png",
+   "w": 27,
+   "h": 34,
+   "desc": "dinosaur costume",
+   "silly": true
+  },
+  {
+   "id": "adult-32",
+   "src": "assets/looks/adult-32.png",
+   "w": 24,
+   "h": 30,
+   "desc": "ghost",
+   "silly": true
+  },
+  {
+   "id": "adult-33",
+   "src": "assets/looks/adult-33.png",
+   "w": 22,
+   "h": 33,
+   "desc": "vampire",
+   "silly": true
+  },
+  {
+   "id": "adult-34",
+   "src": "assets/looks/adult-34.png",
+   "w": 32,
+   "h": 36,
+   "desc": "yeti",
+   "silly": true
   }
  ],
  "kid": [
@@ -134,6 +291,102 @@
    "w": 21,
    "h": 28,
    "desc": "child, dark bob, yellow jacket"
+  },
+  {
+   "id": "kid-08",
+   "src": "assets/looks/kid-08.png",
+   "w": 20,
+   "h": 30,
+   "desc": "girl, glasses, teal hoodie"
+  },
+  {
+   "id": "kid-09",
+   "src": "assets/looks/kid-09.png",
+   "w": 19,
+   "h": 31,
+   "desc": "boy, afro, red hoodie"
+  },
+  {
+   "id": "kid-10",
+   "src": "assets/looks/kid-10.png",
+   "w": 17,
+   "h": 29,
+   "desc": "girl, pink hijab, purple coat"
+  },
+  {
+   "id": "kid-11",
+   "src": "assets/looks/kid-11.png",
+   "w": 17,
+   "h": 32,
+   "desc": "boy, blond, green sweater"
+  },
+  {
+   "id": "kid-12",
+   "src": "assets/looks/kid-12.png",
+   "w": 18,
+   "h": 32,
+   "desc": "teen girl, headphones"
+  },
+  {
+   "id": "kid-13",
+   "src": "assets/looks/kid-13.png",
+   "w": 20,
+   "h": 29,
+   "desc": "child, red snowsuit"
+  },
+  {
+   "id": "kid-14",
+   "src": "assets/looks/kid-14.png",
+   "w": 17,
+   "h": 31,
+   "desc": "teen boy, varsity jacket"
+  },
+  {
+   "id": "kid-15",
+   "src": "assets/looks/kid-15.png",
+   "w": 18,
+   "h": 29,
+   "desc": "robot kid",
+   "silly": true
+  },
+  {
+   "id": "kid-16",
+   "src": "assets/looks/kid-16.png",
+   "w": 20,
+   "h": 26,
+   "desc": "purple alien kid",
+   "silly": true
+  },
+  {
+   "id": "kid-17",
+   "src": "assets/looks/kid-17.png",
+   "w": 21,
+   "h": 29,
+   "desc": "kid in dinosaur costume",
+   "silly": true
+  },
+  {
+   "id": "kid-18",
+   "src": "assets/looks/kid-18.png",
+   "w": 18,
+   "h": 29,
+   "desc": "kid superhero",
+   "silly": true
+  },
+  {
+   "id": "kid-19",
+   "src": "assets/looks/kid-19.png",
+   "w": 18,
+   "h": 28,
+   "desc": "kid ninja",
+   "silly": true
+  },
+  {
+   "id": "kid-20",
+   "src": "assets/looks/kid-20.png",
+   "w": 16,
+   "h": 28,
+   "desc": "teen, pink pixie cut, denim jacket"
   }
  ],
  "baby": [
@@ -157,6 +410,27 @@
    "w": 18,
    "h": 26,
    "desc": "toddler, pompom hat, snowsuit"
+  },
+  {
+   "id": "baby-04",
+   "src": "assets/looks/baby-04.png",
+   "w": 18,
+   "h": 26,
+   "desc": "toddler, bear onesie"
+  },
+  {
+   "id": "baby-05",
+   "src": "assets/looks/baby-05.png",
+   "w": 16,
+   "h": 26,
+   "desc": "toddler, snowflake onesie"
+  },
+  {
+   "id": "baby-06",
+   "src": "assets/looks/baby-06.png",
+   "w": 17,
+   "h": 26,
+   "desc": "toddler, pink bow"
   }
  ],
  "dog": [
@@ -201,6 +475,50 @@
    "w": 17,
    "h": 21,
    "desc": "corgi with blue scarf"
+  },
+  {
+   "id": "dog-07",
+   "src": "assets/looks/dog-07.png",
+   "w": 16,
+   "h": 21,
+   "desc": "pug"
+  },
+  {
+   "id": "dog-08",
+   "src": "assets/looks/dog-08.png",
+   "w": 18,
+   "h": 21,
+   "desc": "husky"
+  },
+  {
+   "id": "dog-09",
+   "src": "assets/looks/dog-09.png",
+   "w": 18,
+   "h": 20,
+   "desc": "poodle"
+  },
+  {
+   "id": "dog-10",
+   "src": "assets/looks/dog-10.png",
+   "w": 20,
+   "h": 22,
+   "desc": "beagle"
+  },
+  {
+   "id": "dog-11",
+   "src": "assets/looks/dog-11.png",
+   "w": 19,
+   "h": 23,
+   "desc": "robot dog",
+   "silly": true
+  },
+  {
+   "id": "dog-12",
+   "src": "assets/looks/dog-12.png",
+   "w": 20,
+   "h": 21,
+   "desc": "baby dragon",
+   "silly": true
   }
  ],
  "cat": [
@@ -224,6 +542,43 @@
    "w": 20,
    "h": 22,
    "desc": "gray and white cat"
+  },
+  {
+   "id": "cat-04",
+   "src": "assets/looks/cat-04.png",
+   "w": 19,
+   "h": 22,
+   "desc": "calico cat"
+  },
+  {
+   "id": "cat-05",
+   "src": "assets/looks/cat-05.png",
+   "w": 21,
+   "h": 23,
+   "desc": "siamese cat"
+  },
+  {
+   "id": "cat-06",
+   "src": "assets/looks/cat-06.png",
+   "w": 17,
+   "h": 23,
+   "desc": "tuxedo cat"
+  },
+  {
+   "id": "cat-07",
+   "src": "assets/looks/cat-07.png",
+   "w": 14,
+   "h": 23,
+   "desc": "alien cat",
+   "silly": true
+  },
+  {
+   "id": "cat-08",
+   "src": "assets/looks/cat-08.png",
+   "w": 20,
+   "h": 21,
+   "desc": "penguin",
+   "silly": true
   }
  ]
 }
