@@ -259,9 +259,9 @@ describe("the form", { concurrency: true }, () => {
     // The room grows into the dialog's column as the column slides away, so wait for the end of the move.
     await page.waitForFunction((w) => document.getElementById("stage").getBoundingClientRect().width > w + 300, stageWidth, { timeout: 3000 }).catch(() => {});
     await assertWholeRoom(page, "desktop, thank-you hidden");
-    // The stage grows into the column over a short transition, so wait for it. A slow machine takes longer.
-    await page.waitForFunction((w) => document.getElementById("stage").getBoundingClientRect().width > w + 300, stageWidth, { timeout: 5000 }).catch(() => {});
-    assert.ok((await wholeRoom(page)).stage[2] > stageWidth + 300, `the stage grows: ${stageWidth} to ${(await wholeRoom(page)).stage[2]}`);
+    // This page has reduced motion, so the column does not slide: the stage has its new width at once.
+    const grown = await wholeRoom(page);
+    assert.ok(grown.stage[2] > stageWidth + 300, `the stage grows from ${stageWidth}: ${JSON.stringify(grown)}`);
     await assertWholeRoom(page, "desktop, room grown");
     // a wide desktop has no bands above and below the room, so it stays plain
     assert.deepEqual(await nightState(page), { sky: false, greeting: false });
