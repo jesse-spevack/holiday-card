@@ -32,6 +32,17 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter ho
 - To change the album, edit `captions.json` and run `python3 art/scripts/album.py`. It makes web copies with no metadata, uploads them, and removes old ones.
   The pages go in photo date order. A `date` in `captions.json` places a photo that has no date.
 
+## Room extras (hidden)
+
+Nothing on screen points to these.
+
+- Now and then (every 40 to 90 seconds), a small Waymo drives past outside the window, behind the frame and the menorah.
+- A tap on the window sends a shooting star across the night sky, and "Make a wish" shows under the window for about 2 seconds.
+- A tap on the menorah puts the flames out. Then the candles light one by one, the shamash first, with a chime that goes up each time.
+- A tap on the floor lamp turns it off. The room goes dark blue, and the fire and the candles glow. A second tap turns it on.
+- With reduced motion, the Waymo stops in the window for a few seconds, and the star does not move.
+- Code: `public/js/eggs.js`. The tap areas are `HOTSPOTS` in `public/js/scene.js`. The first match wins, so a small thing goes before a big thing around it.
+
 ## Privacy
 
 - The party shows the household name only.

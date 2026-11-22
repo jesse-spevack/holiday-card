@@ -3,6 +3,7 @@ import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
 import { openPicker } from "./js/picker.js";
 import { Album } from "./js/album.js";
+import { Eggs } from "./js/eggs.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -11,7 +12,8 @@ const scene = new Scene({ stage: $("stage"), world: $("world"), canvas: $("canva
 const app = $("app");
 const dialog = $("dialog");
 const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => { scene.bookHidden = !on; } });
-scene.onBook = () => album.open();
+scene.eggs = new Eggs({ scene, sound, reducedMotion });
+scene.onHotspot = (id) => (id === "book" ? album.open() : scene.eggs.tap(id));
 const again = $("again");
 const TUCK_MS = 7000;
 const SAVED = "hc.families";

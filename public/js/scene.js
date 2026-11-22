@@ -10,11 +10,18 @@ const DOOR = { x: 127, y: 200 };
 const DOOR_WAIT = { x: 128, y: 182 };
 const WINDOW_PANES = [[167, 184], [190, 212], [217, 236]];
 const WINDOW_Y = [9, 44];
-const FIRE = { x: 112, y: 44, w: 32, h: 24 };
+export const FIRE = { x: 112, y: 44, w: 32, h: 24 };
 const CANDLES = { x0: 188, y0: 34, x1: 212, y1: 46 };
 // The photo album on the sofa (art/scripts/book.py). Its cover is the top 12x8 pixels.
-// The tap area is bigger than the book, so a finger finds it on a phone.
-const BOOK = { x: 43, y: 99, w: 12, h: 8, pad: 5 };
+const BOOK = { x: 43, y: 99, w: 12, h: 8 };
+// Hidden things a tap finds, in room pixels. The first match wins, so put a small thing before a big one around it.
+// Each area is a little bigger than its thing, so a finger finds it on a phone.
+export const HOTSPOTS = [
+  { id: "book", x: 38, y: 94, w: 23, h: 23 },
+  { id: "lamp", x: 23, y: 26, w: 22, h: 51 },
+  { id: "menorah", x: 194, y: 37, w: 17, h: 16 },
+  { id: "window", x: 162, y: 6, w: 80, h: 38 },
+];
 
 export const HOSTS = [
   { id: "jessica", name: "Jess", x: 153, y: 130 },
@@ -60,7 +67,8 @@ export class Scene {
     this.time = 0;
     this.onTap = () => {};
     this.onHover = () => {};
-    this.onBook = () => {};
+    this.onHotspot = () => {};
+    this.eggs = null;
     this.bookHidden = false;
     stage.addEventListener("pointerup", (e) => this.handleTap(e));
     // Hover labels are for a mouse only. A phone shows them on tap.
@@ -78,6 +86,7 @@ export class Scene {
     const pixels = roomPixels(this.room);
     this.flames = flamePixels(pixels);
     this.glass = glassMask(pixels);
+    this.eggs?.prepare(pixels);
     loadImage("/assets/book.png").then((img) => { this.book = img; }, () => {});
     this.layout();
     requestAnimationFrame((t) => this.frame(t));
@@ -257,6 +266,7 @@ export class Scene {
       f.x += f.drift * dt;
       if (f.y > WINDOW_Y[1] || f.x < f.pane[0] || f.x > f.pane[1]) Object.assign(f, this.newFlake());
     }
+    this.eggs?.update(dt);
   }
 
   draw() {
@@ -265,6 +275,7 @@ export class Scene {
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
     g.drawImage(this.room, 0, 0);
+    this.eggs?.drawBack(g);
 
     // snow in the window, only on the glass, never over the frame or the menorah
     g.fillStyle = "#ffffff";
@@ -274,31 +285,9 @@ export class Scene {
       if (this.glass.has(y * ROOM_W + x)) g.fillRect(x, y, 1, 1);
     }
 
-    // fire and candle flicker
-    const flicker = 0.5 + 0.5 * Math.sin(this.time * 9) * Math.sin(this.time * 5.3 + 1);
-    g.globalCompositeOperation = "lighter";
-    g.globalAlpha = 0.06 + 0.06 * flicker;
-    g.fillStyle = "#ffb050";
-    g.fillRect(FIRE.x, FIRE.y, FIRE.w, FIRE.h);
-    g.globalAlpha = 0.05 + 0.05 * flicker;
-    g.beginPath();
-    g.ellipse(128, 88, 34, 9, 0, 0, Math.PI * 2);
-    g.fill();
-    g.globalCompositeOperation = "source-over";
-    g.globalAlpha = 1;
-
+    this.drawGlow(g);
     if (this.book && !this.bookHidden) g.drawImage(this.book, BOOK.x, BOOK.y);
-
-    // each candle flame flickers on its own: a bright core and a tip that comes and goes
-    this.flames.forEach(({ x, y }, i) => {
-      const wave = Math.sin(this.time * (7 + i) + i * 1.7) + Math.sin(this.time * 3.1 + i);
-      g.fillStyle = wave > 0 ? "#fff4c2" : "#ffd36b";
-      g.fillRect(x, y, 1, 1);
-      if (wave > -0.6) {
-        g.fillStyle = wave > 0.8 ? "#ffe9a0" : "#f6b74a";
-        g.fillRect(x, y - 1, 1, 1);
-      }
-    });
+    this.drawFlames(g);
 
     // shadows, then sprites from back to front
     const visible = this.sprites.filter((s) => s.img && this.time >= s.popAt);
@@ -324,6 +313,41 @@ export class Scene {
         g.drawImage(s.img, x, y);
       }
     }
+    this.eggs?.drawFront(g);
+  }
+
+  flicker() {
+    return 0.5 + 0.5 * Math.sin(this.time * 9) * Math.sin(this.time * 5.3 + 1);
+  }
+
+  drawGlow(g) {
+    const flicker = this.flicker();
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 0.06 + 0.06 * flicker;
+    g.fillStyle = "#ffb050";
+    g.fillRect(FIRE.x, FIRE.y, FIRE.w, FIRE.h);
+    g.globalAlpha = 0.05 + 0.05 * flicker;
+    g.beginPath();
+    g.ellipse(128, 88, 34, 9, 0, 0, Math.PI * 2);
+    g.fill();
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+  }
+
+  // Each candle flame flickers on its own: a bright core and a tip that comes and goes.
+  // A flame that was just lit shows only a small dim core for a moment.
+  drawFlames(g) {
+    this.flames.forEach(({ x, y }, i) => {
+      const state = this.eggs?.flame(i) ?? "lit";
+      if (state === "out") return;
+      const wave = Math.sin(this.time * (7 + i) + i * 1.7) + Math.sin(this.time * 3.1 + i);
+      g.fillStyle = state === "new" ? "#f6b74a" : wave > 0 ? "#fff4c2" : "#ffd36b";
+      g.fillRect(x, y, 1, 1);
+      if (state === "lit" && wave > -0.6) {
+        g.fillStyle = wave > 0.8 ? "#ffe9a0" : "#f6b74a";
+        g.fillRect(x, y - 1, 1, 1);
+      }
+    });
   }
 
   // ---- HTML on top: bubbles, nametags, popovers ----
@@ -453,8 +477,10 @@ export class Scene {
     return hits[0] || null;
   }
 
-  bookAt(x, y) {
-    return x >= BOOK.x - BOOK.pad && x <= BOOK.x + BOOK.w + BOOK.pad && y >= BOOK.y - BOOK.pad && y <= BOOK.y + BOOK.h + BOOK.pad + 4;
+  hotspotAt(x, y) {
+    const spot = HOTSPOTS.find((s) => x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h);
+    if (spot?.id === "book" && (!this.book || this.bookHidden)) return null;
+    return spot?.id ?? null;
   }
 
   // Where the book's cover is on the screen now.
@@ -470,7 +496,8 @@ export class Scene {
     const sprite = this.spriteAt(p.x, p.y);
     if (!sprite) {
       this.closePop();
-      if (this.book && !this.bookHidden && this.bookAt(p.x, p.y)) this.onBook();
+      const spot = this.hotspotAt(p.x, p.y);
+      if (spot) this.onHotspot(spot);
       return;
     }
     this.onTap(sprite);

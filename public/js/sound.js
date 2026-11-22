@@ -86,6 +86,40 @@ export class Sound {
   }
 
   ready() { return this.on && this.ctx?.state === "running"; }
+
+  // A soft sparkle for a shooting star.
+  sparkle() { [1568, 2093, 2637, 3136, 4186].forEach((f, i) => this.tone(f, { at: i * 0.06, dur: 0.4, type: "sine", gain: 0.03 })); }
+
+  // A soft bell. Each step is one note higher on a pentatonic scale, from C5.
+  chime(step = 0) {
+    const semis = [0, 2, 4, 7, 9][step % 5] + 12 * Math.floor(step / 5);
+    const f = 523.25 * 2 ** (semis / 12);
+    this.tone(f, { dur: 0.8, type: "sine", gain: 0.05 });
+    this.tone(f * 2.76, { dur: 0.3, type: "sine", gain: 0.012 });
+  }
+
+  // A small breath that blows out candles.
+  snuff() {
+    if (!this.ready()) return;
+    const t = this.ctx.currentTime;
+    const puff = burst(this.ctx, this.ctx.destination, t, 0.35, "lowpass");
+    puff.filter.frequency.value = 900;
+    puff.gain.linearRampToValueAtTime(0.12, t + 0.06);
+    puff.gain.linearRampToValueAtTime(0, t + 0.35);
+  }
+
+  // A lamp switch: a press and a release.
+  click() {
+    if (!this.ready()) return;
+    [[0, 3000, 0.35], [0.05, 2200, 0.25]].forEach(([at, freq, peak]) => {
+      const t = this.ctx.currentTime + at;
+      const tick = burst(this.ctx, this.ctx.destination, t, 0.025, "bandpass");
+      tick.filter.frequency.value = freq;
+      tick.filter.Q.value = 1.5;
+      tick.gain.linearRampToValueAtTime(peak, t + 0.002);
+      tick.gain.exponentialRampToValueAtTime(0.0001, t + 0.025);
+    });
+  }
 }
 
 // Page turns from Kenney's RPG Audio pack (CC0). See public/assets/sounds/LICENSE.txt.
