@@ -1,6 +1,6 @@
 // Hidden extras in the living room. Nothing on screen points to them.
 // A light blue Waymo van drives past the window now and then. A tap on the window sends a shooting star,
-// a tap on the menorah lights it again, and a tap on the floor lamp turns it off and on.
+// a tap on the menorah lights it again and asks about miracles, and a tap on the floor lamp turns it off and on.
 // The tap areas are HOTSPOTS in scene.js.
 
 import { ROOM_W, ROOM_H, FIRE } from "./scene.js";
@@ -44,7 +44,11 @@ const CAR_PARKED = { x: 168, seconds: 5 };
 const WAYMO_GAP = [40, 90];
 
 const STAR = { tail: 14, seconds: 1, fade: 0.4, still: 1.4 };
-const WISH = { text: "Make a wish", x: 201, y: 61, ms: 2200 };
+// Words that show for a moment, centered on x with their top at y, in room pixels.
+// The wish sits high on the window glass, away from the menorah. It has no box, so the star shows around its letters.
+// The question sits under the sill, below the menorah.
+const WISH = { text: "Make a wish", x: 201, y: 10, ms: 2200, sky: true };
+const MIRACLES = { text: "What miracles are you grateful for?", x: 201, y: 61, ms: 3500 };
 const LIGHTING = { pause: 0.7, step: 0.45, grow: 0.18 };
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -143,7 +147,7 @@ export class Eggs {
       dy: rand(14, 20),
     };
     this.sound.sparkle();
-    this.showWish();
+    this.say(WISH);
   }
 
   drawStar(g) {
@@ -183,19 +187,23 @@ export class Eggs {
     g.globalAlpha = 1;
   }
 
-  showWish() {
-    this.wishEl?.remove();
-    clearTimeout(this.wishTimer);
+  // Only one set of words shows at a time: new words replace the old words, so they never overlap.
+  say(words) {
+    this.hush();
     const el = document.createElement("div");
-    el.className = "wish";
-    el.textContent = WISH.text;
+    el.className = words.sky ? "wish sky" : "wish";
+    el.textContent = words.text;
+    el.style.setProperty("--ms", `${words.ms}ms`);
     this.scene.overlay.append(el);
-    this.scene.pin(el, WISH.x, WISH.y);
-    this.wishEl = el;
-    this.wishTimer = setTimeout(() => {
-      el.remove();
-      if (this.wishEl === el) this.wishEl = null;
-    }, WISH.ms);
+    this.scene.pin(el, words.x, words.y);
+    this.words = { el, of: words };
+    this.wordsTimer = setTimeout(() => this.hush(), words.ms);
+  }
+
+  hush() {
+    clearTimeout(this.wordsTimer);
+    this.words?.el.remove();
+    this.words = null;
   }
 
   // ---- the menorah ----
@@ -207,6 +215,7 @@ export class Eggs {
     const rank = new Map(order.map((i, k) => [i, k]));
     this.lighting = { t0: this.scene.time, rank, played: 0, total: flames.length };
     this.wisps = flames.map(({ x, y }) => ({ x, y: y - 1, t0: this.scene.time }));
+    if (this.words?.of === MIRACLES) this.hush();
     this.sound.snuff();
   }
 
@@ -260,7 +269,10 @@ export class Eggs {
     if (l) {
       const due = Math.min(l.total, Math.floor((time - l.t0 - LIGHTING.pause) / LIGHTING.step) + 1);
       while (l.played < due) this.sound.chime(l.played++);
-      if (time > l.t0 + LIGHTING.pause + (l.total - 1) * LIGHTING.step + LIGHTING.grow) this.lighting = null;
+      if (time > l.t0 + LIGHTING.pause + (l.total - 1) * LIGHTING.step + LIGHTING.grow) {
+        this.lighting = null;
+        this.say(MIRACLES);
+      }
     }
   }
 
