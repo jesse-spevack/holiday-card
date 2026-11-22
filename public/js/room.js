@@ -66,6 +66,9 @@ export const PLANTS = {
   "plant-floor-small": { x: 34, y: 162, w: 13, h: 23, blooms: [[40, 165, "big"], [45, 170, "small"]] },
 };
 
+// The presents on the floor by the window. A tap gives a message from Eddie and Audrey (presents.js).
+export const PRESENTS = { x: 170, y: 66, w: 30, h: 26 };
+
 // Hidden things a tap finds. Each box is the thing as drawn, in room pixels.
 // The window is "back": it takes only the taps that no small thing in front of it takes.
 export const HOTSPOTS = [
@@ -78,6 +81,7 @@ export const HOTSPOTS = [
   ...Object.entries(PLANTS).map(([id, { x, y, w, h }]) => ({ id, x, y, w, h })),
   // The fireplace opening with its frame. A tap makes the fire crackle and throw sparks (fire.js).
   { id: "fire", ...FIRE },
+  { id: "presents", ...PRESENTS },
   { id: "window", x: 162, y: 6, w: 80, h: 38, back: true },
 ];
 

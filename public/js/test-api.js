@@ -6,8 +6,9 @@ import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
 import { HOTSPOTS, DREIDELS, FLOOR, WINDOW, PLANTS } from "./room.js";
 import { TOAST_LINES } from "./toast.js";
 import { CARS } from "./eggs.js";
+import { PRESENT_LINES } from "./presents.js";
 
-export function testApi({ scene, sound, eggs, dreidel, toast, plants, fire, album, found, tracking }) {
+export function testApi({ scene, sound, eggs, dreidel, toast, plants, fire, presents, album, found, tracking }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -23,6 +24,8 @@ export function testApi({ scene, sound, eggs, dreidel, toast, plants, fire, albu
     react: s.react ? { kind: s.react.kind, ago: scene.time - s.react.at } : null,
     bubble: s.bubbleEl?.textContent ?? null,
     bubbleBox: s.bubbleEl ? rect(s.bubbleEl.getBoundingClientRect()) : null,
+    // The bubble cuts off part of its text.
+    bubbleClipped: s.bubbleEl ? s.bubbleEl.scrollWidth > s.bubbleEl.clientWidth || s.bubbleEl.scrollHeight > s.bubbleEl.clientHeight : null,
     nameBox: s.nameEl ? rect(s.nameEl.getBoundingClientRect()) : null,
   });
   const toScreen = (x, y) => {
@@ -162,6 +165,9 @@ export function testApi({ scene, sound, eggs, dreidel, toast, plants, fire, albu
     // The fire: { bursts, sparks, embers, flare, moving, box, max, bounds }. flare goes from 1 right after a tap to 0.
     // box holds every spark and ember now, and bounds is the box they must stay in, both in room pixels.
     fire: () => fire.state(),
+    // The presents: { on, age, speaker, readyIn, lines: [{ name, text, at, seconds }] }. speaker is the kid whose turn it is now.
+    presents: () => presents.state(),
+    presentLines: () => PRESENT_LINES.map((l) => ({ ...l })),
     found: (...eggs) => { for (const egg of eggs) found.add(egg); },
     // The time in ms between two interaction calls for the same egg (app.js track). The page uses 5000.
     trackGap: (ms) => { tracking.gapMs = ms; },
