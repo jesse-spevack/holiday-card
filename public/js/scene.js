@@ -170,6 +170,7 @@ export class Scene {
 
   walkTo(sprite, x, y) {
     sprite.path = { x, y };
+    if (Math.abs(x - sprite.x) > 0.5) sprite.flip = x < sprite.x;
   }
 
   // Home now and then, else a new place, or a guest family for Jess and Jesse.
