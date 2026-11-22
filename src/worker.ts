@@ -1,14 +1,17 @@
 import { HttpError, field, json, limit, readJson } from "./http";
-import { parseFamily } from "./family-parser";
+import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./family-parser";
 import { lookUpAddress, suggestAddresses } from "./places";
-import { BUBBLE_MAX, addFamily, partyVersion, readParty, updateMember } from "./party";
+import { BUBBLE_MAX, addFamily, partyVersion, readParty, updateMember, type NewMember } from "./party";
 import { addContact } from "./sheet";
 import { verifyTurnstile } from "./turnstile";
 
+const LOOK_ID = /^[a-z0-9-]{1,40}$/;
+const PARTY_CACHE_SECONDS = 60;
+
 export default {
-  async fetch(request, env): Promise<Response> {
+  async fetch(request, env, ctx): Promise<Response> {
     try {
-      return await route(request, env);
+      return await route(request, env, ctx);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.code }, err.status);
       console.error("unhandled", err instanceof Error ? err.stack : String(err));
@@ -17,81 +20,113 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-async function route(request: Request, env: Env): Promise<Response> {
+async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
-  const key = `${request.method} ${url.pathname}`;
-
-  if (key === "GET /api/config") return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY, bubbleMax: BUBBLE_MAX });
-  if (key === "GET /api/party") return party(env, url);
-  if (key === "POST /api/places/suggest") return suggest(request, env);
-  if (key === "POST /api/places/address") return address(request, env);
-  if (key === "POST /api/join") return join(request, env);
-
-  const member = url.pathname.match(/^\/api\/members\/([\w-]{1,64})$/);
-  if (member && request.method === "POST") return changeMember(request, env, member[1]);
-
-  throw new HttpError(404, "not_found");
+  switch (`${request.method} ${url.pathname}`) {
+    case "GET /api/config":
+      return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY });
+    case "POST /api/household":
+      return household(request, env);
+    case "GET /api/places":
+      return places(request, env, url);
+    case "GET /api/place":
+      return place(request, env, url);
+    case "POST /api/submit":
+      return submit(request, env);
+    case "POST /api/sprite":
+      return sprite(request, env);
+    case "GET /api/party":
+      return party(request, env, ctx);
+    default:
+      throw new HttpError(404, "not_found");
+  }
 }
 
-async function party(env: Env, url: URL): Promise<Response> {
-  const version = await partyVersion(env.DB);
-  if (url.searchParams.get("since") === String(version)) return json({ version, unchanged: true });
-  return json({ version, families: await readParty(env.DB) });
+async function household(request: Request, env: Env): Promise<Response> {
+  await limit(env.HOUSEHOLD_LIMIT, request);
+  const text = field(await readJson(request), "text", { max: 400 });
+  return json({ members: await parseHousehold(env, text) });
 }
 
-async function suggest(request: Request, env: Env): Promise<Response> {
+async function places(request: Request, env: Env, url: URL): Promise<Response> {
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 120);
+  if (q.length < 3) return json({ suggestions: [] });
   await limit(env.PLACES_LIMIT, request);
-  const body = await readJson(request);
-  const input = field(body, "input", { max: 200 });
-  const sessionToken = field(body, "sessionToken", { max: 64 });
-  if (input.length < 3) return json({ suggestions: [] });
-  return json({ suggestions: await suggestAddresses(env, input, sessionToken) });
+  return json({ suggestions: await suggestAddresses(env, q, (url.searchParams.get("session") ?? "").slice(0, 64)) });
 }
 
-async function address(request: Request, env: Env): Promise<Response> {
+async function place(request: Request, env: Env, url: URL): Promise<Response> {
   await limit(env.PLACES_LIMIT, request);
-  const body = await readJson(request);
-  const placeId = field(body, "placeId", { max: 300 });
-  const sessionToken = field(body, "sessionToken", { max: 64 });
-  return json({ address: await lookUpAddress(env, placeId, sessionToken) });
+  const id = url.searchParams.get("id") ?? "";
+  return json({ address: await lookUpAddress(env, id, (url.searchParams.get("session") ?? "").slice(0, 64)) });
 }
 
-async function join(request: Request, env: Env): Promise<Response> {
+async function submit(request: Request, env: Env): Promise<Response> {
   await limit(env.WRITE_LIMIT, request);
   const body = await readJson(request);
+  const envelope = field(body, "envelope", { max: 120 });
+  const householdText = field(body, "household", { max: 400 });
+  const address = (body.address && typeof body.address === "object" ? body.address : {}) as Record<string, unknown>;
   const contact = {
-    name: field(body, "name", { max: 100 }),
-    household: field(body, "household", { max: 100 }),
-    street: field(body, "street", { max: 200 }),
-    unit: field(body, "unit", { max: 50, required: false }),
-    city: field(body, "city", { max: 100 }),
-    state: field(body, "state", { max: 2 }).toUpperCase(),
-    zip: field(body, "zip", { max: 10 }),
+    // The Sheet's name column holds who lives there, and its household column holds the envelope name.
+    name: householdText,
+    household: envelope,
+    street: field(address, "street", { max: 300 }),
+    unit: field(address, "unit", { max: 50, required: false }),
+    city: field(address, "city", { max: 100, required: false }),
+    state: field(address, "state", { max: 40, required: false }),
+    zip: field(address, "zip", { max: 20, required: false }),
   };
-  if (!/^[A-Z]{2}$/.test(contact.state)) throw new HttpError(400, "bad_state");
-  if (!/^\d{5}(-\d{4})?$/.test(contact.zip)) throw new HttpError(400, "bad_zip");
-  const familyText = field(body, "familyText", { max: 500 });
+  const members = readMembers(body.members);
 
   await verifyTurnstile(env, field(body, "turnstileToken", { max: 4096 }), request.headers.get("CF-Connecting-IP"));
-  // Parse first: a parse failure saves nothing, so the guest can retry without a duplicate row.
-  const members = await parseFamily(env, contact.name, familyText);
   await addContact(env, contact);
-  const family = await addFamily(env.DB, contact.household, familyText, members);
-
-  return json({ ...family, household: contact.household }, 201);
+  return json(await addFamily(env.DB, envelope, householdText, members), 201);
 }
 
-async function changeMember(request: Request, env: Env, memberId: string): Promise<Response> {
-  await limit(env.WRITE_LIMIT, request);
+function readMembers(raw: unknown): NewMember[] {
+  if (!Array.isArray(raw) || raw.length === 0) throw new HttpError(400, "missing_members");
+  return raw.slice(0, MAX_MEMBERS).map((m) => {
+    const type = KINDS.includes(m?.type) ? (m.type as Kind) : "adult";
+    const look = typeof m?.look === "string" && LOOK_ID.test(m.look) ? m.look : "";
+    return { type, look };
+  });
+}
+
+async function sprite(request: Request, env: Env): Promise<Response> {
+  await limit(env.SPRITE_LIMIT, request);
   const body = await readJson(request);
+  const id = field(body, "id", { max: 64 });
   const token = field(body, "token", { max: 100 });
-  const change: { look?: number; bubble?: string } = {};
+  const index = body.index;
+  if (!Number.isInteger(index) || (index as number) < 0 || (index as number) >= MAX_MEMBERS) throw new HttpError(400, "bad_index");
+
+  const change: { look?: string; bubble?: string } = {};
   if (body.look !== undefined) {
-    if (!Number.isInteger(body.look) || (body.look as number) < 0 || (body.look as number) > 9999) throw new HttpError(400, "bad_look");
-    change.look = body.look as number;
+    if (typeof body.look !== "string" || !LOOK_ID.test(body.look)) throw new HttpError(400, "bad_look");
+    change.look = body.look;
   }
   if (body.bubble !== undefined) change.bubble = field(body, "bubble", { max: BUBBLE_MAX, required: false });
 
-  await updateMember(env.DB, memberId, token, change);
+  await updateMember(env.DB, id, token, index as number, change);
   return json({ ok: true });
+}
+
+// Each change moves the party version, so the cache key changes with it and a cached party is never stale.
+async function party(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const version = await partyVersion(env.DB);
+  const key = new Request(new URL(`/api/party?v=${version}`, request.url).toString());
+  const cache = caches.default;
+  const hit = await cache.match(key);
+  if (hit) return partyResponse(await hit.text());
+
+  const body = JSON.stringify({ families: await readParty(env.DB) });
+  const cached = new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${PARTY_CACHE_SECONDS}` } });
+  ctx.waitUntil(cache.put(key, cached));
+  return partyResponse(body);
+}
+
+// The edge keeps a copy, but the browser must not, because the page polls for new families.
+function partyResponse(body: string): Response {
+  return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 }

@@ -2,134 +2,227 @@
  "adult": [
   {
    "id": "adult-01",
+   "src": "assets/looks/adult-01.png",
+   "w": 18,
+   "h": 33,
    "desc": "woman, box braids, mustard sweater"
   },
   {
    "id": "adult-02",
+   "src": "assets/looks/adult-02.png",
+   "w": 22,
+   "h": 38,
    "desc": "man, blond beard, green fleece"
   },
   {
    "id": "adult-03",
+   "src": "assets/looks/adult-03.png",
+   "w": 18,
+   "h": 33,
    "desc": "woman, lavender hijab, cream coat"
   },
   {
    "id": "adult-04",
+   "src": "assets/looks/adult-04.png",
+   "w": 20,
+   "h": 36,
    "desc": "man, glasses, navy sweater"
   },
   {
    "id": "adult-05",
+   "src": "assets/looks/adult-05.png",
+   "w": 21,
+   "h": 38,
    "desc": "woman, black bob, teal cardigan"
   },
   {
    "id": "adult-06",
+   "src": "assets/looks/adult-06.png",
+   "w": 20,
+   "h": 36,
    "desc": "man, ponytail, maroon hoodie"
   },
   {
    "id": "adult-07",
+   "src": "assets/looks/adult-07.png",
+   "w": 20,
+   "h": 31,
    "desc": "older woman, white curls, lilac cardigan"
   },
   {
    "id": "adult-08",
+   "src": "assets/looks/adult-08.png",
+   "w": 21,
+   "h": 35,
    "desc": "older man, gray hair, tweed vest"
   },
   {
    "id": "adult-09",
+   "src": "assets/looks/adult-09.png",
+   "w": 20,
+   "h": 35,
    "desc": "woman, ginger hair, sage turtleneck"
   },
   {
    "id": "adult-10",
+   "src": "assets/looks/adult-10.png",
+   "w": 25,
+   "h": 41,
    "desc": "woman, afro, orange puffer"
   },
   {
    "id": "adult-11",
+   "src": "assets/looks/adult-11.png",
+   "w": 24,
+   "h": 35,
    "desc": "woman, auburn curls, blue sweater"
   },
   {
    "id": "adult-12",
+   "src": "assets/looks/adult-12.png",
+   "w": 20,
+   "h": 35,
    "desc": "man, beard, glasses, red sweater"
   }
  ],
  "kid": [
   {
    "id": "kid-01",
+   "src": "assets/looks/kid-01.png",
+   "w": 21,
+   "h": 27,
    "desc": "girl, pigtails, purple coat"
   },
   {
    "id": "kid-02",
+   "src": "assets/looks/kid-02.png",
+   "w": 17,
+   "h": 29,
    "desc": "boy, red hair, glasses"
   },
   {
    "id": "kid-03",
+   "src": "assets/looks/kid-03.png",
+   "w": 16,
+   "h": 29,
    "desc": "boy, buzz cut, green vest"
   },
   {
    "id": "kid-04",
+   "src": "assets/looks/kid-04.png",
+   "w": 18,
+   "h": 30,
    "desc": "girl, braid, blue beanie"
   },
   {
    "id": "kid-05",
+   "src": "assets/looks/kid-05.png",
+   "w": 20,
+   "h": 30,
    "desc": "girl, blond curls, pink coat"
   },
   {
    "id": "kid-06",
+   "src": "assets/looks/kid-06.png",
+   "w": 18,
+   "h": 31,
    "desc": "boy, black bangs, yellow hoodie"
   },
   {
    "id": "kid-07",
+   "src": "assets/looks/kid-07.png",
+   "w": 21,
+   "h": 28,
    "desc": "child, dark bob, yellow jacket"
   }
  ],
  "baby": [
   {
    "id": "baby-01",
+   "src": "assets/looks/baby-01.png",
+   "w": 18,
+   "h": 26,
    "desc": "toddler, blue onesie"
   },
   {
    "id": "baby-02",
+   "src": "assets/looks/baby-02.png",
+   "w": 17,
+   "h": 26,
    "desc": "toddler, top knot, yellow romper"
   },
   {
    "id": "baby-03",
+   "src": "assets/looks/baby-03.png",
+   "w": 18,
+   "h": 26,
    "desc": "toddler, pompom hat, snowsuit"
   }
  ],
  "dog": [
   {
    "id": "dog-01",
+   "src": "assets/looks/dog-01.png",
+   "w": 19,
+   "h": 23,
    "desc": "golden retriever"
   },
   {
    "id": "dog-02",
+   "src": "assets/looks/dog-02.png",
+   "w": 16,
+   "h": 22,
    "desc": "border collie"
   },
   {
    "id": "dog-03",
+   "src": "assets/looks/dog-03.png",
+   "w": 18,
+   "h": 21,
    "desc": "dachshund in sweater"
   },
   {
    "id": "dog-04",
+   "src": "assets/looks/dog-04.png",
+   "w": 18,
+   "h": 21,
    "desc": "white bichon"
   },
   {
    "id": "dog-05",
+   "src": "assets/looks/dog-05.png",
+   "w": 17,
+   "h": 21,
    "desc": "chocolate lab"
   },
   {
    "id": "dog-06",
+   "src": "assets/looks/dog-06.png",
+   "w": 17,
+   "h": 21,
    "desc": "corgi with blue scarf"
   }
  ],
  "cat": [
   {
    "id": "cat-01",
+   "src": "assets/looks/cat-01.png",
+   "w": 17,
+   "h": 23,
    "desc": "orange tabby cat"
   },
   {
    "id": "cat-02",
+   "src": "assets/looks/cat-02.png",
+   "w": 18,
+   "h": 20,
    "desc": "black cat"
   },
   {
    "id": "cat-03",
+   "src": "assets/looks/cat-03.png",
+   "w": 20,
+   "h": 22,
    "desc": "gray and white cat"
   }
  ]

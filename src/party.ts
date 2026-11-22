@@ -1,68 +1,75 @@
 import { HttpError } from "./http";
-import type { Kind, ParsedMember } from "./family-parser";
+import type { Kind } from "./family-parser";
 
 export const BUBBLE_MAX = 40;
-const LOOK_RANGE = 1000;
 
-export type PartyMember = { id: string; kind: Kind; look: number; bubble: string };
-export type PartyFamily = { id: string; household: string; members: PartyMember[] };
+export type NewMember = { type: Kind; look: string };
+export type PartyFamily = { id: string; name: string; members: { type: Kind; look: string }[]; bubbles: string[] };
 
 export async function partyVersion(db: D1Database): Promise<number> {
   const row = await db.prepare("SELECT version FROM party_version WHERE id = 1").first<{ version: number }>();
   return row?.version ?? 0;
 }
 
-export async function addFamily(db: D1Database, household: string, familyText: string, members: ParsedMember[]) {
-  const familyId = crypto.randomUUID();
+export async function addFamily(db: D1Database, envelope: string, householdText: string, members: NewMember[]) {
+  const id = crypto.randomUUID();
   const token = randomToken();
-  const rows = members.map((m, position) => ({ id: crypto.randomUUID(), position, ...m, look: randomLook() }));
-
   await db.batch([
     db.prepare("INSERT INTO families (id, household, family_text, token_hash) VALUES (?, ?, ?, ?)")
-      .bind(familyId, household, familyText, await sha256(token)),
-    ...rows.map((r) =>
-      db.prepare("INSERT INTO members (id, family_id, position, name, kind, look) VALUES (?, ?, ?, ?, ?, ?)")
-        .bind(r.id, familyId, r.position, r.name, r.kind, r.look),
+      .bind(id, envelope, householdText, await sha256(token)),
+    ...members.map((m, position) =>
+      db.prepare("INSERT INTO members (id, family_id, position, kind, look) VALUES (?, ?, ?, ?, ?)")
+        .bind(crypto.randomUUID(), id, position, m.type, m.look),
     ),
   ]);
-
-  return { familyId, token, members: rows.map(({ id, kind, look }) => ({ id, kind, look, bubble: "" })) };
+  return { id, token };
 }
 
 export async function readParty(db: D1Database): Promise<PartyFamily[]> {
   const [families, members] = await db.batch<Record<string, unknown>>([
-    db.prepare("SELECT id, household FROM families ORDER BY created_at, rowid"),
-    db.prepare("SELECT id, family_id, kind, look, bubble, bubble_hidden FROM members ORDER BY family_id, position"),
+    db.prepare("SELECT id, household FROM families WHERE hidden = 0 ORDER BY created_at, rowid"),
+    db.prepare("SELECT family_id, kind, look, bubble, bubble_hidden FROM members ORDER BY family_id, position"),
   ]);
 
-  const byFamily = new Map<string, PartyMember[]>();
+  const byFamily = new Map<string, PartyFamily>();
+  const party = families.results.map((f) => {
+    const family: PartyFamily = { id: f.id as string, name: f.household as string, members: [], bubbles: [] };
+    byFamily.set(family.id, family);
+    return family;
+  });
   for (const m of members.results) {
-    const list = byFamily.get(m.family_id as string) ?? [];
-    list.push({ id: m.id as string, kind: m.kind as Kind, look: m.look as number, bubble: m.bubble_hidden ? "" : (m.bubble as string) });
-    byFamily.set(m.family_id as string, list);
+    const family = byFamily.get(m.family_id as string);
+    if (!family) continue;
+    family.members.push({ type: m.kind as Kind, look: m.look as string });
+    family.bubbles.push(m.bubble_hidden ? "" : (m.bubble as string));
   }
-  return families.results.map((f) => ({ id: f.id as string, household: f.household as string, members: byFamily.get(f.id as string) ?? [] }));
+  return party;
 }
 
-export async function updateMember(db: D1Database, memberId: string, token: string, change: { look?: number; bubble?: string }) {
-  const owner = await db
-    .prepare("SELECT f.token_hash FROM members m JOIN families f ON f.id = m.family_id WHERE m.id = ?")
-    .bind(memberId)
-    .first<{ token_hash: string }>();
-  if (!owner) throw new HttpError(404, "not_found");
-  if (!token || owner.token_hash !== (await sha256(token))) throw new HttpError(403, "forbidden");
+export async function updateMember(
+  db: D1Database,
+  familyId: string,
+  token: string,
+  position: number,
+  change: { look?: string; bubble?: string },
+) {
+  const family = await db.prepare("SELECT token_hash FROM families WHERE id = ?").bind(familyId).first<{ token_hash: string }>();
+  if (!family) throw new HttpError(404, "not_found");
+  if (family.token_hash !== (await sha256(token))) throw new HttpError(403, "forbidden");
 
+  const statements = [];
   if (change.look !== undefined) {
-    await db.prepare("UPDATE members SET look = ? WHERE id = ?").bind(change.look, memberId).run();
+    statements.push(db.prepare("UPDATE members SET look = ? WHERE family_id = ? AND position = ?").bind(change.look, familyId, position));
   }
   if (change.bubble !== undefined) {
     // A new bubble shows again even if Jesse hid the old one.
-    await db.prepare("UPDATE members SET bubble = ?, bubble_hidden = 0 WHERE id = ?").bind(change.bubble, memberId).run();
+    statements.push(
+      db.prepare("UPDATE members SET bubble = ?, bubble_hidden = 0 WHERE family_id = ? AND position = ?").bind(change.bubble, familyId, position),
+    );
   }
-}
-
-function randomLook(): number {
-  return crypto.getRandomValues(new Uint32Array(1))[0] % LOOK_RANGE;
+  if (!statements.length) return;
+  const results = await db.batch(statements);
+  if (results.some((r) => r.meta.changes === 0)) throw new HttpError(404, "not_found");
 }
 
 function randomToken(): string {
