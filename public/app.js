@@ -1,5 +1,5 @@
 import { Scene, HOSTS, HOST_LINES, loadImage } from "./js/scene.js";
-import { ROOM_W, ROOM_H, DREIDELS } from "./js/room.js";
+import { ROOM_W, ROOM_H, DREIDELS, PLANTS } from "./js/room.js";
 import { h } from "./js/dom.js";
 import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
@@ -10,6 +10,7 @@ import { Eggs } from "./js/eggs.js";
 import { react, isPet } from "./js/pets.js";
 import { Night } from "./js/night.js";
 import { Toast } from "./js/toast.js";
+import { Plants } from "./js/plants.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -22,10 +23,11 @@ const scene = new Scene({
   onTap: (sprite) => onTap(sprite),
   onHover: (sprite) => onHover(sprite),
   onHotspot: (id) => {
-    markFound(EGG_OF[id]);
+    markFound(PLANTS[id] ? "plants" : EGG_OF[id]);
     if (id === "book") album.open();
     else if (DREIDELS[id]) dreidel.open(() => scene.roomRect(DREIDELS[id]));
     else if (id === "wine") toast.tap();
+    else if (PLANTS[id]) plants.tap(id);
     else eggs.tap(id);
   },
   onLayout: (view) => night.layout(view),
@@ -37,6 +39,8 @@ const eggs = new Eggs({ scene, sound, reducedMotion, onFound: (egg) => markFound
 scene.addLayer(eggs);
 const toast = new Toast({ scene, sound, reducedMotion });
 scene.addLayer(toast);
+const plants = new Plants({ scene, sound, reducedMotion, dark: () => !eggs.lampOn });
+scene.addLayer(plants);
 const dreidel = new Dreidel({ sound, reducedMotion });
 const night = new Night({ stage: $("stage"), reducedMotion, clock: scene });
 const again = $("again");
@@ -626,6 +630,6 @@ async function start() {
 
 // "?test" loads the test API for the end-to-end tests (public/js/test-api.js). A guest never loads it.
 if (new URLSearchParams(location.search).has("test")) {
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, toast, album, found, tracking }); });
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, toast, plants, album, found, tracking }); });
 }
 start();

@@ -28,9 +28,9 @@ export class Sound {
     return this.on;
   }
 
-  tone(freq, { at = 0, dur = 0.08, type = "square", gain = 0.04, slide = 0 } = {}) {
+  tone(freq, { at = 0, dur = 0.08, type = "square", gain = 0.04, slide = 0, attack = 0 } = {}) {
     if (!this.ready()) return;
-    tone(this.ctx, this.ctx.currentTime + at, freq, { dur, type, gain, slide });
+    tone(this.ctx, this.ctx.currentTime + at, freq, { dur, type, gain, slide, attack });
   }
 
   blip() { this.tone(520 + Math.random() * 80, { dur: 0.035, gain: 0.025 }); }
@@ -117,6 +117,14 @@ export class Sound {
     const f = 523.25 * 2 ** (semis / 12);
     this.tone(f, { dur: 0.8, type: "sine", gain: 0.05 });
     this.tone(f * 2.76, { dur: 0.3, type: "sine", gain: 0.012 });
+  }
+
+  // A soft chord for a room in bloom: C, E, G, and the D above, one after another like a harp, then held.
+  bouquet() {
+    [523.25, 659.25, 783.99, 1174.66].forEach((f, i) => {
+      this.tone(f, { at: i * 0.07, dur: 1.6, type: "sine", gain: 0.035, attack: 0.02 });
+      this.tone(f * 2, { at: i * 0.07, dur: 0.5, type: "sine", gain: 0.008 });
+    });
   }
 
   // A small breath that blows out candles.

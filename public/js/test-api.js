@@ -3,11 +3,11 @@
 // Each function takes and returns plain data, so a test can call it through page.evaluate.
 
 import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
-import { HOTSPOTS, DREIDELS, FLOOR, WINDOW } from "./room.js";
+import { HOTSPOTS, DREIDELS, FLOOR, WINDOW, PLANTS } from "./room.js";
 import { TOAST_LINES } from "./toast.js";
 import { CARS } from "./eggs.js";
 
-export function testApi({ scene, sound, eggs, dreidel, toast, album, found, tracking }) {
+export function testApi({ scene, sound, eggs, dreidel, toast, plants, album, found, tracking }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -118,7 +118,7 @@ export function testApi({ scene, sound, eggs, dreidel, toast, album, found, trac
       return out;
     },
     constants: () => ({
-      HOTSPOTS, DREIDELS, FLOOR, HOSTS, HOST_LINES, TAP_PX, WINDOW,
+      HOTSPOTS, DREIDELS, FLOOR, PLANTS, HOSTS, HOST_LINES, TAP_PX, WINDOW,
       TRUCK: { w: CARS.cybertruck.w, h: CARS.cybertruck.rows.length, colors: Object.values(CARS.cybertruck.colors) },
     }),
 
@@ -151,6 +151,14 @@ export function testApi({ scene, sound, eggs, dreidel, toast, album, found, trac
     // cup is { kind: "wine" or "cocoa", x, y, w, h, hand, lift } in room pixels. hand is the column of the hand that holds it.
     toast: () => toast.state(),
     toastLines: () => [...TOAST_LINES],
+    // The plants: { bloomed: [ids], flowers: [{ plant, x, y, stage, center }], twinkles, moment: { age, petals } or null, momentDone }.
+    // x, y is the center of a flower in room pixels, and center is the color there once the flower is "full".
+    plants: () => plants.state(),
+    // The color of the room canvas at a room pixel, as "#rrggbb".
+    pixel: (x, y) => {
+      const [r, g, b] = scene.ctx.getImageData(x, y, 1, 1).data;
+      return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+    },
     found: (...eggs) => { for (const egg of eggs) found.add(egg); },
     // The time in ms between two interaction calls for the same egg (app.js track). The page uses 5000.
     trackGap: (ms) => { tracking.gapMs = ms; },

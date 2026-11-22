@@ -256,6 +256,8 @@ describe("the form", { concurrency: true }, () => {
     await page.reload();
     await said(page, "Thank you. You mean a lot to us.");
     await assertTucks(page);
+    // The room grows into the dialog's column as the column slides away, so wait for the end of the move.
+    await page.waitForFunction((w) => document.getElementById("stage").getBoundingClientRect().width > w + 300, stageWidth, { timeout: 3000 }).catch(() => {});
     await assertWholeRoom(page, "desktop, thank-you hidden");
     assert.ok((await wholeRoom(page)).stage[2] > stageWidth + 300);
     // a wide desktop has no bands above and below the room, so it stays plain

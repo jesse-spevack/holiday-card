@@ -7,8 +7,8 @@ import { ROOM_W, ROOM_H, FIRE, WINDOW, ROAD_Y, MENORAH, LAMP, LAMP_YELLOW, WALL,
 import { eachPixel } from "./pixels.js";
 
 const PANES = WINDOW.glass.panes;
-// With the lamp off, the room goes this dark blue.
-const NIGHT_TINT = [0x7c, 0x84, 0xb8];
+// With the lamp off, the room goes this dark blue. plants.js darkens its falling petals with it too.
+export const NIGHT_TINT = [0x7c, 0x84, 0xb8];
 
 // The Waymo Ojai, the light blue van, facing right. O outline, L roof light, B blue body, S body shade, G window,
 // D lidar dome, R tail light, H headlight, K tire, h hub.

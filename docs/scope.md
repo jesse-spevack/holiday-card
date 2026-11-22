@@ -67,12 +67,29 @@ Nothing on screen points to these.
   The code finds the hand in each sprite image: the arm that reaches out the farthest between the waist and the hips.
 - Code: `public/js/toast.js`. The clinks are `cheers()` in `public/js/sound.js`.
 
+## The plants (a hidden extra)
+
+- The room has six potted plants: two on the high shelf, one on the wall shelf, one by the armchair, and two on the floor.
+- A tap on a plant makes it bloom. Its flowers open one by one (a bud, a small flower, then the full flower), gold sparkles twinkle round them,
+  and a soft chime plays. Each new plant chimes one note higher. A second tap on a plant in bloom sparkles and chimes again.
+- Each plant has its own flower: paperwhites, pink cyclamen, small blue flowers, red amaryllis, white peace lilies, and violets.
+  No poinsettias, because the room has no Christmas imagery.
+- When every plant blooms, the whole room blooms: about 5 seconds of petals in all the flower colors fall over the room,
+  every plant sparkles, a soft chord plays, and Audrey says "Everything is blooming!". This happens once a visit.
+- The flowers stay for the rest of the visit. A reload starts with no flowers.
+- With the lamp off, the flowers and the petals take the dark blue of the room.
+- With reduced motion, the flowers open at once, and the petals rest on the floor for 3 seconds and then fade.
+- Audrey hints at the plants: "I bet the plants would love some attention."
+- Code: `public/js/plants.js`. The plants, their tap areas, and the flower spots are `PLANTS` in `public/js/room.js`.
+  The chime is `chime()` and the chord is `bouquet()` in `public/js/sound.js`.
+
 ## Tap areas
 
 - Each box in `HOTSPOTS` is the thing as drawn. A tap finds a thing from a little way off: on a touch screen, each thing gets
   44 CSS pixels in each direction where the room allows. A mouse gets 20.
 - Where two areas overlap, the nearer thing wins. The window is a back area: it takes only the taps that no small thing takes.
 - The things on the sill stand closer than a finger, so each one gets a full finger of height and about 30 CSS pixels of width on a phone.
+  The plants near the lamp and the two floor plants also share space: each one gets about 30 CSS pixels or more each way.
 - A sprite that a tap hits wins over everything. A near miss on a touch screen finds the nearest sprite.
 - Gold pixel corners show around the thing under a finger or a mouse, and they stay for a moment after the tap.
 

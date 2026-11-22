@@ -53,6 +53,7 @@ export const HOST_LINES = {
     hint("star", "I saw a shooting star in our window!"),
     hint("pets", "Have you met the pets? They know tricks."),
     hint("silly", "My favorite looks are the silly ones."),
+    hint("plants", "I bet the plants would love some attention."),
   ],
   son: [
     "Hi! Happy holidays!",

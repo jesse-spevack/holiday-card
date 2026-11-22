@@ -69,6 +69,16 @@ describe("the toast", { concurrency: true }, () => {
       // the tap: everyone except the dog holds a cup, one of the big hosts says a toast line, and the glasses clink
       await hc.spySounds(["cheers", "select"]);
       await tapWine();
+      // Note the highest hop in each frame of the toast. The hop is short, and a busy machine can miss it between two polls.
+      await page.evaluate(() => {
+        window.hopped = 0;
+        const watch = () => {
+          const t = window.__hc.toast();
+          window.hopped = Math.max(window.hopped, ...t.people.map((p) => p.hop));
+          if (t.on) requestAnimationFrame(watch);
+        };
+        watch();
+      });
       const start = await hc.toast();
       assert.ok(start.on, "a tap on the wine starts a toast");
       assert.equal(await hc.pressed(), "wine");
@@ -103,19 +113,9 @@ describe("the toast", { concurrency: true }, () => {
         assert.equal(cup.lift, 1);
       }
 
-      // Everyone hops once, except with reduced motion. The page checks each frame until the hops are over at 0.8 seconds
-      // of scene time, so a slow machine cannot miss the hop between two checks.
-      const hopped = await page.evaluate(() => new Promise((done) => {
-        const tick = () => {
-          const t = window.__hc.toast();
-          if (t.people.some((p) => p.hop > 0)) done(true);
-          else if (!t.on || t.age > 0.8) done(false);
-          else requestAnimationFrame(tick);
-        };
-        tick();
-      }));
-      assert.equal(hopped, reduce === "no-preference", "the hop");
+      // Everyone hops once, except with reduced motion. The hop ends 0.7 seconds into the toast.
       await page.waitForFunction(() => window.__hc.toast().age > 1.1);
+      assert.equal(await page.evaluate(() => window.hopped > 0), reduce === "no-preference", "the hop");
       if (name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
       if (name === "phone") {
         // The room canvas at 6 screen pixels for each room pixel, around grown-ups with wine and kids with cocoa.
