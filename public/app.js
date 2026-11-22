@@ -553,5 +553,5 @@ async function start() {
   }
 }
 
-if (new URLSearchParams(location.search).has("test")) window.__hc = { scene, state };
+if (new URLSearchParams(location.search).has("test")) window.__hc = { scene, state, sound };
 start();

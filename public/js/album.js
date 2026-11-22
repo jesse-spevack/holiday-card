@@ -93,7 +93,7 @@ export class Album {
 
     this.fill(this.right, this.pages[this.spread ? 1 : 0]);
     if (this.spread) this.fill(cover.lastChild, this.pages[0]);
-    this.sound.page();
+    this.sound.coverOpen();
     const done = () => {
       this.book.style.transform = this.book.style.transformOrigin = "";
       cover.remove();
@@ -384,7 +384,7 @@ export class Album {
     const to = from + dir * step;
     if (to < 0 || to >= this.pages.length) return;
     this.at = to;
-    this.sound.page();
+    this.sound.pageTurn();
     this.foot();
     this.preload();
     const p = this.pages;

@@ -27,7 +27,7 @@ export class Sound {
   }
 
   tone(freq, { at = 0, dur = 0.08, type = "square", gain = 0.04, slide = 0 } = {}) {
-    if (!this.on || !this.ctx || this.ctx.state !== "running") return;
+    if (!this.ready()) return;
     const t = this.ctx.currentTime + at;
     const osc = this.ctx.createOscillator();
     const amp = this.ctx.createGain();
@@ -50,5 +50,71 @@ export class Sound {
     [523, 659, 784, 1046].forEach((f, i) => this.tone(f, { at: 0.25 + i * 0.09, dur: 0.18, type: "square", gain: 0.035 }));
   }
   oops() { this.tone(220, { dur: 0.15, type: "triangle", gain: 0.06, slide: -80 }); }
-  page() { this.tone(900, { dur: 0.07, type: "triangle", gain: 0.03, slide: -500 }); this.tone(500, { at: 0.05, dur: 0.06, type: "triangle", gain: 0.02, slide: -200 }); }
+  pageTurn() { if (this.ready()) swish(this.ctx, this.ctx.destination); }
+  coverOpen() { if (this.ready()) swish(this.ctx, this.ctx.destination, { cover: true }); }
+
+  ready() { return this.on && this.ctx?.state === "running"; }
+}
+
+// One second of pink noise for each audio context. Every swish starts at a random place in it.
+// Pink noise has less hiss than white noise, so the swish sounds like soft paper.
+const noises = new WeakMap();
+function noise(ctx) {
+  let buf = noises.get(ctx);
+  if (buf) return buf;
+  buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  let b0 = 0, b1 = 0, b2 = 0;
+  for (let i = 0; i < data.length; i++) {
+    const white = Math.random() * 2 - 1;
+    b0 = 0.99765 * b0 + white * 0.099046;
+    b1 = 0.963 * b1 + white * 0.2965164;
+    b2 = 0.57 * b2 + white * 1.0526913;
+    data[i] = (b0 + b1 + b2 + white * 0.1848) * 0.2;
+  }
+  noises.set(ctx, buf);
+  return buf;
+}
+
+// Plays noise into a filter and a gain, and returns both so the caller can shape them.
+function burst(ctx, out, t, dur, type) {
+  const src = ctx.createBufferSource();
+  src.buffer = noise(ctx);
+  src.playbackRate.value = 0.9 + Math.random() * 0.2;
+  const filter = ctx.createBiquadFilter();
+  filter.type = type;
+  const amp = ctx.createGain();
+  amp.gain.setValueAtTime(0, t);
+  src.connect(filter).connect(amp).connect(out);
+  src.start(t, Math.random() * 0.5);
+  src.stop(t + dur + 0.05);
+  return { filter, gain: amp.gain };
+}
+
+// A soft paper swish: noise through a band-pass filter that sweeps up and back down, then a small low flop.
+// The cover is heavier, so its swish is lower, slower, and lands with a bigger flop.
+// Each swish picks a slightly different length and filter range, so no two page turns sound the same.
+export function swish(ctx, out, { at = 0, cover = false } = {}) {
+  const r = () => Math.random();
+  const t = ctx.currentTime + at;
+  const dur = cover ? 0.42 + r() * 0.06 : 0.27 + r() * 0.08;
+  const lo = cover ? 700 + r() * 200 : 1300 + r() * 400;
+  const hi = cover ? 2000 + r() * 400 : 3200 + r() * 1000;
+  const peak = cover ? 0.13 : 0.12;
+
+  const air = burst(ctx, out, t, dur, "bandpass");
+  air.filter.Q.value = 0.8;
+  air.filter.frequency.setValueAtTime(lo, t);
+  air.filter.frequency.exponentialRampToValueAtTime(hi, t + dur * 0.4);
+  air.filter.frequency.exponentialRampToValueAtTime(lo * 1.2, t + dur);
+  air.gain.linearRampToValueAtTime(peak, t + 0.025);
+  air.gain.linearRampToValueAtTime(peak * 0.6, t + dur * 0.45);
+  air.gain.linearRampToValueAtTime(0, t + dur);
+
+  const land = t + dur * 0.7;
+  const flopDur = cover ? 0.12 : 0.08;
+  const flop = burst(ctx, out, land, flopDur, "lowpass");
+  flop.filter.frequency.value = cover ? 380 : 520;
+  flop.gain.linearRampToValueAtTime(cover ? 0.14 : 0.07, land + 0.006);
+  flop.gain.exponentialRampToValueAtTime(0.0001, land + flopDur);
 }
