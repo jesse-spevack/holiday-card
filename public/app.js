@@ -115,7 +115,7 @@ function frame(sayText, ...body) {
   dialog.classList.toggle("small", state.step === "done");
   dialog.innerHTML = "";
   const say = h("p", { class: "say", id: "say" });
-  dialog.append(h("span", { class: "speaker" }, "Jesse & Jessica"), say, ...body.flat().filter(Boolean));
+  dialog.append(h("span", { class: "speaker" }, "Jesse & Jess"), say, ...body.flat().filter(Boolean));
   typeOut(say, sayText);
   const input = dialog.querySelector("input");
   if (input && !matchMedia("(pointer: coarse)").matches) input.focus();
