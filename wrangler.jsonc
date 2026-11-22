@@ -25,6 +25,8 @@
     { "name": "HOUSEHOLD_LIMIT", "namespace_id": "1003", "simple": { "limit": 20, "period": 60 } },
     { "name": "SPRITE_LIMIT", "namespace_id": "1004", "simple": { "limit": 60, "period": 60 } }
   ],
+  // Listed here so `wrangler types` does not depend on a local .dev.vars file.
+  "secrets": { "required": ["OPENROUTER_API_KEY", "GOOGLE_PLACES_KEY", "SHEET_SECRET", "TURNSTILE_SECRET"] },
   "vars": {
     "OPENROUTER_MODEL": "anthropic/claude-haiku-5.5",
     "SHEET_URL": "https://script.google.com/macros/s/AKfycbweRjFcUK4fq9j8vZ5HBGFMBd1duKAya3Tq7nhEC8xm6dRWGRPnzKP-DpycDaQ5xgVMFA/exec",
