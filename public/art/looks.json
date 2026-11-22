@@ -1,0 +1,136 @@
+{
+ "adult": [
+  {
+   "id": "adult-01",
+   "desc": "woman, box braids, mustard sweater"
+  },
+  {
+   "id": "adult-02",
+   "desc": "man, blond beard, green fleece"
+  },
+  {
+   "id": "adult-03",
+   "desc": "woman, lavender hijab, cream coat"
+  },
+  {
+   "id": "adult-04",
+   "desc": "man, glasses, navy sweater"
+  },
+  {
+   "id": "adult-05",
+   "desc": "woman, black bob, teal cardigan"
+  },
+  {
+   "id": "adult-06",
+   "desc": "man, ponytail, maroon hoodie"
+  },
+  {
+   "id": "adult-07",
+   "desc": "older woman, white curls, lilac cardigan"
+  },
+  {
+   "id": "adult-08",
+   "desc": "older man, gray hair, tweed vest"
+  },
+  {
+   "id": "adult-09",
+   "desc": "woman, ginger hair, sage turtleneck"
+  },
+  {
+   "id": "adult-10",
+   "desc": "woman, afro, orange puffer"
+  },
+  {
+   "id": "adult-11",
+   "desc": "woman, auburn curls, blue sweater"
+  },
+  {
+   "id": "adult-12",
+   "desc": "man, beard, glasses, red sweater"
+  }
+ ],
+ "kid": [
+  {
+   "id": "kid-01",
+   "desc": "girl, pigtails, purple coat"
+  },
+  {
+   "id": "kid-02",
+   "desc": "boy, red hair, glasses"
+  },
+  {
+   "id": "kid-03",
+   "desc": "boy, buzz cut, green vest"
+  },
+  {
+   "id": "kid-04",
+   "desc": "girl, braid, blue beanie"
+  },
+  {
+   "id": "kid-05",
+   "desc": "girl, blond curls, pink coat"
+  },
+  {
+   "id": "kid-06",
+   "desc": "boy, black bangs, yellow hoodie"
+  },
+  {
+   "id": "kid-07",
+   "desc": "child, dark bob, yellow jacket"
+  }
+ ],
+ "baby": [
+  {
+   "id": "baby-01",
+   "desc": "toddler, blue onesie"
+  },
+  {
+   "id": "baby-02",
+   "desc": "toddler, top knot, yellow romper"
+  },
+  {
+   "id": "baby-03",
+   "desc": "toddler, pompom hat, snowsuit"
+  }
+ ],
+ "dog": [
+  {
+   "id": "dog-01",
+   "desc": "golden retriever"
+  },
+  {
+   "id": "dog-02",
+   "desc": "border collie"
+  },
+  {
+   "id": "dog-03",
+   "desc": "dachshund in sweater"
+  },
+  {
+   "id": "dog-04",
+   "desc": "white bichon"
+  },
+  {
+   "id": "dog-05",
+   "desc": "chocolate lab"
+  },
+  {
+   "id": "dog-06",
+   "desc": "corgi with blue scarf"
+  }
+ ],
+ "cat": [
+  {
+   "id": "cat-01",
+   "desc": "orange tabby cat"
+  },
+  {
+   "id": "cat-02",
+   "desc": "black cat"
+  },
+  {
+   "id": "cat-03",
+   "desc": "gray and white cat"
+  }
+ ]
+}
