@@ -5,7 +5,7 @@ import { openPicker } from "./js/picker.js";
 import { Album } from "./js/album.js";
 import { Dreidel } from "./js/dreidel.js";
 import { Eggs } from "./js/eggs.js";
-import { react } from "./js/pets.js";
+import { react, isPet } from "./js/pets.js";
 import { Night } from "./js/night.js";
 
 const $ = (id) => document.getElementById(id);
@@ -15,9 +15,12 @@ const scene = new Scene({ stage: $("stage"), world: $("world"), canvas: $("canva
 const app = $("app");
 const dialog = $("dialog");
 const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => { scene.bookHidden = !on; } });
-scene.eggs = new Eggs({ scene, sound, reducedMotion });
+scene.eggs = new Eggs({ scene, sound, reducedMotion, onFound: (egg) => markFound(egg) });
 const dreidel = new Dreidel({ sound, reducedMotion });
+// The hidden thing that each tap area finds, for the hosts' hints.
+const EGG_OF = { book: "album", lamp: "lamp", "dreidel-left": "dreidel", "dreidel-right": "dreidel", menorah: "menorah", window: "star" };
 scene.onHotspot = (id) => {
+  markFound(EGG_OF[id]);
   if (id === "book") album.open();
   else if (DREIDELS[id]) dreidel.open(() => scene.roomRect(DREIDELS[id]));
   else scene.eggs.tap(id);
@@ -61,6 +64,19 @@ function saveMine() {
   try { localStorage.setItem(SAVED, JSON.stringify(state.mine)); } catch {}
 }
 const mineById = (id) => state.mine.find((f) => f.id === id);
+
+// ---------- hidden things this browser found ----------
+// The hosts stop a hint after the guest finds its thing. The list stays for the next visit.
+const FOUND = "hc.found";
+const found = new Set(loadFound());
+function loadFound() {
+  try { return JSON.parse(localStorage.getItem(FOUND)) || []; } catch { return []; }
+}
+function markFound(egg) {
+  if (!egg || found.has(egg)) return;
+  found.add(egg);
+  try { localStorage.setItem(FOUND, JSON.stringify([...found])); } catch {}
+}
 
 // ---------- Turnstile: Cloudflare's check that a real browser sends the address ----------
 let turnstileWidget = null;
@@ -488,11 +504,12 @@ function onTap(sprite) {
     sound.select();
     scene.pause(sprite, 3);
     scene.showNames(hostSprites(), 3);
-    scene.say(sprite, HOST_LINES[Math.floor(Math.random() * HOST_LINES.length)], 3);
+    scene.say(sprite, hostLine(sprite), 4);
     return;
   }
   // A pet reacts to every tap. In your own family, the editor opens at the same time.
   const pet = react(sprite, { time: scene.time, sound });
+  if (pet) markFound("pets");
   const saved = mineById(sprite.familyId);
   if (!saved) {
     const fam = scene.families.get(sprite.familyId);
@@ -501,6 +518,24 @@ function onTap(sprite) {
     return;
   }
   openEditor(sprite, saved, { quiet: !!pet });
+}
+
+// Some hints make sense only for some guests: the pets hint needs a pet at the party,
+// and the silly looks hint needs a family of your own to dress up.
+const HINT_FITS = {
+  pets: () => scene.sprites.some(isPet),
+  silly: () => state.mine.length > 0,
+};
+
+// A random line for a host: never the line this host said last, and no hint for a thing the guest found.
+function hostLine(sprite) {
+  const lines = HOST_LINES[sprite.id]
+    .map((l) => (typeof l === "string" ? { text: l } : l))
+    .filter((l) => !l.egg || (!found.has(l.egg) && (HINT_FITS[l.egg]?.() ?? true)))
+    .filter((l) => l.text !== sprite.lastLine);
+  const line = lines[Math.floor(Math.random() * lines.length)];
+  sprite.lastLine = line.text;
+  return line.text;
 }
 
 // A pet's own sound plays in place of the editor's chime.
@@ -519,6 +554,7 @@ function openEditor(sprite, saved, { quiet = false } = {}) {
   const wear = async (look) => {
     sprite.img = await image(look.src);
     sprite.look = look.id;
+    if (look.silly) markFound("silly");
     saved.members[sprite.index].look = look.id;
     saveMine();
     sound.pop();
@@ -577,5 +613,5 @@ async function start() {
   }
 }
 
-if (new URLSearchParams(location.search).has("test")) window.__hc = { scene, state, sound, dreidel };
+if (new URLSearchParams(location.search).has("test")) window.__hc = { scene, state, sound, dreidel, found };
 start();

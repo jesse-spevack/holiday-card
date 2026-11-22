@@ -40,7 +40,7 @@ No build step. The browser loads ES modules as they are.
 | `public/index.html`, `public/style.css` | Markup and the main styles |
 | `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules |
 | `public/js/api.js` | Every call to the Worker |
-| `public/js/scene.js` | The room canvas, sprites, hosts, the door arrival, and the tap areas (`HOTSPOTS`) |
+| `public/js/scene.js` | The room canvas, sprites, hosts and their lines (`HOST_LINES`), the door arrival, and the tap areas (`HOTSPOTS`) |
 | `public/js/picker.js` | The look picker. Ages and looks come from `public/assets/looks.json` |
 | `public/js/pets.js` | Hidden pet reactions |
 | `public/js/sound.js` | Sound effects with Web Audio, and the recorded sounds |

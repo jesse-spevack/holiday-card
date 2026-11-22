@@ -12,7 +12,8 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--night); color: var(--ink); }
-body { font-family: var(--pixel); -webkit-font-smoothing: antialiased; }
+/* Pixelify Sans joins "fi" into one glyph that reads as "A", so the pixel text shows each letter on its own. */
+body { font-family: var(--pixel); font-variant-ligatures: none; -webkit-font-smoothing: antialiased; }
 button, input { font: inherit; }
 
 #app {
@@ -72,7 +73,14 @@ button, input { font: inherit; }
   white-space: nowrap;
   pointer-events: none;
 }
+/* A long line wraps to a second line, so a bubble near the edge stays on a phone screen. */
 .bubble {
+  white-space: normal;
+  width: max-content;
+  max-width: 240px;
+  text-align: center;
+  text-wrap: balance;
+  line-height: 1.25;
   font-size: 15px;
   background: var(--ink);
   color: var(--night);
@@ -205,6 +213,8 @@ button, input { font: inherit; }
 
 /* Wide screens: the room fills the left side at full height, and the hosts talk in a column on the right. */
 @media (min-width: 900px) {
+  /* A wide room has space for a whole hint on one line. */
+  .bubble { max-width: 360px; }
   #app {
     max-width: none;
     display: grid;

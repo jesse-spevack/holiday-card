@@ -47,7 +47,16 @@ Nothing on screen points to these.
   Only one of these two lines shows at a time. A new line replaces the old line.
 - A tap on the floor lamp turns it off. The room goes dark blue, and the fire and the candles glow. A second tap turns it on.
 - With reduced motion, the Waymo stops in the window for a few seconds, and the star does not move.
-- Code: `public/js/eggs.js`. The tap areas are `HOTSPOTS` in `public/js/scene.js`. The first match wins, so a small thing goes before a big thing around it.
+- Code: `public/js/eggs.js`. The tap areas are `HOTSPOTS` in `public/js/scene.js`.
+
+## Tap areas
+
+- Each box in `HOTSPOTS` is the thing as drawn. A tap finds a thing from a little way off: on a touch screen, each thing gets
+  44 CSS pixels in each direction where the room allows. A mouse gets 20.
+- Where two areas overlap, the nearer thing wins. The window is a back area: it takes only the taps that no small thing takes.
+- The things on the sill stand closer than a finger, so each one gets a full finger of height and about 30 CSS pixels of width on a phone.
+- A sprite that a tap hits wins over everything. A near miss on a touch screen finds the nearest sprite.
+- Gold pixel corners show around the thing under a finger or a mouse, and they stay for a moment after the tap.
 
 ## Dreidel game (a hidden extra)
 
@@ -77,7 +86,9 @@ Nothing on screen points to these.
 - A bright, cheerful 16-bit handheld RPG look, with original art only. No copied assets from any real game.
 - The room fills the screen, and the hosts talk in a pixel-art dialog box under it, like a handheld RPG.
 - The theme is cozy winter holidays with a feeling of gratitude. The hosts say things like "Happy holidays!",
-  "Happy New Year!", and "We're so glad you're in our lives." No Hanukkah lines.
+  "Happy New Year!", and "We're so glad you're in our lives." No Hanukkah greetings.
+- About half of the host lines hint at a hidden extra, in the voice of that host (`HOST_LINES` in `public/js/scene.js`).
+  A hint stops after this browser finds its extra (`hc.found` in local storage). A host never says the same line twice in a row.
 - Details in the room: a menorah and dreidels on the window sill, wrapped presents under the window, latkes and cocoa,
   snow, blue and white bunting. No Christmas imagery.
 - Hovering over a family shows its envelope name. Hovering over the hosts shows Eddie, Audrey, Jess, and Jesse.
