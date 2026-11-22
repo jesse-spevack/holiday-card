@@ -9,6 +9,14 @@ test("the hosts walk around the party", async () => {
   const { page, hc } = await env.open({ viewport: { width: 1440, height: 900 }, wait: "room" });
   const { FLOOR } = await hc.constants();
   const homes = await hc.sprites({ host: true });
+  // Another sprite can cover a walking host. This moves the stopped clock until a part of the host shows, so a pointer can find them.
+  const shows = (name) => advanceUntil(page, (hc, name) => {
+    try {
+      return !!hc.pointOn({ host: true, name });
+    } catch {
+      return false;
+    }
+  }, name);
   await page.screenshot({ path: `${OUT}/hosts-walk-1.png` });
   // Watch the hosts for 4 to 12 scene seconds, until each one has left home. The test moves the stopped clock
   // in steps of 1/4 second, so a slow machine sees the same walk.
@@ -32,6 +40,7 @@ test("the hosts walk around the party", async () => {
   assert.ok(Math.hypot(kids[0].x - kids[1].x, kids[0].y - kids[1].y) < 24, `the kids stand together: ${JSON.stringify(kids)}`);
 
   // a hover on a walking host shows the names, and they follow the hosts without overlapping
+  await shows("Jesse");
   const walker = await hc.pointOn({ host: true, name: "Jesse" });
   await page.mouse.move(walker.x, walker.y);
   await page.locator(".tag", { hasText: "Eddie" }).waitFor();
@@ -49,8 +58,9 @@ test("the hosts walk around the party", async () => {
   }
   await page.screenshot({ path: `${OUT}/hosts-walk-names.png` });
 
-  // a tap on a host stops them to talk
+  // A tap on a host stops them to talk.
   await page.mouse.move(2, 2);
+  await shows("Jess");
   const talker = await hc.pointOn({ host: true, name: "Jess" });
   await page.mouse.click(talker.x, talker.y);
   await page.waitForFunction(() => window.__hc.sprite({ host: true, name: "Jess" }).bubble);
