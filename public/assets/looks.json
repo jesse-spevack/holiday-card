@@ -5,161 +5,184 @@
    "src": "assets/looks/adult-01.png",
    "w": 18,
    "h": 33,
-   "desc": "woman, box braids, mustard sweater"
+   "desc": "woman, box braids, mustard sweater",
+   "age": "adult"
   },
   {
    "id": "adult-02",
    "src": "assets/looks/adult-02.png",
    "w": 22,
    "h": 38,
-   "desc": "man, blond beard, green fleece"
+   "desc": "man, blond beard, green fleece",
+   "age": "adult"
   },
   {
    "id": "adult-03",
    "src": "assets/looks/adult-03.png",
    "w": 18,
    "h": 33,
-   "desc": "woman, lavender hijab, cream coat"
+   "desc": "woman, lavender hijab, cream coat",
+   "age": "adult"
   },
   {
    "id": "adult-04",
    "src": "assets/looks/adult-04.png",
    "w": 20,
    "h": 36,
-   "desc": "man, glasses, navy sweater"
+   "desc": "man, glasses, navy sweater",
+   "age": "adult"
   },
   {
    "id": "adult-05",
    "src": "assets/looks/adult-05.png",
    "w": 21,
    "h": 38,
-   "desc": "woman, black bob, teal cardigan"
+   "desc": "woman, black bob, teal cardigan",
+   "age": "adult"
   },
   {
    "id": "adult-06",
    "src": "assets/looks/adult-06.png",
    "w": 20,
    "h": 36,
-   "desc": "man, ponytail, maroon hoodie"
+   "desc": "man, ponytail, maroon hoodie",
+   "age": "adult"
   },
   {
    "id": "adult-07",
    "src": "assets/looks/adult-07.png",
    "w": 20,
    "h": 31,
-   "desc": "older woman, white curls, lilac cardigan"
+   "desc": "older woman, white curls, lilac cardigan",
+   "age": "older"
   },
   {
    "id": "adult-08",
    "src": "assets/looks/adult-08.png",
    "w": 21,
    "h": 35,
-   "desc": "older man, gray hair, tweed vest"
+   "desc": "older man, gray hair, tweed vest",
+   "age": "older"
   },
   {
    "id": "adult-09",
    "src": "assets/looks/adult-09.png",
    "w": 20,
    "h": 35,
-   "desc": "woman, ginger hair, sage turtleneck"
+   "desc": "woman, ginger hair, sage turtleneck",
+   "age": "adult"
   },
   {
    "id": "adult-10",
    "src": "assets/looks/adult-10.png",
    "w": 25,
    "h": 41,
-   "desc": "woman, afro, orange puffer"
+   "desc": "woman, afro, orange puffer",
+   "age": "adult"
   },
   {
    "id": "adult-11",
    "src": "assets/looks/adult-11.png",
    "w": 24,
    "h": 35,
-   "desc": "woman, auburn curls, blue sweater"
+   "desc": "woman, auburn curls, blue sweater",
+   "age": "adult"
   },
   {
    "id": "adult-12",
    "src": "assets/looks/adult-12.png",
    "w": 20,
    "h": 35,
-   "desc": "man, beard, glasses, red sweater"
+   "desc": "man, beard, glasses, red sweater",
+   "age": "adult"
   },
   {
    "id": "adult-13",
    "src": "assets/looks/adult-13.png",
    "w": 18,
    "h": 30,
-   "desc": "man, bald, gray beard, mustard cardigan"
+   "desc": "man, bald, gray beard, mustard cardigan",
+   "age": "older"
   },
   {
    "id": "adult-14",
    "src": "assets/looks/adult-14.png",
    "w": 19,
    "h": 32,
-   "desc": "older woman, silver hair, red glasses"
+   "desc": "older woman, silver hair, red glasses",
+   "age": "older"
   },
   {
    "id": "adult-15",
    "src": "assets/looks/adult-15.png",
    "w": 18,
    "h": 36,
-   "desc": "man, undercut, black puffer vest"
+   "desc": "man, undercut, black puffer vest",
+   "age": "adult"
   },
   {
    "id": "adult-16",
    "src": "assets/looks/adult-16.png",
    "w": 19,
    "h": 37,
-   "desc": "woman, long braid, emerald sweater"
+   "desc": "woman, long braid, emerald sweater",
+   "age": "adult"
   },
   {
    "id": "adult-17",
    "src": "assets/looks/adult-17.png",
    "w": 20,
    "h": 38,
-   "desc": "man, red curls, plaid flannel"
+   "desc": "man, red curls, plaid flannel",
+   "age": "adult"
   },
   {
    "id": "adult-19",
    "src": "assets/looks/adult-19.png",
    "w": 19,
    "h": 34,
-   "desc": "woman, yellow head wrap"
+   "desc": "woman, yellow head wrap",
+   "age": "adult"
   },
   {
    "id": "adult-20",
    "src": "assets/looks/adult-20.png",
    "w": 20,
    "h": 33,
-   "desc": "man, long hair, gray beanie"
+   "desc": "man, long hair, gray beanie",
+   "age": "adult"
   },
   {
    "id": "adult-21",
    "src": "assets/looks/adult-21.png",
    "w": 20,
    "h": 30,
-   "desc": "grandpa, white beard, suspenders"
+   "desc": "grandpa, white beard, suspenders",
+   "age": "older"
   },
   {
    "id": "adult-22",
    "src": "assets/looks/adult-22.png",
    "w": 19,
    "h": 39,
-   "desc": "woman, blond ponytail, purple jacket"
+   "desc": "woman, blond ponytail, purple jacket",
+   "age": "adult"
   },
   {
    "id": "adult-23",
    "src": "assets/looks/adult-23.png",
    "w": 20,
    "h": 36,
-   "desc": "man, navy turban, beard"
+   "desc": "man, navy turban, beard",
+   "age": "adult"
   },
   {
    "id": "adult-24",
    "src": "assets/looks/adult-24.png",
    "w": 21,
    "h": 35,
-   "desc": "woman, curly hair, snowflake sweater"
+   "desc": "woman, curly hair, snowflake sweater",
+   "age": "adult"
   },
   {
    "id": "adult-25",
@@ -167,7 +190,8 @@
    "w": 20,
    "h": 32,
    "desc": "robot",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-26",
@@ -175,7 +199,8 @@
    "w": 20,
    "h": 36,
    "desc": "green alien",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-27",
@@ -183,7 +208,8 @@
    "w": 24,
    "h": 36,
    "desc": "astronaut",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-28",
@@ -191,7 +217,8 @@
    "w": 25,
    "h": 40,
    "desc": "wizard",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-29",
@@ -199,7 +226,8 @@
    "w": 32,
    "h": 39,
    "desc": "snowman",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-30",
@@ -207,7 +235,8 @@
    "w": 20,
    "h": 36,
    "desc": "knight",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-31",
@@ -215,7 +244,8 @@
    "w": 27,
    "h": 34,
    "desc": "dinosaur costume",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-32",
@@ -223,7 +253,8 @@
    "w": 24,
    "h": 30,
    "desc": "ghost",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-33",
@@ -231,7 +262,8 @@
    "w": 22,
    "h": 33,
    "desc": "vampire",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   },
   {
    "id": "adult-34",
@@ -239,7 +271,8 @@
    "w": 32,
    "h": 36,
    "desc": "yeti",
-   "silly": true
+   "silly": true,
+   "age": "adult"
   }
  ],
  "kid": [
@@ -248,98 +281,112 @@
    "src": "assets/looks/kid-01.png",
    "w": 21,
    "h": 27,
-   "desc": "girl, pigtails, purple coat"
+   "desc": "girl, pigtails, purple coat",
+   "age": "kid"
   },
   {
    "id": "kid-02",
    "src": "assets/looks/kid-02.png",
    "w": 17,
    "h": 29,
-   "desc": "boy, red hair, glasses"
+   "desc": "boy, red hair, glasses",
+   "age": "kid"
   },
   {
    "id": "kid-03",
    "src": "assets/looks/kid-03.png",
    "w": 16,
    "h": 29,
-   "desc": "boy, buzz cut, green vest"
+   "desc": "boy, buzz cut, green vest",
+   "age": "kid"
   },
   {
    "id": "kid-04",
    "src": "assets/looks/kid-04.png",
    "w": 18,
    "h": 30,
-   "desc": "girl, braid, blue beanie"
+   "desc": "girl, braid, blue beanie",
+   "age": "kid"
   },
   {
    "id": "kid-05",
    "src": "assets/looks/kid-05.png",
    "w": 20,
    "h": 30,
-   "desc": "girl, blond curls, pink coat"
+   "desc": "girl, blond curls, pink coat",
+   "age": "kid"
   },
   {
    "id": "kid-06",
    "src": "assets/looks/kid-06.png",
    "w": 18,
    "h": 31,
-   "desc": "boy, black bangs, yellow hoodie"
+   "desc": "boy, black bangs, yellow hoodie",
+   "age": "kid"
   },
   {
    "id": "kid-07",
    "src": "assets/looks/kid-07.png",
    "w": 21,
    "h": 28,
-   "desc": "child, dark bob, yellow jacket"
+   "desc": "child, dark bob, yellow jacket",
+   "age": "kid"
   },
   {
    "id": "kid-08",
    "src": "assets/looks/kid-08.png",
    "w": 20,
    "h": 30,
-   "desc": "girl, glasses, teal hoodie"
+   "desc": "girl, glasses, teal hoodie",
+   "age": "kid"
   },
   {
    "id": "kid-09",
    "src": "assets/looks/kid-09.png",
    "w": 19,
    "h": 31,
-   "desc": "boy, afro, red hoodie"
+   "desc": "boy, afro, red hoodie",
+   "age": "kid"
   },
   {
    "id": "kid-10",
    "src": "assets/looks/kid-10.png",
    "w": 17,
    "h": 29,
-   "desc": "girl, pink hijab, purple coat"
+   "desc": "girl, pink hijab, purple coat",
+   "age": "kid"
   },
   {
    "id": "kid-11",
    "src": "assets/looks/kid-11.png",
    "w": 17,
    "h": 32,
-   "desc": "boy, blond, green sweater"
+   "desc": "boy, blond, green sweater",
+   "age": "kid"
   },
   {
    "id": "kid-12",
    "src": "assets/looks/kid-12.png",
    "w": 18,
    "h": 32,
-   "desc": "teen girl, headphones"
+   "desc": "teen girl, headphones",
+   "age": "teen"
   },
   {
    "id": "kid-13",
    "src": "assets/looks/kid-13.png",
    "w": 20,
    "h": 29,
-   "desc": "child, red snowsuit"
+   "desc": "child, red snowsuit",
+   "age": "kid"
   },
   {
    "id": "kid-14",
    "src": "assets/looks/kid-14.png",
    "w": 17,
    "h": 31,
-   "desc": "teen boy, varsity jacket"
+   "desc": "teen boy, varsity jacket",
+   "age": "teen"
   },
   {
    "id": "kid-15",
@@ -347,7 +394,8 @@
    "w": 18,
    "h": 29,
    "desc": "robot kid",
-   "silly": true
+   "silly": true,
+   "age": "kid"
   },
   {
    "id": "kid-16",
@@ -355,7 +403,8 @@
    "w": 20,
    "h": 26,
    "desc": "purple alien kid",
-   "silly": true
+   "silly": true,
+   "age": "kid"
   },
   {
    "id": "kid-17",
@@ -363,7 +412,8 @@
    "w": 21,
    "h": 29,
    "desc": "kid in dinosaur costume",
-   "silly": true
+   "silly": true,
+   "age": "kid"
   },
   {
    "id": "kid-18",
@@ -371,7 +421,8 @@
    "w": 18,
    "h": 29,
    "desc": "kid superhero",
-   "silly": true
+   "silly": true,
+   "age": "kid"
   },
   {
    "id": "kid-19",
@@ -379,14 +430,16 @@
    "w": 18,
    "h": 28,
    "desc": "kid ninja",
-   "silly": true
+   "silly": true,
+   "age": "kid"
   },
   {
    "id": "kid-20",
    "src": "assets/looks/kid-20.png",
    "w": 16,
    "h": 28,
-   "desc": "teen, pink pixie cut, denim jacket"
+   "desc": "teen, pink pixie cut, denim jacket",
+   "age": "teen"
   }
  ],
  "baby": [
@@ -395,42 +448,48 @@
    "src": "assets/looks/baby-01.png",
    "w": 18,
    "h": 26,
-   "desc": "toddler, blue onesie"
+   "desc": "toddler, blue onesie",
+   "age": "baby"
   },
   {
    "id": "baby-02",
    "src": "assets/looks/baby-02.png",
    "w": 17,
    "h": 26,
-   "desc": "toddler, top knot, yellow romper"
+   "desc": "toddler, top knot, yellow romper",
+   "age": "baby"
   },
   {
    "id": "baby-03",
    "src": "assets/looks/baby-03.png",
    "w": 18,
    "h": 26,
-   "desc": "toddler, pompom hat, snowsuit"
+   "desc": "toddler, pompom hat, snowsuit",
+   "age": "baby"
   },
   {
    "id": "baby-04",
    "src": "assets/looks/baby-04.png",
    "w": 18,
    "h": 26,
-   "desc": "toddler, bear onesie"
+   "desc": "toddler, bear onesie",
+   "age": "baby"
   },
   {
    "id": "baby-05",
    "src": "assets/looks/baby-05.png",
    "w": 16,
    "h": 26,
-   "desc": "toddler, snowflake onesie"
+   "desc": "toddler, snowflake onesie",
+   "age": "baby"
   },
   {
    "id": "baby-06",
    "src": "assets/looks/baby-06.png",
    "w": 17,
    "h": 26,
-   "desc": "toddler, pink bow"
+   "desc": "toddler, pink bow",
+   "age": "baby"
   }
  ],
  "dog": [

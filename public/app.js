@@ -1,6 +1,7 @@
 import { Scene, HOSTS, HOST_LINES, loadImage } from "./js/scene.js";
 import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
+import { openPicker } from "./js/picker.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -335,7 +336,7 @@ const image = (src) => {
 };
 const lookById = (id) => Object.values(state.looks).flat().find((l) => l.id === id);
 
-// A family arrives in regular looks. The silly ones (robots, aliens, and more) come only from "New look".
+// A family arrives in regular looks of its own type. The look picker offers the rest.
 function assignLooks(members) {
   const used = new Set();
   return members.map(({ type }) => {
@@ -452,18 +453,19 @@ function openEditor(sprite, saved) {
     scene.say(sprite, text, 6);
     api.sprite({ id: saved.id, token: saved.token, index: sprite.index, bubble: text }).catch(() => sound.oops());
   };
-  const newLook = async () => {
-    const options = state.looks[sprite.type] || [];
-    if (options.length < 2) return;
-    const at = options.findIndex((l) => l.id === sprite.look);
-    const look = options[(at + 1) % options.length];
+  const wear = async (look) => {
     sprite.img = await image(look.src);
     sprite.look = look.id;
     saved.members[sprite.index].look = look.id;
     saveMine();
     sound.pop();
     sprite.popAt = scene.time;
+    scene.updateOverlay();
     api.sprite({ id: saved.id, token: saved.token, index: sprite.index, look: look.id }).catch(() => sound.oops());
+  };
+  const newLook = (e) => {
+    sound.select();
+    openPicker({ library: state.looks, type: sprite.type, current: sprite.look, onPick: wear, returnFocus: e.currentTarget });
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
   scene.openPop(sprite, h("div", {}, input, h("div", { class: "row" }, btn("New look", newLook, "btn ghost"), btn("Save", save))));
