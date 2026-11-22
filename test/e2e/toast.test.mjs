@@ -91,6 +91,14 @@ describe("the toast", { concurrency: true }, () => {
       const found = await page.evaluate(() => JSON.parse(localStorage.getItem("hc.found")));
       assert.ok(found.includes("toast"), `the toast counts as found: ${found}`);
 
+      // A second tap during the toast does nothing: no new toast, no sound, the same line.
+      // It comes right after the first tap, so a slow machine still taps well inside the toast.
+      await tapWine();
+      const again = await hc.toast();
+      assert.ok(again.on && again.age > start.age, `the toast goes on: ${JSON.stringify({ on: again.on, age: again.age })}`);
+      assert.equal(again.line, start.line);
+      assert.deepEqual(await hc.sounds(), []);
+
       // The cups go up. Each cup sits in the hand at its sprite's side, below the shoulders and above the feet.
       await page.waitForFunction(() => window.__hc.toast().lift === 1);
       const mid = await hc.toast();
@@ -114,10 +122,12 @@ describe("the toast", { concurrency: true }, () => {
       }
 
       // Everyone hops once, except with reduced motion. The hop ends 0.7 seconds into the toast.
-      await page.waitForFunction(() => window.__hc.toast().age > 1.1);
+      // A slow test can reach this point after the toast ends. Then it takes no screenshot.
+      await page.waitForFunction(() => { const t = window.__hc.toast(); return !t.on || t.age > 1.1; });
       assert.equal(await page.evaluate(() => window.hopped > 0), reduce === "no-preference", "the hop");
-      if (name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
-      if (name === "phone") {
+      const shot = (await hc.toast()).on;
+      if (shot && name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
+      if (shot && name === "phone") {
         // The room canvas at 6 screen pixels for each room pixel, around grown-ups with wine and kids with cocoa.
         const png = await page.evaluate(({ x, y, w, h, k }) => {
           const out = document.createElement("canvas");
@@ -130,13 +140,6 @@ describe("the toast", { concurrency: true }, () => {
         }, { x: 84, y: 94, w: 112, h: 74, k: 6 });
         await writeFile(`${OUT}/toast-zoom.png`, Buffer.from(png, "base64"));
       }
-
-      // A second tap during the toast does nothing: no new toast, no sound, the same line.
-      await tapWine();
-      const again = await hc.toast();
-      assert.ok(again.on && again.age > mid.age, "the toast goes on");
-      assert.equal(again.line, start.line);
-      assert.deepEqual(await hc.sounds(), []);
 
       // The cups go down and away after about 2 seconds.
       await page.waitForFunction(() => !window.__hc.toast().on, null, { timeout: 4000 });

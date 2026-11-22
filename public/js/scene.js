@@ -63,6 +63,7 @@ export const HOST_LINES = {
     hint("waymo", "I saw a van with nobody driving it!"),
     hint("pets", "Some pets here are not normal pets."),
     hint("lamp", "The fire looks so cool in the dark."),
+    hint("presents", "Psst. Tap the presents!"),
   ],
 };
 

@@ -97,6 +97,17 @@ Nothing on screen points to these.
 - Jess hints at it: "Poke the fire. It likes attention."
 - Code: `public/js/fire.js`. The crackle is `crackle()` in `public/js/sound.js`.
 
+## The presents (a hidden extra)
+
+- A tap on the presents on the floor by the window gives a message from each host kid.
+- Eddie says "Happy Hanukkah! I hope your holiday season is filled with happiness." in a bubble for 4.5 seconds.
+  When his bubble goes, Audrey says "Happy Hanukkah! The lights will shine bright tonight." for 4 seconds.
+  The two bubbles never show at the same time, so a guest can read both.
+- The name of each kid shows under them while they talk. The kids stand still until Audrey finishes.
+- Three quick bells ring on the tap. A tap while the kids talk, or for 0.5 seconds after, does nothing.
+- Eddie hints at it: "Psst. Tap the presents!" He stops the hint after the guest finds the presents.
+- Code: `public/js/presents.js`. The bells are `gift()` in `public/js/sound.js`.
+
 ## Tap areas
 
 - Each box in `HOTSPOTS` is the thing as drawn. A tap finds a thing from a little way off: on a touch screen, each thing gets
@@ -104,6 +115,7 @@ Nothing on screen points to these.
 - Where two areas overlap, the nearer thing wins. The window is a back area: it takes only the taps that no small thing takes.
 - The things on the sill stand closer than a finger, so each one gets a full finger of height and about 30 CSS pixels of width on a phone.
   The plants near the lamp and the two floor plants also share space: each one gets about 30 CSS pixels or more each way.
+  The presents sit just below the left dreidel. The two share the gap, so the left dreidel gets about 37 CSS pixels of height.
 - A sprite that a tap hits wins over everything. A near miss on a touch screen finds the nearest sprite.
 - Gold pixel corners show around the thing under a finger or a mouse, and they stay for a moment after the tap.
 

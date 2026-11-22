@@ -113,6 +113,8 @@ export class Sound {
 
   // A tap on the fire (fire.js): the fire roars up, then crackles and pops.
   crackle() { if (this.ready()) crackle(this.ctx, this.ctx.destination); }
+  // A tap on the presents: three quick bells that go up, like a ribbon pulled loose.
+  gift() { [784, 988, 1319].forEach((f, i) => this.tone(f, { at: i * 0.07, dur: 0.3, type: "sine", gain: 0.04 })); }
 
   // A soft bell. Each step is one note higher on a pentatonic scale, from C5.
   chime(step = 0) {

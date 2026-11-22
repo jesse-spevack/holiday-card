@@ -203,11 +203,6 @@ button, input { font: inherit; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .noscript { padding: 24px; font-family: var(--body); }
 
-@media (prefers-reduced-motion: reduce) {
-  .bubble, .again { animation: none; }
-  #app, .dialog, #app.tucked .dialog { transition: none; }
-}
-
 .turnstile { display: flex; justify-content: center; }
 .turnstile:not(:empty) { padding: 8px 0 12px; }
 
@@ -231,6 +226,12 @@ button, input { font: inherit; }
   .stage { grid-area: stage; margin: 0 0 24px 24px; min-height: 0; }
   .dialog { grid-area: dialog; align-self: center; margin: 0 24px; max-height: calc(100dvh - 160px); }
   .turnstile { grid-area: turnstile; padding-bottom: 24px; }
+}
+
+/* With reduced motion, nothing slides. This rule comes after the wide-screen rules, so it also stops the column slide there. */
+@media (prefers-reduced-motion: reduce) {
+  .bubble, .again { animation: none; }
+  #app, .dialog, #app.tucked .dialog { transition: none; }
 }
 
 /* ---------- look picker (public/js/picker.js) ----------
