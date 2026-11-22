@@ -56,7 +56,6 @@ export class Scene {
     this.families = new Map();
     this.flakes = Array.from({ length: 36 }, () => this.newFlake(true));
     this.camera = { scale: 2, x: 128, y: 120, target: null };
-    this.wide = matchMedia("(min-width: 900px)");
     this.last = performance.now();
     this.time = 0;
     this.onTap = () => {};
@@ -85,12 +84,10 @@ export class Scene {
   }
 
   // ---- camera ----
-  // A phone crops the room's sides to make it bigger. A wide screen shows the whole room.
+  // The whole room, wall to wall, as large as the stage allows. The scale can be fractional:
+  // the canvas keeps crisp pixels with image-rendering: pixelated.
   baseScale() {
-    const w = this.stage.clientWidth;
-    const h = this.stage.clientHeight;
-    if (this.wide.matches) return Math.min(w / ROOM_W, h / ROOM_H);
-    return Math.max(2, Math.floor(Math.min((w * 1.35) / ROOM_W, h / ROOM_H)));
+    return Math.min(this.stage.clientWidth / ROOM_W, this.stage.clientHeight / ROOM_H);
   }
 
   focus(x, y, zoom = 0) {

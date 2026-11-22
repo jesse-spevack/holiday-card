@@ -1,4 +1,4 @@
-import { Scene, HOSTS, HOST_LINES, loadImage } from "./js/scene.js";
+import { Scene, HOSTS, HOST_LINES, ROOM_W, ROOM_H, loadImage } from "./js/scene.js";
 import { Sound } from "./js/sound.js";
 import { api } from "./js/api.js";
 import { openPicker } from "./js/picker.js";
@@ -8,9 +8,12 @@ const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const sound = new Sound();
 const scene = new Scene({ stage: $("stage"), world: $("world"), canvas: $("canvas"), overlay: $("overlay"), reducedMotion });
+const app = $("app");
 const dialog = $("dialog");
 const album = new Album({ sound, reducedMotion, bookRect: () => scene.bookRect(), showBook: (on) => { scene.bookHidden = !on; } });
 scene.onBook = () => album.open();
+const again = $("again");
+const TUCK_MS = 5000;
 const SAVED = "hc.families";
 const POLL_MS = 30000;
 
@@ -136,6 +139,7 @@ function showError(text) {
 
 // ---------- steps ----------
 function go(step) {
+  clearTimeout(tuckTimer);
   state.step = step;
   scene.closePop();
   ({ 1: stepEnvelope, 2: stepHousehold, 3: stepAddress, unit: stepUnit, 4: stepConfirm, done: stepDone }[step])();
@@ -316,10 +320,34 @@ async function send() {
   }
 }
 
+// The thank-you stays for a few seconds. Then the dialog slides away, and the camera
+// moves back out so the guest sees the whole party.
+let tuckTimer = null;
 function stepDone() {
   frame("Thank you. You mean a lot to us.",
     h("p", { class: "hint" }, "Your family is at our party now. Tap anyone in your family to change their look or give them something to say."),
     btn("Add another address", restart, "link"));
+  tuckTimer = setTimeout(() => {
+    tuck(true);
+    scene.focus(ROOM_W / 2, ROOM_H / 2, 0);
+  }, TUCK_MS);
+}
+
+// A tucked dialog gives its space to the room. The top bar then shows "Add another address".
+function tuck(away) {
+  if (app.classList.contains("tucked") === away) return;
+  const hadFocus = dialog.contains(document.activeElement);
+  again.hidden = !away;
+  if (away) {
+    // The height starts from its current size, so it can slide down to zero.
+    dialog.style.height = `${dialog.offsetHeight}px`;
+    dialog.getBoundingClientRect();
+    dialog.style.height = "0px";
+  } else {
+    dialog.style.height = "";
+  }
+  app.classList.toggle("tucked", away);
+  if (away && hadFocus) again.focus();
 }
 
 function restart() {
@@ -327,8 +355,9 @@ function restart() {
     envelope: "", household: "", householdAsked: "", members: null, membersPromise: null,
     addressQuery: "", address: null, unit: "", session: newSession(),
   });
-  scene.focus(128, 120, 0);
+  scene.focus(ROOM_W / 2, ROOM_H / 2, 0);
   go(1);
+  tuck(false);
 }
 
 // ---------- looks ----------
@@ -484,6 +513,7 @@ async function start() {
   };
   syncSound();
   soundBtn.addEventListener("click", () => { sound.toggle(); syncSound(); });
+  again.addEventListener("click", restart);
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
