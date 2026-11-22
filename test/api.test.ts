@@ -2,54 +2,46 @@ import { SELF, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OPENROUTER, PLACES, SHEET, TURNSTILE, llmReply, stubOutbound } from "./outbound";
 
-const GUEST = {
-  name: "Ana Garcia",
-  household: "The Garcias",
-  street: "1600 Pennsylvania St",
-  unit: "2B",
-  city: "Denver",
-  state: "co",
-  zip: "02139",
-  familyText: "Me, Dana, our kids Mia and Leo, and Biscuit the corgi",
+const SUBMISSION = {
+  envelope: "The Garcia Family",
+  household: "Sofia, Dan, Mia, and Biscuit the corgi",
+  members: [
+    { type: "adult", look: "adult-03" },
+    { type: "adult", look: "adult-12" },
+    { type: "kid", look: "kid-04" },
+    { type: "dog", look: "dog-06" },
+  ],
+  address: { street: "1428 Maple Ave", unit: "Apt 2B", city: "Evanston", state: "IL", zip: "02139", formatted: "1428 Maple Ave, Evanston, IL 60201, USA" },
   turnstileToken: "token",
 };
 
-const MEMBERS = [
-  { name: "Ana", kind: "adult" },
-  { name: "Dana", kind: "adult" },
-  { name: "Mia", kind: "kid" },
-  { name: "Leo", kind: "kid" },
-  { name: "Biscuit", kind: "dog" },
-];
+let ipCounter = 0;
 
-function happyServices() {
+function request(path: string, init: RequestInit = {}) {
+  // A fresh IP per call keeps the per-IP rate limits out of these tests.
+  return SELF.fetch(`https://hi.verynormal.dev${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", "CF-Connecting-IP": `10.0.${Math.floor(++ipCounter / 250)}.${ipCounter % 250}` },
+  });
+}
+
+const post = (path: string, body: unknown) => request(path, { method: "POST", body: JSON.stringify(body) });
+
+async function getParty() {
+  return (await (await request("/api/party")).json()) as any;
+}
+
+function savingServices() {
   return stubOutbound({
     [TURNSTILE]: () => Response.json({ success: true }),
-    [OPENROUTER]: () => llmReply(MEMBERS),
     [SHEET]: () => Response.json({ ok: true }),
   });
 }
 
-let ipCounter = 0;
-
-function post(path: string, body: unknown) {
-  return SELF.fetch(`https://hi.verynormal.dev${path}`, {
-    method: "POST",
-    // A fresh IP per call keeps the per-IP rate limits out of these tests.
-    headers: { "Content-Type": "application/json", "CF-Connecting-IP": `10.0.0.${++ipCounter}` },
-    body: JSON.stringify(body),
-  });
-}
-
-async function getParty(since?: number) {
-  const response = await SELF.fetch(`https://hi.verynormal.dev/api/party${since === undefined ? "" : `?since=${since}`}`);
-  return (await response.json()) as any;
-}
-
-async function joinFamily() {
-  happyServices();
-  const response = await post("/api/join", GUEST);
-  return (await response.json()) as { familyId: string; token: string; members: { id: string; kind: string }[] };
+async function submitFamily() {
+  savingServices();
+  const response = await post("/api/submit", SUBMISSION);
+  return (await response.json()) as { id: string; token: string };
 }
 
 beforeEach(async () => {
@@ -60,105 +52,133 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("join", () => {
-  it("saves the contact to the Sheet and the family to the party", async () => {
-    const services = happyServices();
+describe("household", () => {
+  it("turns the note into member types", async () => {
+    const services = stubOutbound({ [OPENROUTER]: () => llmReply([{ type: "adult" }, { type: "adult" }, { type: "kid" }, { type: "dog" }]) });
 
-    const response = await post("/api/join", GUEST);
+    const response = await post("/api/household", { text: "Sofia, Dan, Mia, and Biscuit the corgi" });
+
+    expect(await response.json()).toEqual({ members: [{ type: "adult" }, { type: "adult" }, { type: "kid" }, { type: "dog" }] });
+    const sent = JSON.parse(services.to(OPENROUTER)[0].body);
+    expect(sent.messages[1].content).toBe("Sofia, Dan, Mia, and Biscuit the corgi");
+  });
+
+  it("returns one adult when the model finds no one", async () => {
+    stubOutbound({ [OPENROUTER]: () => llmReply([]) });
+
+    const response = await post("/api/household", { text: "hello" });
+
+    expect(await response.json()).toEqual({ members: [{ type: "adult" }] });
+  });
+
+  it("keeps at most 12 members", async () => {
+    stubOutbound({ [OPENROUTER]: () => llmReply(Array.from({ length: 30 }, () => ({ type: "dog" }))) });
+
+    const { members } = (await (await post("/api/household", { text: "so many dogs" })).json()) as any;
+
+    expect(members).toHaveLength(12);
+  });
+
+  it("retries once, then fails with 502", async () => {
+    const services = stubOutbound({ [OPENROUTER]: () => new Response("down", { status: 503 }) });
+
+    const response = await post("/api/household", { text: "me and my cat" });
+
+    expect(response.status).toBe(502);
+    expect(services.to(OPENROUTER)).toHaveLength(2);
+  });
+});
+
+describe("submit", () => {
+  it("saves only the contact to the Sheet and the family to the party", async () => {
+    const services = savingServices();
+
+    const response = await post("/api/submit", SUBMISSION);
 
     expect(response.status).toBe(201);
-    const joined = (await response.json()) as any;
-    expect(joined.token).toMatch(/^[\w-]{40,}$/);
-    expect(joined.members.map((m: any) => m.kind)).toEqual(["adult", "adult", "kid", "kid", "dog"]);
-
-    const [sheetCall] = services.to(SHEET);
-    expect(JSON.parse(sheetCall.body)).toEqual({
+    const { id, token } = (await response.json()) as any;
+    expect(id).toBeTruthy();
+    expect(token).toMatch(/^[\w-]{40,}$/);
+    expect(JSON.parse(services.to(SHEET)[0].body)).toEqual({
       secret: "test-secret",
-      name: "Ana Garcia",
-      household: "The Garcias",
-      street: "1600 Pennsylvania St",
-      unit: "2B",
-      city: "Denver",
-      state: "CO",
+      name: "Sofia, Dan, Mia, and Biscuit the corgi",
+      household: "The Garcia Family",
+      street: "1428 Maple Ave",
+      unit: "Apt 2B",
+      city: "Evanston",
+      state: "IL",
       zip: "02139",
     });
 
-    const party = await getParty();
-    expect(party.families).toHaveLength(1);
-    expect(party.families[0].household).toBe("The Garcias");
-    expect(party.families[0].members).toHaveLength(5);
+    expect((await getParty()).families).toEqual([
+      {
+        id,
+        name: "The Garcia Family",
+        members: SUBMISSION.members,
+        bubbles: ["", "", "", ""],
+      },
+    ]);
   });
 
-  it("never shows member names or addresses at the party", async () => {
-    await joinFamily();
+  it("accepts an address typed by hand, with no city, state, or ZIP", async () => {
+    const services = savingServices();
+
+    const response = await post("/api/submit", {
+      ...SUBMISSION,
+      address: { street: "Box 12, Rural Route 3, Ely MN", unit: "", city: "", state: "", zip: "", formatted: "Box 12, Rural Route 3, Ely MN" },
+    });
+
+    expect(response.status).toBe(201);
+    expect(JSON.parse(services.to(SHEET)[0].body)).toMatchObject({ street: "Box 12, Rural Route 3, Ely MN", city: "", state: "", zip: "" });
+  });
+
+  it("never shows addresses or the household note at the party", async () => {
+    await submitFamily();
 
     const text = JSON.stringify(await getParty());
 
-    for (const secret of ["Ana", "Dana", "Mia", "Leo", "Biscuit", "Pennsylvania", "02139", "corgi"]) {
-      expect(text).not.toContain(secret);
-    }
-  });
-
-  it("saves nothing when the family parse fails twice", async () => {
-    const services = stubOutbound({
-      [TURNSTILE]: () => Response.json({ success: true }),
-      [OPENROUTER]: () => new Response("upstream down", { status: 503 }),
-      [SHEET]: () => Response.json({ ok: true }),
-    });
-
-    const response = await post("/api/join", GUEST);
-
-    expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ error: "family_parse_failed" });
-    expect(services.to(OPENROUTER)).toHaveLength(2);
-    expect(services.to(SHEET)).toHaveLength(0);
-    expect((await getParty()).families).toHaveLength(0);
-  });
-
-  it("retries the family parse once", async () => {
-    let attempt = 0;
-    stubOutbound({
-      [TURNSTILE]: () => Response.json({ success: true }),
-      [OPENROUTER]: () => (attempt++ === 0 ? new Response("busy", { status: 429 }) : llmReply(MEMBERS)),
-      [SHEET]: () => Response.json({ ok: true }),
-    });
-
-    const response = await post("/api/join", GUEST);
-
-    expect(response.status).toBe(201);
+    for (const secret of ["Maple", "Evanston", "02139", "Sofia", "Biscuit", "token"]) expect(text).not.toContain(secret);
   });
 
   it("does not add the family when the Sheet write fails", async () => {
     stubOutbound({
       [TURNSTILE]: () => Response.json({ success: true }),
-      [OPENROUTER]: () => llmReply(MEMBERS),
       [SHEET]: () => Response.json({ error: "forbidden" }),
     });
 
-    const response = await post("/api/join", GUEST);
+    const response = await post("/api/submit", SUBMISSION);
 
     expect(response.status).toBe(502);
     expect((await getParty()).families).toHaveLength(0);
   });
 
-  it("rejects a failed Turnstile check before it calls the LLM", async () => {
+  it("rejects a failed Turnstile check before it writes anything", async () => {
     const services = stubOutbound({ [TURNSTILE]: () => Response.json({ success: false }) });
 
-    const response = await post("/api/join", GUEST);
+    const response = await post("/api/submit", SUBMISSION);
 
     expect(response.status).toBe(403);
-    expect(services.to(OPENROUTER)).toHaveLength(0);
+    expect(services.to(SHEET)).toHaveLength(0);
+  });
+
+  it("drops a look id that is not a plain id", async () => {
+    await submitFamilyWith({ members: [{ type: "adult", look: "../../etc" }, { type: "parrot", look: "cat-01" }] });
+
+    expect((await getParty()).families[0].members).toEqual([
+      { type: "adult", look: "" },
+      { type: "adult", look: "cat-01" },
+    ]);
   });
 
   it.each([
-    [{ zip: "8020" }, "bad_zip"],
-    [{ state: "Colorado" }, "too_long_state"],
-    [{ household: "  " }, "missing_household"],
-    [{ familyText: "x".repeat(501) }, "too_long_familyText"],
+    [{ envelope: " " }, "missing_envelope"],
+    [{ household: "" }, "missing_household"],
+    [{ address: { street: "" } }, "missing_street"],
+    [{ members: [] }, "missing_members"],
   ])("rejects %o with %s and calls no service", async (change, code) => {
     const services = stubOutbound({});
 
-    const response = await post("/api/join", { ...GUEST, ...change });
+    const response = await post("/api/submit", { ...SUBMISSION, ...change });
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: code });
@@ -166,65 +186,73 @@ describe("join", () => {
   });
 });
 
-describe("party", () => {
-  it("answers unchanged when the version did not move", async () => {
-    await joinFamily();
-    const { version } = await getParty();
+async function submitFamilyWith(change: Record<string, unknown>) {
+  savingServices();
+  return (await (await post("/api/submit", { ...SUBMISSION, ...change })).json()) as { id: string; token: string };
+}
 
-    expect(await getParty(version)).toEqual({ version, unchanged: true });
-  });
+describe("sprite", () => {
+  it("lets the family change a look and a bubble by index", async () => {
+    const { id, token } = await submitFamily();
 
-  it("moves the version when a member changes", async () => {
-    const joined = await joinFamily();
-    const { version } = await getParty();
+    expect((await post("/api/sprite", { id, token, index: 2, look: "kid-07" })).status).toBe(200);
+    expect((await post("/api/sprite", { id, token, index: 2, bubble: "Happy Hanukkah!" })).status).toBe(200);
 
-    await post(`/api/members/${joined.members[0].id}`, { token: joined.token, bubble: "hi" });
-
-    const after = await getParty(version);
-    expect(after.version).toBeGreaterThan(version);
-    expect(after.families[0].members[0].bubble).toBe("hi");
-  });
-});
-
-describe("member changes", () => {
-  it("lets the family change its own look and bubble", async () => {
-    const joined = await joinFamily();
-    const memberId = joined.members[2].id;
-
-    const response = await post(`/api/members/${memberId}`, { token: joined.token, look: 7, bubble: "Happy Hanukkah!" });
-
-    expect(response.status).toBe(200);
-    const member = (await getParty()).families[0].members[2];
-    expect(member).toMatchObject({ id: memberId, look: 7, bubble: "Happy Hanukkah!" });
+    const family = (await getParty()).families[0];
+    expect(family.members[2]).toEqual({ type: "kid", look: "kid-07" });
+    expect(family.bubbles[2]).toBe("Happy Hanukkah!");
   });
 
   it("rejects a wrong token", async () => {
-    const joined = await joinFamily();
+    const { id } = await submitFamily();
 
-    const response = await post(`/api/members/${joined.members[0].id}`, { token: "not-the-token", bubble: "hacked" });
+    const response = await post("/api/sprite", { id, token: "not-the-token", index: 0, bubble: "hacked" });
 
     expect(response.status).toBe(403);
-    expect((await getParty()).families[0].members[0].bubble).toBe("");
+    expect((await getParty()).families[0].bubbles[0]).toBe("");
+  });
+
+  it("rejects an index past the family", async () => {
+    const { id, token } = await submitFamily();
+
+    const response = await post("/api/sprite", { id, token, index: 9, bubble: "hi" });
+
+    expect(response.status).toBe(404);
   });
 
   it("rejects a bubble over 40 characters", async () => {
-    const joined = await joinFamily();
+    const { id, token } = await submitFamily();
 
-    const response = await post(`/api/members/${joined.members[0].id}`, { token: joined.token, bubble: "x".repeat(41) });
+    const response = await post("/api/sprite", { id, token, index: 0, bubble: "x".repeat(41) });
 
     expect(response.status).toBe(400);
   });
 
   it("hides a bubble that Jesse hid, and shows the next new bubble", async () => {
-    const joined = await joinFamily();
-    const memberId = joined.members[0].id;
-    await post(`/api/members/${memberId}`, { token: joined.token, bubble: "rude words" });
+    const { id, token } = await submitFamily();
+    await post("/api/sprite", { id, token, index: 0, bubble: "rude words" });
 
-    await env.DB.prepare("UPDATE members SET bubble_hidden = 1 WHERE id = ?").bind(memberId).run();
-    expect((await getParty()).families[0].members[0].bubble).toBe("");
+    await env.DB.prepare("UPDATE members SET bubble_hidden = 1 WHERE family_id = ? AND position = 0").bind(id).run();
+    expect((await getParty()).families[0].bubbles[0]).toBe("");
 
-    await post(`/api/members/${memberId}`, { token: joined.token, bubble: "sorry!" });
-    expect((await getParty()).families[0].members[0].bubble).toBe("sorry!");
+    await post("/api/sprite", { id, token, index: 0, bubble: "sorry!" });
+    expect((await getParty()).families[0].bubbles[0]).toBe("sorry!");
+  });
+});
+
+describe("party", () => {
+  it("leaves out a family that Jesse hid", async () => {
+    const { id } = await submitFamily();
+
+    await env.DB.prepare("UPDATE families SET hidden = 1 WHERE id = ?").bind(id).run();
+
+    expect((await getParty()).families).toHaveLength(0);
+  });
+
+  it("tells the browser not to cache the party", async () => {
+    const response = await request("/api/party");
+
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 });
 
@@ -233,45 +261,41 @@ describe("places", () => {
     stubOutbound({
       [PLACES]: () =>
         Response.json({
+          formattedAddress: "1428 Maple Ave, Evanston, IL 60201, USA",
           addressComponents: [
-            { longText: "1600", shortText: "1600", types: ["street_number"] },
-            { longText: "Pennsylvania Street", shortText: "Pennsylvania St", types: ["route"] },
-            { longText: "Unit 4", shortText: "4", types: ["subpremise"] },
-            { longText: "Denver", shortText: "Denver", types: ["locality", "political"] },
-            { longText: "Colorado", shortText: "CO", types: ["administrative_area_level_1", "political"] },
-            { longText: "80203", shortText: "80203", types: ["postal_code"] },
+            { longText: "1428", shortText: "1428", types: ["street_number"] },
+            { longText: "Maple Avenue", shortText: "Maple Ave", types: ["route"] },
+            { longText: "Evanston", shortText: "Evanston", types: ["locality", "political"] },
+            { longText: "Illinois", shortText: "IL", types: ["administrative_area_level_1", "political"] },
+            { longText: "60201", shortText: "60201", types: ["postal_code"] },
           ],
         }),
     });
 
-    const response = await post("/api/places/address", { placeId: "ChIJabc", sessionToken: "s1" });
+    const response = await request("/api/place?id=ChIJabc&session=s1");
 
     expect(await response.json()).toEqual({
-      address: { street: "1600 Pennsylvania Street", unit: "Unit 4", city: "Denver", state: "CO", zip: "80203" },
+      address: { street: "1428 Maple Ave", city: "Evanston", state: "IL", zip: "60201", formatted: "1428 Maple Ave, Evanston, IL 60201, USA" },
     });
   });
 
-  it("sends the session token and the US limit to Google", async () => {
-    const services = stubOutbound({
-      [PLACES]: () =>
-        Response.json({
-          suggestions: [
-            { placePrediction: { placeId: "p1", structuredFormat: { mainText: { text: "1600 Pennsylvania St" }, secondaryText: { text: "Denver, CO, USA" } } } },
-          ],
-        }),
+  it("sends the session token and the US limit, and returns at most 5 suggestions", async () => {
+    const prediction = (i: number) => ({
+      placePrediction: { placeId: `p${i}`, structuredFormat: { mainText: { text: `${i} Maple Ave` }, secondaryText: { text: "Evanston, IL, USA" } } },
     });
+    const services = stubOutbound({ [PLACES]: () => Response.json({ suggestions: [1, 2, 3, 4, 5, 6].map(prediction) }) });
 
-    const response = await post("/api/places/suggest", { input: "1600 Penn", sessionToken: "s1" });
+    const { suggestions } = (await (await request("/api/places?q=1428%20Maple&session=s1")).json()) as any;
 
-    expect(await response.json()).toEqual({ suggestions: [{ placeId: "p1", main: "1600 Pennsylvania St", secondary: "Denver, CO, USA" }] });
-    const sent = JSON.parse(services.to(PLACES)[0].body);
-    expect(sent).toMatchObject({ input: "1600 Penn", sessionToken: "s1", includedRegionCodes: ["us"] });
+    expect(suggestions).toHaveLength(5);
+    expect(suggestions[0]).toEqual({ id: "p1", main: "1 Maple Ave", secondary: "Evanston, IL, USA" });
+    expect(JSON.parse(services.to(PLACES)[0].body)).toMatchObject({ input: "1428 Maple", sessionToken: "s1", includedRegionCodes: ["us"] });
   });
 
   it("does not call Google for fewer than 3 characters", async () => {
     const services = stubOutbound({});
 
-    const response = await post("/api/places/suggest", { input: "16", sessionToken: "s1" });
+    const response = await request("/api/places?q=14&session=s1");
 
     expect(await response.json()).toEqual({ suggestions: [] });
     expect(services.calls).toHaveLength(0);
@@ -280,7 +304,7 @@ describe("places", () => {
   it("rejects a place id that could change the Google URL", async () => {
     const services = stubOutbound({});
 
-    const response = await post("/api/places/address", { placeId: "../../v1/other", sessionToken: "s1" });
+    const response = await request("/api/place?id=..%2F..%2Fv1%2Fother&session=s1");
 
     expect(response.status).toBe(400);
     expect(services.calls).toHaveLength(0);

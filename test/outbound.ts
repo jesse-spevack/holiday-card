@@ -25,6 +25,6 @@ export const SHEET = "script.google.com";
 export const TURNSTILE = "challenges.cloudflare.com";
 export const PLACES = "places.googleapis.com";
 
-export function llmReply(members: { name: string; kind: string }[]): Response {
+export function llmReply(members: unknown[]): Response {
   return Response.json({ choices: [{ message: { content: JSON.stringify({ members }) } }] });
 }

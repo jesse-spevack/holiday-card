@@ -1,10 +1,11 @@
 # holiday-card
 
 Collects names and addresses for holiday cards at `hi.verynormal.dev`. Each family that signs up
-joins a pixel-art winter + Hanukkah living room party.
+joins a pixel-art winter holiday party in our living room.
 
 - Scope: `docs/scope.md`
-- The Worker and its API: `src/`. The page: `public/`. The party database: `migrations/`.
+- The form and its API contract: `docs/form.md`. Copy: `docs/copy.md`.
+- The Worker: `src/`. The page: `public/`. The party database: `migrations/`.
 - The contact list Sheet and its Apps Script: `apps-script/`
 - Art and the scripts that make it: `art/`
 
@@ -14,6 +15,7 @@ joins a pixel-art winter + Hanukkah living room party.
 pnpm install
 cp .dev.vars.example .dev.vars   # then fill in the secrets
 pnpm test
+pnpm e2e        # needs Google Chrome
 pnpm typecheck
 pnpm deploy
 ```
