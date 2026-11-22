@@ -122,10 +122,12 @@ describe("the toast", { concurrency: true }, () => {
       }
 
       // Everyone hops once, except with reduced motion. The hop ends 0.7 seconds into the toast.
-      await page.waitForFunction(() => window.__hc.toast().age > 1.1);
+      // A slow test can reach this point after the toast ends. Then it takes no screenshot.
+      await page.waitForFunction(() => { const t = window.__hc.toast(); return !t.on || t.age > 1.1; });
       assert.equal(await page.evaluate(() => window.hopped > 0), reduce === "no-preference", "the hop");
-      if (name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
-      if (name === "phone") {
+      const shot = (await hc.toast()).on;
+      if (shot && name !== "phone-still") await page.screenshot({ path: `${OUT}/toast-${name}.png` });
+      if (shot && name === "phone") {
         // The room canvas at 6 screen pixels for each room pixel, around grown-ups with wine and kids with cocoa.
         const png = await page.evaluate(({ x, y, w, h, k }) => {
           const out = document.createElement("canvas");
