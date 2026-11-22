@@ -21,13 +21,14 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
 
 - The party shows the household name only.
 - Addresses and family member names are never shown.
-- Jesse can hide any chat bubble.
+- Jesse can hide any chat bubble. Until the admin page exists, Claude sets `bubble_hidden` in D1.
 
 ## Data
 
 - The Google Sheet is the contact list only: name, household, and mailing address.
   An Apps Script on the Sheet adds one row for each sign-up. See `apps-script/`.
-- Party data (family members, sprite looks, chat bubbles) does not go in the Sheet.
+- Party data (family members, sprite looks, chat bubbles) lives in Cloudflare D1, not in the Sheet.
+- Later: an admin page at `hi.verynormal.dev/admin` to view and change the data.
 - Duplicates are kept. Jesse cleans them up.
 
 ## Look
@@ -40,8 +41,10 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
 
 ## Stack
 
-- Cloudflare hosts the static page and a function. The function holds the OpenRouter and Google keys,
-  calls the LLM and Places, and reads and writes the Sheet through Apps Script.
+- A Cloudflare Worker serves the static page and the API at `hi.verynormal.dev`. It holds the OpenRouter,
+  Google, Sheet, and Turnstile secrets. It calls the LLM and Places, writes contacts to the Sheet, and keeps the party in D1.
+- The party page checks for changes every 5 seconds. It reads one version row and fetches the full party only when the version moves.
+- Turnstile protects the sign-up form.
 - Art comes from PixelLab (characters, with 4 directions and animations) and Retro Diffusion (rooms and props).
   `art/scripts/generate.py` holds the prompts and settings.
 
@@ -51,12 +54,11 @@ After a guest submits, their family arrives as pixel sprites at a cozy winter + 
   `low top-down` view, single color black outline, basic shading, medium detail.
 - Room: Retro Diffusion `rd_pro__topdown`, 256x192, front door in the middle of the bottom wall.
 
-## Setup tasks for Jesse
+## Setup
 
-1. Cloudflare: create a project and point the `hi` subdomain at it.
-2. Google Sheet: done with clasp. Jesse approved the script.
-3. Google Cloud: turn on billing with a budget alert, turn on Places API (New), and create a key limited to that API.
-4. Cloudflare secrets: add the OpenRouter key and the Google key.
+- Done: the Worker, D1, the `hi` custom domain, the secrets, the Sheet, and Places with a key limited to Places.
+- Places has hard daily limits in Google Cloud: 500 suggestions and 200 address lookups.
+- Jesse: make a Turnstile widget for `hi.verynormal.dev`. The site uses Cloudflare's test key until then.
 
 ## Out of scope
 

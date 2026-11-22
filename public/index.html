@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Come in from the cold</title>
+  <meta name="description" content="Send us your address for a holiday card, and your family joins the party at our cabin.">
+  <meta name="theme-color" content="#f5efe3">
+  <link rel="icon" href="/art/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Pixelify+Sans:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="intro">
+      <p class="eyebrow">Holiday cards · 2026</p>
+      <h1>Come in from the cold.</h1>
+      <p class="lede">Send us your address for a holiday card. Then your family walks into our cabin party.</p>
+    </header>
+
+    <section class="scene" aria-label="The cabin party">
+      <div class="scene-frame" id="scene-frame">
+        <canvas id="scene" role="img" aria-label="A pixel-art cabin with families at a party"></canvas>
+        <div class="scene-overlay" id="scene-overlay"></div>
+        <button class="sound-toggle" id="sound-toggle" type="button" aria-pressed="true" aria-label="Sound on">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor"/><path class="sound-waves" d="M11 5.5c.9.7 1.4 1.5 1.4 2.5s-.5 1.8-1.4 2.5M12.6 3.8c1.4 1.1 2.1 2.5 2.1 4.2s-.7 3.1-2.1 4.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="sound-off" d="M11 5.5l4 5M15 5.5l-4 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="scene-caption" id="scene-caption" aria-live="polite">&nbsp;</p>
+    </section>
+
+    <section class="card" id="joined" hidden>
+      <h2>You’re at the party.</h2>
+      <p>Tap someone in your family to change their look or give them something to say.</p>
+      <button class="link-button" id="add-another" type="button">Add another household</button>
+    </section>
+
+    <form class="card" id="join-form" novalidate>
+      <h2>Your card</h2>
+
+      <div class="field">
+        <label for="name">Your name</label>
+        <input id="name" name="name" autocomplete="name" required maxlength="100">
+      </div>
+
+      <div class="field">
+        <label for="household">Name on the envelope</label>
+        <input id="household" name="household" placeholder="The Garcias" required maxlength="100">
+        <p class="hint">Everyone at the party sees this name.</p>
+      </div>
+
+      <fieldset class="address">
+        <legend>Mailing address</legend>
+        <div class="field combobox">
+          <label for="street">Street address</label>
+          <input id="street" name="street" autocomplete="address-line1" required maxlength="200"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="street-suggestions">
+          <ul class="suggestions" id="street-suggestions" role="listbox" hidden></ul>
+        </div>
+        <div class="field">
+          <label for="unit">Apartment, suite, or unit <span class="optional">optional</span></label>
+          <input id="unit" name="unit" autocomplete="address-line2" maxlength="50">
+        </div>
+        <div class="row">
+          <div class="field city">
+            <label for="city">City</label>
+            <input id="city" name="city" autocomplete="address-level2" required maxlength="100">
+          </div>
+          <div class="field state">
+            <label for="state">State</label>
+            <input id="state" name="state" autocomplete="address-level1" required maxlength="2" placeholder="CO" autocapitalize="characters">
+          </div>
+          <div class="field zip">
+            <label for="zip">ZIP</label>
+            <input id="zip" name="zip" autocomplete="postal-code" required maxlength="10" inputmode="numeric">
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label for="family-text">Who’s in your family?</label>
+        <textarea id="family-text" name="familyText" rows="3" required maxlength="500"
+                  placeholder="Me, Dana, our kids Mia and Leo, and Biscuit the corgi"></textarea>
+        <p class="hint">Pets welcome. Only your family’s sprites show at the party, never their names.</p>
+      </div>
+
+      <div id="turnstile"></div>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+      <button class="submit" id="submit" type="submit">Join the party</button>
+    </form>
+
+    <footer class="footer">
+      <p>We use your address only for our holiday card. The party shows your household name and nothing else.</p>
+    </footer>
+  </main>
+
+  <dialog class="sheet" id="editor">
+    <form method="dialog" id="editor-form">
+      <h2 id="editor-title">Your guest</h2>
+      <div class="editor-look">
+        <button type="button" class="look-step" id="look-prev" aria-label="Previous look">‹</button>
+        <canvas id="editor-preview" width="48" height="48" aria-hidden="true"></canvas>
+        <button type="button" class="look-step" id="look-next" aria-label="Next look">›</button>
+      </div>
+      <div class="field">
+        <label for="bubble">Say something</label>
+        <input id="bubble" maxlength="40" placeholder="Pass the latkes!">
+        <p class="hint"><span id="bubble-count">0</span>/40</p>
+      </div>
+      <p class="form-error" id="editor-error" role="alert" hidden></p>
+      <div class="sheet-actions">
+        <button type="button" class="link-button" id="editor-cancel">Cancel</button>
+        <button type="submit" class="submit" id="editor-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
