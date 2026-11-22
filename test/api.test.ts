@@ -51,7 +51,7 @@ async function submitFamily() {
 }
 
 beforeEach(async () => {
-  await env.DB.batch([env.DB.prepare("DELETE FROM members"), env.DB.prepare("DELETE FROM families")]);
+  await env.DB.batch([env.DB.prepare("DELETE FROM interactions"), env.DB.prepare("DELETE FROM members"), env.DB.prepare("DELETE FROM families")]);
 });
 
 afterEach(() => {
@@ -352,6 +352,111 @@ describe("sprite", () => {
 
     await post("/api/sprite", { id, token, index: 0, bubble: "sorry!" });
     expect((await getParty()).families[0].bubbles[0]).toBe("sorry!");
+  });
+});
+
+describe("interaction", () => {
+  type Row = { egg: string; count: number; first_at: string; last_at: string };
+  const rows = async (id: string) =>
+    (await env.DB.prepare("SELECT egg, count, first_at, last_at FROM interactions WHERE family_id = ? ORDER BY egg").bind(id).all<Row>()).results;
+
+  it("counts each interaction for each egg, and replies with no body", async () => {
+    const { id, token } = await submitFamily();
+
+    const first = await post("/api/interaction", { id, token, egg: "lamp" });
+    await post("/api/interaction", { id, token, egg: "lamp" });
+    await post("/api/interaction", { id, token, egg: "toast" });
+
+    expect(first.status).toBe(204);
+    expect(await first.text()).toBe("");
+    expect((await rows(id)).map(({ egg, count }) => ({ egg, count }))).toEqual([{ egg: "lamp", count: 2 }, { egg: "toast", count: 1 }]);
+  });
+
+  it("keeps first_at and moves last_at", async () => {
+    const { id, token } = await submitFamily();
+    await post("/api/interaction", { id, token, egg: "star" });
+    await env.DB.prepare("UPDATE interactions SET first_at = '2026-01-01 00:00:00', last_at = '2026-01-01 00:00:00'").run();
+
+    await post("/api/interaction", { id, token, egg: "star" });
+
+    const [row] = await rows(id);
+    expect(row.first_at).toBe("2026-01-01 00:00:00");
+    expect(row.last_at > row.first_at).toBe(true);
+  });
+
+  it("does not change the party version, so pages do not fetch the party again", async () => {
+    const { id, token } = await submitFamily();
+    const version = () => env.DB.prepare("SELECT version FROM party_version").first<number>("version");
+    const before = await version();
+
+    await post("/api/interaction", { id, token, egg: "album" });
+
+    expect(await version()).toBe(before);
+  });
+
+  it.each([
+    [{}, 400, "missing_id"],
+    [{ id: "x" }, 400, "missing_token"],
+  ])("needs the family id and token: %o", async (body, status, code) => {
+    const response = await post("/api/interaction", { ...body, egg: "lamp" });
+
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ error: code });
+  });
+
+  it("rejects a wrong token and writes nothing", async () => {
+    const { id } = await submitFamily();
+
+    const response = await post("/api/interaction", { id, token: "not-the-token", egg: "lamp" });
+
+    expect(response.status).toBe(403);
+    expect(await rows(id)).toEqual([]);
+  });
+
+  it("rejects the token of another family", async () => {
+    const first = await submitFamily();
+    const second = await submitFamily();
+
+    const response = await post("/api/interaction", { id: first.id, token: second.token, egg: "lamp" });
+
+    expect(response.status).toBe(403);
+    expect(await rows(first.id)).toEqual([]);
+  });
+
+  it("returns 404 for a family that is not there", async () => {
+    const { token } = await submitFamily();
+
+    const response = await post("/api/interaction", { id: crypto.randomUUID(), token, egg: "lamp" });
+
+    expect(response.status).toBe(404);
+  });
+
+  it.each([["nope"], ["LAMP"], [""], [3], [null]])("rejects the egg %o", async (egg) => {
+    const { id, token } = await submitFamily();
+
+    const response = await post("/api/interaction", { id, token, egg });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "bad_egg" });
+    expect(await rows(id)).toEqual([]);
+  });
+
+  it("deletes the interactions with the family", async () => {
+    const { id, token } = await submitFamily();
+    await post("/api/interaction", { id, token, egg: "dreidel" });
+
+    await env.DB.prepare("DELETE FROM families WHERE id = ?").bind(id).run();
+
+    expect(await rows(id)).toEqual([]);
+  });
+
+  it("slows down one IP that sends too many", async () => {
+    const { id, token } = await submitFamily();
+    const statuses = [];
+    for (let i = 0; i < 61; i++) statuses.push((await post("/api/interaction", { id, token, egg: "lamp" }, "10.9.9.8")).status);
+
+    expect(statuses.slice(0, 60).every((s) => s === 204)).toBe(true);
+    expect(statuses[60]).toBe(429);
   });
 });
 

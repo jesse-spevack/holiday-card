@@ -78,16 +78,32 @@ function saveMine() {
 const mineById = (id) => state.mine.find((f) => f.id === id);
 
 // ---------- hidden things this browser found ----------
-// The hosts stop a hint after the guest finds its thing. The list stays for the next visit.
+// The one hook for a hidden extra: call markFound(egg) on each interaction with it, not only the first.
+// It tells the Worker (see track), and the hosts stop a hint after the guest finds its thing.
+// The found list stays for the next visit. A new egg name must also go in EGGS in src/interactions.ts.
 const FOUND = "hc.found";
 const found = new Set(loadFound());
 function loadFound() {
   try { return JSON.parse(localStorage.getItem(FOUND)) || []; } catch { return []; }
 }
 function markFound(egg) {
-  if (!egg || found.has(egg)) return;
+  if (!egg) return;
+  track(egg);
+  if (found.has(egg)) return;
   found.add(egg);
   try { localStorage.setItem(FOUND, JSON.stringify([...found])); } catch {}
+}
+
+// Records the interaction for the family this browser signed up last. A guest with no family sends nothing.
+// A guest who taps fast sends at most one call for each egg in `gapMs`. A failed call stays silent.
+const tracking = { gapMs: 5000, sentAt: new Map() };
+function track(egg) {
+  const family = state.mine.at(-1);
+  if (!family) return;
+  const now = performance.now();
+  if (now - (tracking.sentAt.get(egg) ?? -Infinity) < tracking.gapMs) return;
+  tracking.sentAt.set(egg, now);
+  api.interaction({ id: family.id, token: family.token, egg }).catch(() => {});
 }
 
 // ---------- Turnstile: Cloudflare's check that a real browser sends the address ----------
@@ -610,6 +626,6 @@ async function start() {
 
 // "?test" loads the test API for the end-to-end tests (public/js/test-api.js). A guest never loads it.
 if (new URLSearchParams(location.search).has("test")) {
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, toast, album, found }); });
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, eggs, dreidel, toast, album, found, tracking }); });
 }
 start();

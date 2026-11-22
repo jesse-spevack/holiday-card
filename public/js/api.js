@@ -18,6 +18,7 @@ export const api = {
   place: (id, session) => call(`/api/place?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`),
   submit: (entry) => postJson("/api/submit", entry),
   sprite: (update) => postJson("/api/sprite", update),
+  interaction: (update) => postJson("/api/interaction", update),
   party: () => call("/api/party"),
   config: () => call("/api/config"),
 };

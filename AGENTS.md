@@ -28,7 +28,8 @@ One Cloudflare Worker serves the static files in `public/` and the API. `wrangle
 | `src/places.ts` | `GET /api/places` and `GET /api/place`: Google Places address suggestions and details |
 | `src/turnstile.ts` | The Turnstile check on `POST /api/submit` |
 | `src/sheet.ts` | Sends the contact to the Apps Script, which adds a Sheet row |
-| `src/party.ts` | D1: adds a family, reads the party, changes a sprite, the party version |
+| `src/party.ts` | D1: adds a family, reads the party, changes a sprite, the token check, the party version |
+| `src/interactions.ts` | `POST /api/interaction`: the allow-list of egg names (`EGGS`), and the count for each family and egg |
 | `src/album.ts` | `GET /album/list` and `GET /album/<hash>.jpg` from KV |
 
 ### Front end (`public/`)
@@ -38,7 +39,7 @@ No build step. The browser loads ES modules as they are.
 | File | Owns |
 |---|---|
 | `public/index.html`, `public/style.css` | Markup and the main styles |
-| `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules |
+| `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules. `markFound(egg)` is the hook for each interaction with a hidden extra (see "Track a hidden extra") |
 | `public/js/api.js` | Every call to the Worker |
 | `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter; the page colors |
 | `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test` |
@@ -73,7 +74,7 @@ Python scripts with Pillow, run from the repo root. The docstring at the top of 
 
 ### Other
 
-- `migrations/`: the D1 schema. The tables are `families`, `members`, and `party_version`.
+- `migrations/`: the D1 schema. The tables are `families`, `members`, `party_version`, and `interactions`.
 - `apps-script/`: the Apps Script that adds a row to the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
 - `test/api.test.ts`: Worker tests in the Workers runtime, with fake outbound calls in `test/outbound.ts`.
 - `test/e2e/`: the page in Google Chrome against a fake API. It needs no Cloudflare.
@@ -92,6 +93,7 @@ pnpm e2e            # the page in Google Chrome with a fake API, 4 files at a ti
 node --test test/e2e/album.test.mjs   # one feature only
 pnpm typecheck
 pnpm preview        # upload this branch as a preview and print its URL
+pnpm interactions   # read only: the hidden extras that each family played with, from the production D1. Add --local for pnpm dev
 pnpm run deploy     # main only. See "Deploy".
 ```
 
@@ -99,6 +101,18 @@ pnpm run deploy     # main only. See "Deploy".
 
 For `pnpm dev`, copy `.dev.vars.example` to `.dev.vars` and fill in the secrets. The Turnstile values in the example are Cloudflare's test values, which always pass.
 To make the local D1 tables, run `pnpm exec wrangler d1 migrations apply holiday-card --local`.
+
+## Track a hidden extra
+
+The page records each interaction with a hidden extra in D1, for the family that this browser signed up last.
+A new hidden extra needs two changes:
+
+1. Call `markFound("<egg>")` in `public/app.js` on each interaction, not only the first.
+2. Add `"<egg>"` to `EGGS` in `src/interactions.ts`. The Worker rejects other names with 400.
+
+`markFound` sends `POST /api/interaction` through `track()`, and drops the hosts' hint for that egg.
+A browser with no family sends nothing. The page sends at most one call for each egg in 5 seconds. A failed call stays silent.
+The Waymo counts each drive-by while the page shows, because a guest cannot tap it.
 
 ## Check a branch: preview
 
@@ -139,6 +153,8 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
 
 - The Google Sheet holds only the contact list: name, household, and mailing address. Party data never goes to the Sheet.
 - D1 holds the party: families, members, looks, and chat bubbles. The party API never returns an address or the household text.
+- D1 also holds `interactions`: for each family and egg, a count, the first time, and the last time. It holds no IP and no user agent.
+  The party API never returns it, and it has no `party_version` trigger, so a tap does not make each page fetch the party again. `pnpm interactions` reads it.
 - KV (`ALBUM`) holds the photo album: web copies of the photos and the page list.
 - Photos and captions NEVER go in git. The repo is public, and the original photos hold GPS data.
   The originals and `captions.json` stay in `~/Pictures/holiday-card-album/`. `python3 art/scripts/album.py` strips the metadata and uploads them.
@@ -158,7 +174,7 @@ Never write a secret value in a file in this repo. Names only.
 | `OPENROUTER_MODEL`, `SHEET_URL`, `TURNSTILE_SITE_KEY` | Vars in `wrangler.jsonc` | Public values |
 | `DB` | D1 binding | Database `holiday-card` |
 | `ALBUM` | KV binding | Namespace `holiday-card-album` |
-| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
+| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
 | `PIXELLAB_KEY` | Env var for the art scripts | 1Password vault `keys`, item `CozyChat`, field `PIXEL_LAB_KEY`. `pixellab.py` reads it with `op read` when the env var is not set |
 | Retro Diffusion key | No script uses it now | 1Password vault `keys`, item `CozyChat`, field `RETRO_DIFFUSION_KEY` |
 

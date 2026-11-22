@@ -80,6 +80,8 @@ function fakeApi({ party = PARTY, calls }) {
         return reply(party);
       case "/api/sprite":
         return reply({ ok: true });
+      case "/api/interaction":
+        return route.fulfill({ status: 204 });
       case "/api/config":
         return reply({ turnstileSiteKey: "" });
     }
