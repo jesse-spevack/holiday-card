@@ -6,7 +6,7 @@ import { HOSTS, HOST_LINES, TAP_PX, pickSpot } from "./scene.js";
 import { HOTSPOTS, DREIDELS, FLOOR } from "./room.js";
 import { TOAST_LINES } from "./toast.js";
 
-export function testApi({ scene, sound, eggs, dreidel, toast, found }) {
+export function testApi({ scene, sound, eggs, dreidel, toast, album, found }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -139,6 +139,32 @@ export function testApi({ scene, sound, eggs, dreidel, toast, found }) {
     dreidelSpins: () => dreidel.spins,
     // The game is open and takes taps. Right after it opens, it ignores taps for a moment, so a double tap does not spin it.
     dreidelReady: () => dreidel.isOpen && !dreidel.busy && performance.now() >= dreidel.ignoreClicksUntil,
+
+    // ---- the photo album ----
+    // The album in its current state: { ready, spread, book, controls, photos }. ready is true when the album is open and no page turns.
+    // book and controls are screen boxes. photos has one item for each photo page that shows:
+    // { caption, font, overflow, paper, print, cap }. font is the caption font size in CSS pixels.
+    // overflow is true when the caption text needs more space than its box. paper, print, and cap are screen boxes.
+    album: () => {
+      const box = (el) => rect(el.getBoundingClientRect());
+      if (!album.el || album.el.hidden) return { ready: false, spread: false, book: null, controls: [], photos: [] };
+      const step = album.spread ? 2 : 1;
+      const photos = album.pages.slice(album.at, album.at + step).filter((p) => p.kind === "photo" && p.el?.isConnected).map((p) => ({
+        caption: p.cap.textContent,
+        font: parseFloat(getComputedStyle(p.cap).fontSize),
+        overflow: p.cap.scrollHeight > p.cap.clientHeight || p.cap.scrollWidth > p.cap.clientWidth,
+        paper: box(p.el.parentElement),
+        print: box(p.print),
+        cap: box(p.cap),
+      }));
+      return {
+        ready: album.isOpen && !album.busy && !album.settle,
+        spread: album.spread,
+        book: box(album.book),
+        controls: [album.closeBtn, album.prev, album.count.parentElement, album.next].map(box),
+        photos,
+      };
+    },
 
     // ---- sounds ----
     // Notes each call to the named sounds and still plays them. sounds() returns the calls since the last call.

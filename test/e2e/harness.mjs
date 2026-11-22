@@ -40,10 +40,11 @@ export const LOOKS = {
   cat: [{ id: "t-cat", src: "/t/guest-dog.png", w: 17, h: 21, desc: "cat" }],
 };
 
+// The captions are as long as the real ones: a medium one, a long one of 200 characters on a tall photo, and a short one.
 export const ALBUM = { photos: [
-  { src: "/album/0000000000000001.jpg", caption: "A day at the lake", w: 1400, h: 1050 },
-  { src: "/album/0000000000000002.jpg", caption: "Snow in the yard", w: 1050, h: 1400 },
-  { src: "/album/0000000000000003.jpg", caption: "A long walk", w: 1400, h: 1050 },
+  { src: "/album/0000000000000001.jpg", caption: "Waymos arrived in Denver this year and we are all in.", w: 1400, h: 1050 },
+  { src: "/album/0000000000000002.jpg", caption: "Audrey started fifth grade. She takes piano lessons, is a member of the Colorado Children's Chorale, and loves to read and write. She's tracking every book she reads, so ask her for a recommendation.", w: 1050, h: 1400 },
+  { src: "/album/0000000000000003.jpg", caption: "We took Waymos", w: 1400, h: 1050 },
 ] };
 
 // The party that the fake API returns unless a test gives its own.

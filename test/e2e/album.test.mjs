@@ -1,7 +1,7 @@
 // The hidden photo album: tap the book on the sofa, turn a page, close it. On a phone and on a desktop.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT, animationsDone } from "./harness.mjs";
+import { e2e, OUT, ALBUM, animationsDone } from "./harness.mjs";
 
 const env = await e2e();
 const SOUND_FILES = ["book-close", "book-flip-1", "book-flip-2", "book-flip-3", "book-open", "gelt-few", "gelt-pile"].map((n) => `/assets/sounds/${n}.m4a`);
@@ -57,7 +57,7 @@ describe("the photo album", { concurrency: true }, () => {
       await dialog.waitFor();
       const count = page.locator(".album-count");
       await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
-      await page.locator("figcaption", { hasText: "A day at the lake" }).waitFor();
+      await page.locator("figcaption", { hasText: "Waymos arrived in Denver" }).waitFor();
       const opened = name === "phone" ? "coverOpen: swish" : "coverOpen: book-open";
       assert.deepEqual(await sounds(), [opened]);
       assert.equal(await page.locator(".pop").count(), 0, "the book never opens the sprite editor");
@@ -84,7 +84,7 @@ describe("the photo album", { concurrency: true }, () => {
         assert.deepEqual(albumCalls.filter((c) => c.endsWith(".jpg")).sort(), ["/album/0000000000000001.jpg", "/album/0000000000000002.jpg"]);
         await page.touchscreen.tap(viewport.width - 30, viewport.height / 2);
         await count.filter({ hasText: /^2 \/ 3$/ }).waitFor();
-        await page.locator(".album-side.r figcaption", { hasText: "Snow in the yard" }).waitFor();
+        await page.locator(".album-side.r figcaption", { hasText: "Audrey started fifth grade." }).waitFor();
         await page.touchscreen.tap(30, viewport.height / 2);
         await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
         // a tap forward and a tap back each turn a page. The sound files did not load, so each turn plays the swish.
@@ -140,6 +140,50 @@ describe("the photo album", { concurrency: true }, () => {
       await page.getByLabel("Name on the envelope").fill("The Garcia Family");
       await page.getByRole("button", { name: "Next" }).click();
       await page.locator("#say").filter({ hasText: "Who lives at your house?" }).waitFor();
+    });
+  }
+});
+
+// Each caption shows in full on its page, under its photo, and the book stays clear of the screen edges and the buttons.
+// A portrait phone keeps the 18px caption font. A short screen can make the font smaller, but never under 14px.
+const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const inside = (a, b) => a.left >= b.left - 0.5 && a.right <= b.right + 0.5 && a.top >= b.top - 0.5 && a.bottom <= b.bottom + 0.5;
+describe("the album captions", { concurrency: true }, () => {
+  const screens = [
+    ["a phone", { width: 390, height: 844 }, 18],
+    ["a small phone", { width: 375, height: 667 }, 18],
+    ["a phone on its side", { width: 844, height: 390 }, 14],
+    ["a desktop", { width: 1440, height: 900 }, 22],
+  ];
+  for (const [name, viewport, minFont] of screens) {
+    test(`every caption shows in full on ${name}`, async () => {
+      const { page, hc } = await env.open({ viewport, reducedMotion: "reduce", album: true, wait: "eggs" });
+      const book = await hc.bookCenter();
+      await page.mouse.click(book.x, book.y);
+      const seen = new Set();
+      for (;;) {
+        await page.waitForFunction(() => { const a = window.__hc.album(); return a.ready && a.photos.length; });
+        const album = await hc.album();
+        const screen = { left: 0, top: 0, right: viewport.width, bottom: viewport.height };
+        assert.ok(inside(album.book, screen), `${name}: the book ${JSON.stringify(album.book)} leaves the screen`);
+        for (const c of album.controls) assert.ok(!overlaps(album.book, c), `${name}: the book covers a button at ${JSON.stringify(c)}`);
+        for (const p of album.photos) {
+          const what = `${name}, "${p.caption.slice(0, 20)}..."`;
+          seen.add(p.caption);
+          assert.equal(p.overflow, false, `${what}: the text overflows its caption`);
+          assert.ok(inside(p.cap, p.paper), `${what}: the caption ${JSON.stringify(p.cap)} leaves the page ${JSON.stringify(p.paper)}`);
+          assert.ok(inside(p.print, p.paper), `${what}: the photo leaves the page`);
+          assert.ok(p.print.bottom <= p.cap.top + 0.5, `${what}: the caption covers the photo`);
+          assert.ok(p.print.height >= 100, `${what}: the photo is only ${p.print.height}px tall`);
+          assert.ok(p.font >= minFont, `${what}: the caption font is ${p.font}px`);
+          if (p.caption.length > 150) await page.screenshot({ path: `${OUT}/album-long-caption-${viewport.width}x${viewport.height}.png` });
+        }
+        const before = await page.locator(".album-count").textContent();
+        if (await page.getByRole("button", { name: "Next page" }).isDisabled()) break;
+        await page.keyboard.press("ArrowRight");
+        await page.locator(".album-count").filter({ hasNotText: before }).waitFor();
+      }
+      assert.deepEqual([...seen].sort(), ALBUM.photos.map((p) => p.caption).sort());
     });
   }
 });
