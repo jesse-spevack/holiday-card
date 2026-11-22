@@ -26,6 +26,31 @@ const zoom = (page, file) => page.evaluate(({ x, y, w, h, k }) => {
   return out.toDataURL("image/png").split(",")[1];
 }, { x: 100, y: 16, w: 56, h: 58, k: 10 }).then((png) => writeFile(`${OUT}/${file}`, Buffer.from(png, "base64")));
 
+test("the crackle is loud but does not clip, and it ends in under a second", async () => {
+  const { page } = await env.open();
+  const takes = await page.evaluate(async () => {
+    const { crackle } = await import("/js/sound.js");
+    const out = [];
+    for (let i = 0; i < 5; i++) {
+      const ctx = new OfflineAudioContext(1, 48000, 48000);
+      crackle(ctx, ctx.destination);
+      const data = (await ctx.startRendering()).getChannelData(0);
+      let peak = 0, last = 0, sum = 0;
+      data.forEach((v, j) => { sum += v * v; if (Math.abs(v) > peak) peak = Math.abs(v); if (Math.abs(v) > 0.001) last = j; });
+      out.push({ peak, ms: (last / 48000) * 1000, rms: Math.sqrt(sum / (last + 1)) });
+    }
+    return out;
+  });
+  for (const { peak, ms, rms } of takes) {
+    // Louder than the soft pet sounds (peak under 0.2), but well under clipping.
+    assert.ok(peak > 0.15 && peak < 0.7, `crackle peak ${peak}`);
+    assert.ok(rms > 0.01, `crackle rms ${rms}`);
+    assert.ok(ms > 300 && ms < 1000, `crackle length ${ms} ms`);
+  }
+  // Each crackle is a little different.
+  assert.ok(new Set(takes.map((t) => t.peak.toFixed(4))).size > 1, "the crackles differ");
+});
+
 // Each variant opens its own page, so they run at the same time.
 describe("the fire", { concurrency: true }, () => {
   for (const { name, viewport, touch, reduce } of VARIANTS) {
