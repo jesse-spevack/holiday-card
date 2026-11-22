@@ -36,8 +36,7 @@ describe("the fire", { concurrency: true }, () => {
       await hc.stillHosts();
       await hc.stillGuests();
       // The guests stand at the front of the room, clear of the fire and the hosts.
-      await hc.place({ familyId: "other1" }, 180, 165);
-      await hc.place({ familyId: "fam12345" }, 140, 166);
+      for (const [familyId, index, x] of [["fam12345", 0, 132], ["fam12345", 1, 148], ["other1", 0, 172], ["other1", 1, 188]]) await hc.place({ familyId, index }, x, 166);
       const { HOTSPOTS, TAP_PX } = await hc.constants();
       const fire = HOTSPOTS.find((h) => h.id === "fire");
       const center = { x: fire.x + fire.w / 2, y: fire.y + fire.h / 2 };
