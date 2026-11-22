@@ -69,6 +69,9 @@ Nothing on screen points to these.
 - Hovering over a family shows its envelope name. Hovering over the hosts shows Eddie, Audrey, Jess, and Jesse.
   A tap shows them for a few seconds.
 - Extras: sound effects, and ambient details such as falling snow, a fire, and flickering candles. No music.
+- On a tall screen, the bands above and below the room show a snowy night. A roof with an attic window, a smoking chimney,
+  and string lights sits on the room. Snow falls below it, and a greeting shows there after the thank-you hides.
+  A short band gets a smaller roof or a flat snowy eave. A wide desktop has no bands, so it shows the room only.
 - Phones first.
 
 ## Stack

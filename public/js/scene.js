@@ -71,6 +71,7 @@ export class Scene {
     this.onHover = () => {};
     this.onHotspot = () => {};
     this.eggs = null;
+    this.onLayout = () => {};
     this.bookHidden = false;
     stage.addEventListener("pointerup", (e) => this.handleTap(e));
     // Hover labels are for a mouse only. A phone shows them on tap.
@@ -119,6 +120,7 @@ export class Scene {
     top = ph > h ? clamp(top, h - ph, 0) : (h - ph) / 2;
     Object.assign(this.world.style, { left: `${left}px`, top: `${top}px`, width: `${pw}px`, height: `${ph}px` });
     this.view = { left, top, scale: c.scale };
+    this.onLayout(this.view);
   }
 
   toRoom(clientX, clientY) {
