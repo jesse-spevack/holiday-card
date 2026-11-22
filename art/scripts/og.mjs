@@ -17,6 +17,8 @@ const HTML = new URL("../../public/index.html", import.meta.url).pathname;
 // 240 x 126 room pixels at 5x is exactly 1200 x 630. The crop starts high enough to show the window and the shelf plants.
 const CROP = { x: 8, y: 4, w: 240, h: 126 };
 const SCALE = 5;
+// A local time on the eighth night of Hanukkah 2026 (public/js/hanukkah.js).
+const NIGHT_EIGHT = "2026-12-11T18:00";
 // The hosts in a group on the rug, in the middle of the crop: Jess and Jesse behind, Audrey and Eddie in front.
 // Each spot is the feet of the sprite, in room pixels.
 const HOSTS = { Jess: [121, 115], Jesse: [139, 115], Audrey: [105, 125], Eddie: [156, 125] };
@@ -41,6 +43,8 @@ try {
   if (bloomed.length !== Object.keys(PLANTS).length) throw new Error(`not every plant blooms: ${bloomed}`);
 
   for (const [name, [x, y]] of Object.entries(HOSTS)) await hc.place({ host: true, name }, x, y);
+  // The eighth night of Hanukkah, so the image does not depend on the day of the run: all eight candles and the shamash burn.
+  await hc.setNow(NIGHT_EIGHT);
 
   // The room blooms when the last plant opens. Wait until its petals and sparkles are gone, and the tap corners too.
   await page.waitForFunction(() => {
@@ -48,11 +52,19 @@ try {
     return s.momentDone && !s.moment && !s.twinkles && window.__hc.pressed() === null;
   }, null, { timeout: 15000 });
 
-  // The Cybertruck faces left and parks with its nose in the left pane, clear of the menorah.
+  // The Cybertruck faces left and parks with its nose in the right pane, clear of the menorah candles.
   await hc.sendCybertruck(-1);
   await page.waitForFunction(() => window.__hc.eggs().truck !== null);
   const t0 = await hc.time();
   await page.waitForFunction((t) => window.__hc.time() > t + 0.2, t0);
+  const { candles, truck } = await hc.eggs();
+  const out = candles.filter((c) => c.state !== "lit");
+  if (out.length) throw new Error(`not every candle burns: ${JSON.stringify(out)}`);
+  // No part of the truck may show between the candles or next to their glow.
+  const { TRUCK } = await hc.constants();
+  const xs = candles.map((c) => c.x);
+  const [x0, x1] = [truck, truck + TRUCK.w - 1];
+  if (!(x1 < Math.min(...xs) - 1 || x0 > Math.max(...xs) + 1)) throw new Error(`the Cybertruck (x ${x0} to ${x1}) runs behind the candles (${xs})`);
 
   // The crop of the room canvas, scaled up in the page. The page checks that each room pixel became one solid 5x5 block.
   const url = await page.evaluate(({ crop, k }) => {

@@ -22,9 +22,10 @@ const ROWS = [
 const COLORS = { L: "#eef0f3", S: "#c4c8cf", T: "#a2a7b0", G: "#334058", g: "#55657f", C: "#1b1a2e", K: "#3c3e50", h: "#8a94a3", R: "#e0504a", W: "#ffffff" };
 
 // The fields are in road.js (joinRoad). The truck is too long for one pane, so with reduced motion
-// it stops with its nose and its light bar in an outer pane.
+// it stops with its nose and its light bar in an outer pane. Its tail stays behind the window frame,
+// so no part of it shows between the menorah candles in the middle pane.
 const TRUCK = {
-  kind: "cybertruck", rows: ROWS, colors: COLORS, speed: 16, gap: [60, 120], light: { y: 5, color: "#eef6ff" }, park: [166, 208],
+  kind: "cybertruck", rows: ROWS, colors: COLORS, speed: 16, gap: [60, 120], light: { y: 5, color: "#eef6ff" }, park: [217, 157],
   shout: { host: "son", text: "Cybertruck!", seconds: 4 },
 };
 
