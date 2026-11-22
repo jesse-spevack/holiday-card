@@ -50,4 +50,5 @@ export class Sound {
     [523, 659, 784, 1046].forEach((f, i) => this.tone(f, { at: 0.25 + i * 0.09, dur: 0.18, type: "square", gain: 0.035 }));
   }
   oops() { this.tone(220, { dur: 0.15, type: "triangle", gain: 0.06, slide: -80 }); }
+  page() { this.tone(900, { dur: 0.07, type: "triangle", gain: 0.03, slide: -500 }); this.tone(500, { at: 0.05, dur: 0.06, type: "triangle", gain: 0.02, slide: -200 }); }
 }

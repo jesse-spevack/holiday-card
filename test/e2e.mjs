@@ -34,6 +34,12 @@ const LOOKS = {
   cat: [{ id: "t-cat", src: "/t/guest-dog.png", w: 17, h: 21, desc: "cat" }],
 };
 
+const ALBUM = { photos: [
+  { src: "/album/0000000000000001.jpg", caption: "A day at the lake", w: 1400, h: 1050 },
+  { src: "/album/0000000000000002.jpg", caption: "Snow in the yard", w: 1050, h: 1400 },
+  { src: "/album/0000000000000003.jpg", caption: "A long walk", w: 1400, h: 1050 },
+] };
+
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, "http://x").pathname;
   try {
@@ -295,6 +301,69 @@ try {
   await p4.mouse.move(deskHost.x, deskHost.y);
   await p4.locator(".tag", { hasText: "Eddie" }).waitFor();
   await p4.screenshot({ path: `${OUT}/8-desktop.png` });
+
+  // the hidden photo album: tap the book on the sofa, turn a page, close it
+  const albumCalls = [];
+  const fakeAlbum = async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    albumCalls.push(path);
+    if (path === "/album/list") return route.fulfill({ contentType: "application/json", body: JSON.stringify(ALBUM) });
+    return route.fulfill({ contentType: "image/png", body: await readFile(join(ART, "sample-dad.png")) });
+  };
+  const bookAt = (p) => p.evaluate(() => {
+    const r = window.__hc.scene.bookRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  for (const [name, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+    albumCalls.length = 0;
+    const ctx = await browser.newContext({ viewport, hasTouch: name === "phone" });
+    const pa = await ctx.newPage();
+    pa.on("pageerror", (e) => errors.push(String(e)));
+    await pa.route("**/api/**", fakeApi);
+    await pa.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+    await pa.route("**/album/**", fakeAlbum);
+    await pa.goto(base);
+    await pa.waitForFunction(() => window.__hc.scene.book && window.__hc.scene.sprites.some((s) => s.host));
+    // the main page never loads the album until a guest opens it
+    assert.deepEqual(albumCalls, []);
+    const book = await bookAt(pa);
+    if (name === "phone") await pa.touchscreen.tap(book.x, book.y);
+    else await pa.mouse.click(book.x, book.y);
+    const dialogEl = pa.getByRole("dialog", { name: "Photo album" });
+    await dialogEl.waitFor();
+    const count = pa.locator(".album-count");
+    await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
+    await pa.locator("figcaption", { hasText: "A day at the lake" }).waitFor();
+    assert.equal(await pa.locator(".pop").count(), 0, "the book never opens the sprite editor");
+    assert.equal(await pa.evaluate(() => window.__hc.scene.bookHidden), true);
+    if (name === "phone") {
+      // only the current page and the next one load
+      assert.deepEqual(albumCalls.filter((c) => c.endsWith(".jpg")).sort(), ["/album/0000000000000001.jpg", "/album/0000000000000002.jpg"]);
+      await pa.touchscreen.tap(viewport.width - 30, viewport.height / 2);
+      await count.filter({ hasText: /^2 \/ 3$/ }).waitFor();
+      await pa.locator(".album-side.r figcaption", { hasText: "Snow in the yard" }).waitFor();
+      await pa.touchscreen.tap(30, viewport.height / 2);
+      await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
+      await pa.screenshot({ path: `${OUT}/9-album-phone.png` });
+      await pa.getByRole("button", { name: "Close the album" }).click();
+    } else {
+      await pa.locator(".album-title", { hasText: "Our 2026" }).waitFor();
+      await pa.keyboard.press("ArrowRight");
+      await count.filter({ hasText: /^2-3 \/ 3$/ }).waitFor();
+      await pa.waitForTimeout(600);
+      await pa.screenshot({ path: `${OUT}/10-album-desktop.png` });
+      await pa.mouse.click(100, viewport.height / 2);
+      await count.filter({ hasText: /^1 \/ 3$/ }).waitFor();
+      await pa.keyboard.press("Escape");
+    }
+    await dialogEl.waitFor({ state: "hidden" });
+    await pa.waitForFunction(() => !window.__hc.scene.bookHidden);
+    // the form still works after the album closes
+    await pa.getByLabel("Name on the envelope").fill("The Garcia Family");
+    await pa.getByRole("button", { name: "Next" }).click();
+    await pa.locator("#say").filter({ hasText: "Who lives at your house?" }).waitFor();
+    await ctx.close();
+  }
 
   assert.deepEqual(errors, []);
   console.log("e2e: all checks passed");

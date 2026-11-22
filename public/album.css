@@ -1,0 +1,222 @@
+/* The hidden photo album (public/js/album.js). The page loads this file only when a guest opens the book. */
+.album {
+  --outline: #1b0804;
+  --cover: #a8403a;
+  --cover-light: #c45a4c;
+  --cover-shade: #8a3330;
+  --spine: #6e2a2a;
+  --paper: #fbf3e2;
+  --paper-edge: #e6d6b6;
+  --paper-shade: #cdb68f;
+  --page-ink: #3a2630;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  touch-action: pinch-zoom;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.album[hidden], .album [hidden] { display: none !important; }
+.album:focus { outline: none; }
+.album-shade { position: absolute; inset: 0; background: rgba(15, 14, 28, 0.95); }
+
+.album-stage {
+  position: absolute;
+  inset: 64px 0 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.album-book {
+  position: relative;
+  display: flex;
+  height: var(--side-h);
+  perspective: 2400px;
+  filter: drop-shadow(0 10px 0 rgba(0, 0, 0, 0.35));
+}
+
+/* One side of the book: a red board with a page on it. The spine is the side's inner edge. */
+.album-side {
+  width: var(--side-w);
+  height: var(--side-h);
+  flex: none;
+  display: flex;
+  background: var(--cover);
+  border: 4px solid var(--outline);
+  padding: var(--rim) var(--rim) var(--rim) 6px;
+}
+.album-paper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  background: linear-gradient(to right, rgba(110, 70, 30, 0.22), rgba(110, 70, 30, 0) 9%), var(--paper);
+  box-shadow: 3px 0 0 var(--paper-edge), 6px 0 0 var(--paper-shade);
+  margin-right: 6px;
+}
+.album.spread .album-side.r { border-left: 0; padding-left: 0; }
+.album.spread .album-side.l { border-right: 0; padding-right: 0; padding-left: var(--rim); }
+.album-side.l .album-paper {
+  background: linear-gradient(to left, rgba(110, 70, 30, 0.22), rgba(110, 70, 30, 0) 9%), var(--paper);
+  box-shadow: -3px 0 0 var(--paper-edge), -6px 0 0 var(--paper-shade);
+  margin: 0 0 0 6px;
+}
+
+/* A turning page sits on the right side and turns on the spine. */
+.album-leaf {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--side-w);
+  height: var(--side-h);
+  transform-origin: 0 50%;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+.album-leaf > * { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.album-leaf > .back { transform: rotateY(180deg); }
+
+/* The cover, in the colors of the small book on the sofa. */
+.album-cover {
+  background: var(--cover);
+  border: 4px solid var(--outline);
+  box-shadow: inset 0 6px 0 var(--cover-light), inset 0 -8px 0 var(--cover-shade);
+}
+.album-cover::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 12%;
+  background: var(--spine);
+  border-right: 4px solid var(--outline);
+}
+.album-label {
+  position: absolute;
+  top: 18%;
+  left: 24%;
+  right: 12%;
+  padding: 0.6em 0.4em;
+  background: #f5cf6f;
+  border: 4px solid #be8150;
+  color: var(--spine);
+  font-family: var(--pixel);
+  font-weight: 600;
+  font-size: calc(var(--cap-font) * 1.4);
+  text-align: center;
+}
+
+/* A photo page: a white print with photo corners, and the caption under it. */
+.album-photo {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--pad);
+  gap: 0;
+}
+.album-print {
+  position: relative;
+  padding: 6px;
+  background: #fffdf7;
+  box-shadow: 0 3px 0 rgba(90, 60, 30, 0.25);
+}
+.album-print img {
+  display: block;
+  background: #e9dcc0;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+.album-print img.in { opacity: 1; }
+.album-print::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  --c: #5a3a32;
+  background:
+    linear-gradient(135deg, var(--c) 50%, transparent 50%) top left / 16px 16px no-repeat,
+    linear-gradient(225deg, var(--c) 50%, transparent 50%) top right / 16px 16px no-repeat,
+    linear-gradient(45deg, var(--c) 50%, transparent 50%) bottom left / 16px 16px no-repeat,
+    linear-gradient(315deg, var(--c) 50%, transparent 50%) bottom right / 16px 16px no-repeat;
+}
+.album-photo figcaption {
+  height: var(--cap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding-top: 8px;
+  font-family: var(--pixel);
+  font-size: var(--cap-font);
+  line-height: 1.3;
+  color: var(--page-ink);
+}
+
+.album-title, .album-end {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: var(--pad);
+  text-align: center;
+  color: var(--page-ink);
+  font-family: var(--pixel);
+}
+.album-title h2 { margin: 0; font-size: calc(var(--cap-font) * 2); font-weight: 600; color: var(--spine); }
+.album-title p, .album-end p { margin: 0; font-size: var(--cap-font); }
+
+.album-close {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--night);
+  color: var(--ink);
+  border: 2px solid var(--line);
+  cursor: pointer;
+}
+.album-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.album-count {
+  min-width: 84px;
+  text-align: center;
+  font-family: var(--pixel);
+  font-size: 16px;
+  color: var(--muted);
+}
+.album-arrow {
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-family: var(--pixel);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+.album-arrow[disabled] { opacity: 0.25; cursor: default; }
+.album-close:focus-visible, .album-arrow:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
