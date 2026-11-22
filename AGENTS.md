@@ -52,14 +52,20 @@ No build step. The browser loads ES modules as they are.
 
 ### Art (`art/`)
 
-Python scripts, run from the repo root. Each script says its usage at the top.
+Python scripts with Pillow, run from the repo root. The docstring at the top of each script gives its usage.
 
-- `art/scripts/looks.py`, `art/scripts/looks_more.py`: the guest look library (PixelLab). They write `public/assets/looks/` and `looks.json`.
-- `art/scripts/characters.py`, `art/scripts/props.py`, `art/scripts/generate.py`, `art/scripts/scene.py`: host sprites, props, and the art style bake-off.
-- `art/scripts/book.py`, `art/scripts/table_wine.py`: art drawn by hand, pixel by pixel, into the room.
-- `art/scripts/og.py`: the link preview image `public/assets/og.png`.
-- `art/scripts/album.py`: uploads the photo album to KV. See "Data rules".
-- `art/assets/`: source art. `test/e2e.mjs` uses the sprites in `art/assets/characters/`.
+| Script | Makes |
+|---|---|
+| `art/scripts/looks.py` | The one look library: guest looks and host sprites, with the prompts and picks. `gen` asks PixelLab for variations, `add` puts the pick in `public/assets/looks/` and `looks.json`, and `sheet` makes a review sheet |
+| `art/scripts/pixellab.py` | The PixelLab calls, the key lookup, and the sprite cleanup that `looks.py` and `props.py` share |
+| `art/scripts/props.py` | Prop variations (presents, dreidel) to paint into `public/assets/room.png` by hand |
+| `art/scripts/table_wine.py` | The wine bottle and glasses, drawn pixel by pixel on `public/assets/room.png` |
+| `art/scripts/book.py` | The photo album sprite on the sofa, `public/assets/book.png` |
+| `art/scripts/og.py` | The link preview, `public/assets/og.png`. Run it after each change to the room or the hosts |
+| `art/scripts/album.py` | The album photos in KV. See "Data rules" |
+
+`public/assets/` holds the only copy of each image that the site uses. `art/assets/` holds only source art that the site does not serve:
+`art/assets/rooms/cabin.png` is the PixelLab style image, and `test/e2e.mjs` uses the sprites in `art/assets/characters/`.
 
 ### Other
 
@@ -145,7 +151,8 @@ Never write a secret value in a file in this repo. Names only.
 | `DB` | D1 binding | Database `holiday-card` |
 | `ALBUM` | KV binding | Namespace `holiday-card-album` |
 | `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
-| `PIXELLAB_KEY` | Env var for the art scripts | Ask Jesse |
+| `PIXELLAB_KEY` | Env var for the art scripts | 1Password vault `keys`, item `CozyChat`, field `PIXEL_LAB_KEY`. `pixellab.py` reads it with `op read` when the env var is not set |
+| Retro Diffusion key | No script uses it now | 1Password vault `keys`, item `CozyChat`, field `RETRO_DIFFUSION_KEY` |
 
 Google Cloud caps Places at 500 suggestions and 200 address lookups a day. A preview and `pnpm dev` with a real key use the same quota.
 
