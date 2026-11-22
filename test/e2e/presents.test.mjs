@@ -2,7 +2,7 @@
 // Eddie says his line in a bubble. When his bubble goes, Audrey says hers.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT, tapRoom, sceneWait, waitForFamilies, animationsDone } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tapRoom, sceneWait, waitForFamilies, animationsDone, assertTucks } from "./harness.mjs";
 
 const env = await e2e();
 const EDDIE = "Happy Hanukkah! I hope your holiday season is filled with happiness.";
@@ -143,4 +143,19 @@ describe("the presents", { concurrency: true }, () => {
       }
     });
   }
+
+  test("each tap on the presents tells the Worker, also a tap while the kids talk", async () => {
+    const { page, hc, calls } = await env.open({ hasTouch: true, isMobile: true, mine: [GARCIA], wait: "eggs" });
+    await assertTucks(page);
+    await hc.stillHosts();
+    await hc.trackGap(0);
+    const c = await hc.spotCenter("presents");
+    await tapRoom(page, c.x, c.y);
+    await tapRoom(page, c.x, c.y);
+    assert.equal((await hc.sprite({ host: true, name: "Eddie" })).bubble, EDDIE);
+    await page.waitForTimeout(300);
+    const sent = calls.filter((x) => x.path === "/api/interaction").map((x) => x.body);
+    const egg = { id: GARCIA.id, token: GARCIA.token, egg: "presents" };
+    assert.deepEqual(sent, [egg, egg]);
+  });
 });
