@@ -40,6 +40,7 @@ No build step. The browser loads ES modules as they are.
 | `public/index.html`, `public/style.css` | Markup and the main styles |
 | `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules |
 | `public/js/api.js` | Every call to the Worker |
+| `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test` |
 | `public/js/scene.js` | The room canvas, sprites, hosts and their lines (`HOST_LINES`), the door arrival, and the tap areas (`HOTSPOTS`) |
 | `public/js/picker.js` | The look picker. Ages and looks come from `public/assets/looks.json` |
 | `public/js/pets.js` | Hidden pet reactions |
@@ -65,14 +66,17 @@ Python scripts with Pillow, run from the repo root. The docstring at the top of 
 | `art/scripts/album.py` | The album photos in KV. See "Data rules" |
 
 `public/assets/` holds the only copy of each image that the site uses. `art/assets/` holds only source art that the site does not serve:
-`art/assets/rooms/cabin.png` is the PixelLab style image, and `test/e2e.mjs` uses the sprites in `art/assets/characters/`.
+`art/assets/rooms/cabin.png` is the PixelLab style image, and the end-to-end tests use the sprites in `art/assets/characters/`.
 
 ### Other
 
 - `migrations/`: the D1 schema. The tables are `families`, `members`, and `party_version`.
 - `apps-script/`: the Apps Script that adds a row to the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
 - `test/api.test.ts`: Worker tests in the Workers runtime, with fake outbound calls in `test/outbound.ts`.
-- `test/e2e.mjs`: the page in Google Chrome against a fake API. It needs no Cloudflare.
+- `test/e2e/`: the page in Google Chrome against a fake API. It needs no Cloudflare.
+  `harness.mjs` holds the server, the fake API, the test looks, and the helpers. Each `*.test.mjs` file covers one feature.
+  The tests read and drive the page's state only through `public/js/test-api.js` (`window.__hc`). After a change inside a page module, change that file, not the tests.
+  A few checks also import the pure functions in `pets.js` and `sound.js`.
 - `scripts/`: `preview.sh`, `deploy.sh`, and the deploy hook `no-direct-deploy.mjs`.
 
 ## Commands
@@ -81,7 +85,8 @@ Python scripts with Pillow, run from the repo root. The docstring at the top of 
 pnpm install        # also runs pnpm types, which makes worker-configuration.d.ts
 pnpm dev            # wrangler dev at http://localhost:8787, with local D1 and KV
 pnpm test           # Worker tests. Must pass before a PR.
-pnpm e2e            # the page in Google Chrome with a fake API. Screenshots go to build/e2e.
+pnpm e2e            # the page in Google Chrome with a fake API, 4 files at a time. Screenshots go to build/e2e.
+node --test test/e2e/album.test.mjs   # one feature only
 pnpm typecheck
 pnpm preview        # upload this branch as a preview and print its URL
 pnpm run deploy     # main only. See "Deploy".
