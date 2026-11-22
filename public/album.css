@@ -144,17 +144,23 @@
     var(--art-corner-bl) bottom left / var(--corner) var(--corner) no-repeat,
     var(--art-corner-br) bottom right / var(--corner) var(--corner) no-repeat;
 }
-.album-photo figcaption {
-  height: var(--cap);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* The caption is as tall as its text. album.js measures each caption with the hidden ruler and makes the photo fit above it. */
+.album-photo figcaption, .album-ruler {
+  flex: none;
   text-align: center;
+  text-wrap: balance;
   padding-top: 8px;
   font-family: var(--pixel);
   font-size: var(--cap-font);
   line-height: 1.3;
   color: var(--page-ink);
+}
+.album-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .album-title, .album-end {
@@ -236,6 +242,18 @@
 .album-arrow[disabled] { opacity: 0.3; cursor: default; }
 .album-close:focus-visible, .album-arrow:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .album-arrow:focus-visible { outline-color: var(--ink); }
+
+/* A short, wide screen like a phone on its side: the buttons go in a column on the right, so the book gets the full height. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .album-stage { inset: 12px 132px; }
+  .album-foot {
+    top: 0;
+    bottom: 0;
+    left: auto;
+    right: max(12px, env(safe-area-inset-right));
+    flex-direction: column;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .album-print img { transition: none; }

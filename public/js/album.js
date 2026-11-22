@@ -22,6 +22,10 @@ const FADE = "steps(4, jump-end)";
 // About this many book pixels across one side.
 const BOOK_PIXELS = 115;
 const MAT = 2;
+// A long caption takes the lines it needs, and the photo gets smaller.
+// If the photo gets smaller than this share of its size with no caption, the caption font gets smaller, down to MIN_FONT.
+const MIN_PHOTO = 0.6;
+const MIN_FONT = 14;
 
 export class Album {
   // bookRect: where the book is on screen now. showBook: show or hide the book in the room.
@@ -55,13 +59,15 @@ export class Album {
     this.page.remember();
     const photos = this.load();
     const from = this.bookRect();
-    await loadCss(CSS);
+    // The caption sizes come from the pixel font, so the font must load first.
+    await Promise.all([loadCss(CSS), pixelFont()]);
     if (session !== this.session) return;
 
     this.build();
     this.reset();
-    this.layout();
+    // The album shows before the layout, because the layout measures the captions.
     this.el.hidden = false;
+    this.layout();
     this.page.hold();
     this.showBook(false);
 
@@ -197,7 +203,10 @@ export class Album {
     this.next.innerHTML = pixelIcon(ARROW_ICON);
     this.count = h("span", { class: "album-count", "aria-live": "polite" });
     const foot = h("div", "album-foot", this.prev, h("div", "album-count-box", this.count), this.next);
-    this.el = dialogRoot("album", "Photo album", this.shade, h("div", "album-stage", this.book), this.closeBtn, foot);
+    // A hidden caption that measures the height of each caption before its page shows.
+    this.ruler = h("div", { class: "album-ruler", "aria-hidden": "true" });
+    this.stage = h("div", "album-stage", this.book);
+    this.el = dialogRoot("album", "Photo album", this.shade, this.stage, this.closeBtn, foot, this.ruler);
     document.body.append(this.el);
 
     this.closeBtn.addEventListener("click", () => this.close());
@@ -296,7 +305,8 @@ export class Album {
       img.src = page.src;
       page.img = img;
       page.print = h("div", "album-print", img);
-      page.el = h("figure", "album-photo", page.print, h("figcaption", "", page.caption));
+      page.cap = h("figcaption", "", page.caption);
+      page.el = h("figure", "album-photo", page.print, page.cap);
       this.sizePrint(page);
     } else if (page.kind === "title") {
       page.el = h("div", "album-title", h("i", "album-flake"), h("h2", "", TITLE), h("p", "", FAMILY));
@@ -344,14 +354,17 @@ export class Album {
 
   // ---- sizes ----
   // The book is a whole number of book pixels, and each book pixel is a whole number of screen pixels.
+  // The stage is the space between the buttons (album.css).
   layout() {
     const vw = innerWidth;
     const vh = innerHeight;
     this.spread = vw >= 900 && vw >= vh * 1.2;
     const across = this.spread ? 2 : 1;
-    const ratio = this.spread ? 0.76 : 0.7;
-    const availW = vw - 32;
-    const availH = vh - 144;
+    const stage = this.stage.getBoundingClientRect();
+    const availW = stage.width - 32;
+    const availH = stage.height;
+    // A short, wide screen like a phone on its side gets one wide page, so a photo and its caption have room.
+    const ratio = this.spread ? 0.76 : vw > vh ? Math.min(1.5, Math.max(0.7, availW / availH)) : 0.7;
     let sideH = Math.min(availH, 900);
     let sideW = sideH * ratio;
     if (sideW * across > availW) {
@@ -364,16 +377,14 @@ export class Album {
     sideW = cols * u;
     sideH = rows * u;
     const pad = u * Math.max(3, Math.round((sideW * 0.04) / u));
-    const font = sideW < 420 ? 18 : 22;
-    const cap = Math.round(font * 1.3 * 2 + 14);
-    this.size = { u, cols, rows, sideW, sideH, pad, font, cap };
+    const font = Math.min(sideW, sideH) < 420 ? 18 : 22;
+    this.size = { u, cols, rows, sideW, sideH, pad, font };
     this.el.classList.toggle("spread", this.spread);
     const s = this.el.style;
     s.setProperty("--u", `${u}px`);
     s.setProperty("--side-w", `${sideW}px`);
     s.setProperty("--side-h", `${sideH}px`);
     s.setProperty("--pad", `${pad}px`);
-    s.setProperty("--cap", `${cap}px`);
     s.setProperty("--cap-font", `${font}px`);
     s.setProperty("--corner", `${CORNER_SIZE * u}px`);
     s.setProperty("--flake", `${FLAKE_SIZE * u}px`);
@@ -381,15 +392,33 @@ export class Album {
     for (const page of this.photos) if (page.el) this.sizePrint(page);
   }
 
-  // Fit the photo inside the page, above the caption, in a white mat with a pixel outline and shadow.
+  // Fit the photo inside the page, above the whole caption, in a white mat with a pixel outline and shadow.
   sizePrint(page) {
-    const { u, paperW, paperH, pad, cap } = this.size;
+    const { u, paperW, paperH, pad, font } = this.size;
     const frame = (MAT * 2 + 3) * u;
     const w = paperW - pad * 2 - frame;
-    const hh = paperH - pad * 2 - cap - frame;
-    const k = Math.min(w / page.w, hh / page.h);
+    const hh = paperH - pad * 2 - frame;
+    const scale = (cap) => Math.max(0, Math.min(w / page.w, (hh - cap) / page.h));
+    let size = font;
+    let cap = this.captionHeight(page.caption, size);
+    while (size > MIN_FONT && scale(cap) < scale(0) * MIN_PHOTO) {
+      size -= 2;
+      cap = this.captionHeight(page.caption, size);
+    }
+    const k = scale(cap);
+    page.cap.style.fontSize = size === font ? "" : `${size}px`;
     page.img.style.width = `${Math.floor((page.w * k) / u) * u}px`;
     page.img.style.height = `${Math.floor((page.h * k) / u) * u}px`;
+  }
+
+  // The height of a caption at this font size, with the full width of the page.
+  captionHeight(text, font) {
+    const { paperW, pad } = this.size;
+    const r = this.ruler;
+    r.style.width = `${paperW - pad * 2}px`;
+    r.style.fontSize = `${font}px`;
+    r.textContent = text;
+    return Math.ceil(r.getBoundingClientRect().height);
   }
 
   resize() {
@@ -476,6 +505,12 @@ export class Album {
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Loads the page's pixel font (--pixel in style.css). If it does not load, the captions use the fallback font.
+function pixelFont() {
+  const family = getComputedStyle(document.documentElement).getPropertyValue("--pixel");
+  return document.fonts.load(`16px ${family}`).catch(() => {});
+}
 
 function decoded(el) {
   const img = el.querySelector("img");
