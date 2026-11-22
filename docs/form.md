@@ -13,6 +13,7 @@ The pixel-art living room party is decoration and a thank-you.
 | Steps, address suggestions, confirm, send | `public/app.js` (`stepEnvelope`, `stepHousehold`, `stepAddress`, `stepUnit`, `stepConfirm`, `send`, `stepDone`) |
 | API calls from the page | `public/js/api.js` |
 | Room, sprites, door arrival, taps | `public/js/scene.js` |
+| Look picker ("New look") | `public/js/picker.js`, with ages in `public/assets/looks.json` |
 | Sound effects | `public/js/sound.js` |
 | Markup and styles | `public/index.html`, `public/style.css` |
 | Server (Cloudflare Worker) | `src/worker.ts` and the files next to it |
@@ -33,6 +34,10 @@ The hosts ("Jesse & Jessica") ask one question at a time in a dialog box.
 4. **Confirm**: the envelope name, street plus unit, and city, state and ZIP. "Fix it" goes back to step 3.
    "Yes, send it" starts the door arrival at once and calls `POST /api/submit` during it. On failure, the button works again.
 5. **Done**: the browser saves `{id, token, name, members, bubbles}` in localStorage key `hc.families`. A return visit goes straight to the party.
+
+After that, a tap on one of your own sprites opens a small editor. "Say something" sets a speech bubble.
+"New look" opens the look picker (`docs/form/look-picker-*.png`). A person sees every person look, from the oldest to the youngest, then the silly looks.
+A pet sees the dogs, then the cats, then the silly pets. Each person look in `looks.json` has an `age`: `older`, `adult`, `teen`, `kid`, or `baby`.
 
 ## API contract
 
