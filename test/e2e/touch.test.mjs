@@ -8,6 +8,8 @@ const env = await e2e();
 test("each hidden thing takes a finger-sized tap, and the hosts hint at the things a guest has not found", async () => {
   const { page, hc } = await env.open({ hasTouch: true, isMobile: true, wait: "eggs" });
   await hc.stillHosts();
+  // The scene clock stops, so the corners of a tap still show when the test reads them.
+  await hc.pause();
   // Note each hidden thing that a tap finds, but open nothing.
   await hc.catchHotspots();
   const { HOTSPOTS, TAP_PX, HOST_LINES } = await hc.constants();

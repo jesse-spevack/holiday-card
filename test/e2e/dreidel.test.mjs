@@ -42,7 +42,7 @@ describe("the dreidel game", { concurrency: true }, () => {
         const spins = await hc.dreidelSpins();
         if (touch) await page.locator(".dreidel-card").tap();
         else await page.keyboard.press("Space");
-        await page.waitForFunction((n) => window.__hc.dreidelSpins() === n + 1 && document.querySelector(".dreidel").dataset.state === "result", spins, { timeout: 5000 });
+        await page.waitForFunction((n) => window.__hc.dreidelSpins() === n + 1 && document.querySelector(".dreidel").dataset.state === "result", spins);
         return game.getAttribute("data-face");
       };
       // [side, name, meaning, pot, you, the change shown next to the pot and the guest, the refill line]
@@ -73,7 +73,7 @@ describe("the dreidel game", { concurrency: true }, () => {
       const spins = await hc.dreidelSpins();
       if (touch) await page.locator(".dreidel-card").tap();
       else await page.keyboard.press("Space");
-      await page.waitForFunction((n) => window.__hc.dreidelSpins() === n + 1 && document.querySelector(".dreidel").dataset.state === "result", spins, { timeout: 5000 });
+      await page.waitForFunction((n) => window.__hc.dreidelSpins() === n + 1 && document.querySelector(".dreidel").dataset.state === "result", spins);
       assert.ok(["nun", "gimel", "hei", "shin"].includes(await game.getAttribute("data-face")));
 
       // close: a tap outside the play area, Escape, or the close button

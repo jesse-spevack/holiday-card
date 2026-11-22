@@ -1,13 +1,15 @@
 // The Cybertruck: now and then it drives past the window, and Eddie calls it out. It never shares the road with the Waymo.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT, GARCIA, assertTucks } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tuckNow, advanceUntil, interactions } from "./harness.mjs";
 
 const env = await e2e();
 const SHOUT = "Cybertruck!";
 const WAYMO_BLUE = "#86c5ea";
 
-// Watches the road and Eddie in the page, one record each frame, until the road is clear after `cars` cars, or `seconds` pass.
+// Starts the stopped scene clock and watches the road and Eddie in the page, one record each frame,
+// until the road is clear after `cars` cars, or `seconds` pass. A test stops the clock before it sends a car,
+// so the watch sees the car from its first frame, however slow the machine.
 // Each record: t (scene time), ms (wall clock), car and truck (their x or null), bubble (Eddie's words), nextTruckIn,
 // solid (the solid car pixels on the glass), stray (the solid pixels off the glass or not in the truck colors), blue (Waymo pixels).
 const watch = (page, { cars, seconds }) => page.evaluate(({ cars, seconds }) => new Promise((done) => {
@@ -17,6 +19,7 @@ const watch = (page, { cars, seconds }) => page.evaluate(({ cars, seconds }) => 
   const onGlass = (x, y) => y >= y0 && y <= y1 && panes.some(([a, b]) => x >= a && x <= b);
   const truckColors = new Set(TRUCK.colors);
   const frames = [];
+  hc.play();
   const t0 = hc.time();
   let seen = 0;
   let last = null;
@@ -52,6 +55,7 @@ describe("the Cybertruck", { concurrency: true }, () => {
       assert.ok(start.nextTruckIn > 50 && start.nextTruckIn <= 120, `the truck comes 60 to 120 seconds after the page opens: ${start.nextTruckIn}`);
 
       // The truck drives right. A Waymo sent at the same time waits until the road is clear.
+      await hc.pause();
       await hc.sendCybertruck(1);
       await hc.sendWaymo();
       const frames = await watch(page, { cars: 2, seconds: 30 });
@@ -103,6 +107,7 @@ describe("the Cybertruck", { concurrency: true }, () => {
       await page.waitForFunction(() => window.__hc.sprite({ host: true, name: "Eddie" }).bubble);
       const line = (await hc.sprite({ host: true, name: "Eddie" })).bubble;
       assert.notEqual(line, SHOUT);
+      await hc.pause();
       await hc.sendCybertruck(-1);
       const busy = await watch(page, { cars: 1, seconds: 15 });
       const shown = busy.findIndex((f) => inSight(f, TRUCK.w));
@@ -117,13 +122,12 @@ describe("the Cybertruck", { concurrency: true }, () => {
 
   test("each drive-by counts for the family this browser signed up", async () => {
     const { page, hc, calls } = await env.open({ mine: [GARCIA], reducedMotion: "reduce", wait: "eggs" });
-    await assertTucks(page);
+    await tuckNow(page);
+    await hc.pause();
     await hc.sendCybertruck();
-    await page.waitForFunction(() => window.__hc.eggs().truck !== null);
-    await page.waitForFunction(() => window.__hc.eggs().truck === null, null, { timeout: 8000 });
-    await page.waitForTimeout(300);
-    const sent = calls.filter((c) => c.path === "/api/interaction").map((c) => c.body);
-    assert.deepEqual(sent, [{ id: GARCIA.id, token: GARCIA.token, egg: "cybertruck" }]);
+    await advanceUntil(page, (hc) => hc.eggs().truck !== null);
+    await advanceUntil(page, (hc) => hc.eggs().truck === null);
+    assert.deepEqual(await interactions(page, calls), [{ id: GARCIA.id, token: GARCIA.token, egg: "cybertruck" }]);
   });
 
   test("Audrey calls out the Waymo once it shows in the window", async () => {

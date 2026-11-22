@@ -5,6 +5,7 @@
 //   pnpm e2e                               all files, a few at a time
 //   node --test test/e2e/album.test.mjs    one file
 // Screenshots go to build/e2e (or E2E_OUT).
+// E2E_SLOW=4 slows the CPU of each page 4 times (Chrome's CPU throttle), to find a test that depends on a fast machine.
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
@@ -124,6 +125,7 @@ export async function e2e() {
     const ctx = await env.browser.newContext({ viewport: { width: 390, height: 844 }, ...context });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => env.errors.push(String(e)));
+    if (process.env.E2E_SLOW) await (await ctx.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.E2E_SLOW) });
     const calls = [];
     await page.route("**/api/**", fakeApi({ party, calls }));
     if (!realLooks) await page.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
@@ -174,10 +176,44 @@ export async function tapRoom(page, x, y, { touch = true } = {}) {
 // Waits until no finite animation runs on the page, so a screenshot shows the end of a move.
 export const animationsDone = (page) => page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getComputedTiming().iterations === Infinity));
 
-// Waits until the scene's clock moves `seconds` past now.
+// Waits until the scene's clock moves `seconds` past now. The clock must run. advance() and advanceUntil() do not wait.
 export async function sceneWait(page, seconds) {
   const t0 = await api(page).time();
   await page.waitForFunction((t) => window.__hc.time() >= t, t0 + seconds);
+}
+
+// Moves the scene clock ahead in steps of `step` seconds until check(window.__hc, arg) is true. check runs in the page,
+// so it must use only its arguments. Returns the scene seconds that it took, and fails after `max` scene seconds.
+export async function advanceUntil(page, check, arg = null, { max = 30, step = 1 / 30 } = {}) {
+  const took = await page.evaluate(({ src, arg, max, step }) => {
+    const check = (0, eval)(`(${src})`);
+    const hc = window.__hc;
+    const t0 = hc.time();
+    while (!check(hc, arg)) {
+      if (hc.time() - t0 > max) return null;
+      hc.advance(step);
+    }
+    return hc.time() - t0;
+  }, { src: check.toString(), arg, max, step });
+  assert.notEqual(took, null, `not true after ${max} scene seconds: ${check}`);
+  return took;
+}
+
+// Waits until cond() is true on the Node side, for example a call that reaches the fake API. Fails with `what` after `ms`.
+export async function until(cond, what, ms = 10000) {
+  const end = Date.now() + ms;
+  while (!cond()) {
+    assert.ok(Date.now() < end, `not true after ${ms} ms: ${what}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+// The bodies of the /api/interaction calls that reached the fake API, after every call that the page sent has arrived.
+export async function interactions(page, calls) {
+  const sent = await api(page).interactionsSent();
+  const got = () => calls.filter((c) => c.path === "/api/interaction").map((c) => c.body);
+  await until(() => got().length >= sent, `${sent} interaction calls`);
+  return got();
 }
 
 // The whole room shows: the room's box sits inside the stage, and it touches two opposite edges.
@@ -189,12 +225,14 @@ export const wholeRoom = (pg) => pg.evaluate(() => {
   return { ok: inside && fills, stage: [st.left, st.top, st.width, st.height], world: [wr.left, wr.top, wr.width, wr.height] };
 });
 export async function assertWholeRoom(pg, what) {
-  // The camera eases, so give it up to 3 seconds to settle. The assert below then reports a room that does not fit.
-  await pg.waitForFunction(() => {
+  // The camera eases on the scene clock, so give it up to 3 scene seconds to settle. A slow machine gets the same time.
+  // The assert below then reports a room that does not fit. The clock must run.
+  await pg.waitForFunction((t0) => {
     const st = document.getElementById("stage").getBoundingClientRect();
     const wr = document.getElementById("world").getBoundingClientRect();
-    return wr.left >= st.left - 0.5 && wr.right <= st.right + 0.5 && wr.top >= st.top - 0.5 && wr.bottom <= st.bottom + 0.5;
-  }, null, { timeout: 3000 }).catch(() => {});
+    const fits = wr.left >= st.left - 0.5 && wr.right <= st.right + 0.5 && wr.top >= st.top - 0.5 && wr.bottom <= st.bottom + 0.5;
+    return fits || window.__hc.time() > t0 + 3;
+  }, await api(pg).time());
   const fit = await wholeRoom(pg);
   assert.ok(fit.ok, `${what}: ${JSON.stringify(fit)}`);
 }
@@ -226,12 +264,47 @@ export const nightState = (pg) => pg.evaluate(() => {
   return out;
 });
 
-// After the thank-you, the dialog slides away within about 8 seconds and the top bar offers "Add another address".
+// After the thank-you, the dialog slides away within about 7 seconds and the top bar offers "Add another address".
+// The page notes the time, so a slow test runner does not count. The time starts at this call, after the thank-you shows.
 export async function assertTucks(pg) {
-  const started = Date.now();
-  await pg.locator("#dialog").waitFor({ state: "hidden", timeout: 8500 });
-  await pg.getByRole("button", { name: "Add another address" }).waitFor({ timeout: 500 });
-  assert.ok(Date.now() - started < 8500);
+  const took = await pg.evaluate(() => new Promise((done) => {
+    const app = document.getElementById("app");
+    const t0 = performance.now();
+    if (app.classList.contains("tucked")) return done(0);
+    setTimeout(() => done(Infinity), 20000);
+    new MutationObserver((_, watch) => {
+      if (!app.classList.contains("tucked")) return;
+      watch.disconnect();
+      done(performance.now() - t0);
+    }).observe(app, { attributes: true, attributeFilter: ["class"] });
+  }));
+  assert.ok(took < 8000, `the dialog tucks within about 7 seconds: ${took} ms`);
+  await pg.locator("#dialog").waitFor({ state: "hidden" });
+  await pg.getByRole("button", { name: "Add another address" }).waitFor();
+}
+
+// Tucks the thank-you now, without the 7-second wait, and waits until the camera shows the whole room.
+// assertTucks checks the real wait. Use tuckNow in a test that only needs the party after the thank-you.
+export async function tuckNow(page) {
+  await page.waitForFunction(() => window.__hc.tuckNow());
+  await page.locator("#dialog").waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Add another address" }).waitFor();
+  // The camera eases out to the whole room on the scene clock. Three scene seconds settle it.
+  await api(page).advance(3);
+}
+
+// Taps the host `name` until the host says `line`, up to `times` taps, and returns the lines in order.
+// A host picks a random line each time, so a fixed number of taps can miss a line. With 60 taps, a miss is less likely than once in ten million runs.
+export async function hearLine(page, name, line, { touch = true, times = 60 } = {}) {
+  const hc = api(page);
+  const lines = [];
+  while (lines.length < times && lines.at(-1) !== line) {
+    const p = await hc.pointOn({ host: true, name });
+    await (touch ? page.touchscreen.tap(p.x, p.y) : page.mouse.click(p.x, p.y));
+    lines.push((await hc.sprite({ host: true, name })).bubble);
+  }
+  assert.equal(lines.at(-1), line, `${name} says "${line}": ${lines}`);
+  return lines;
 }
 
 // The words that the host types in the dialog, once the whole line shows.

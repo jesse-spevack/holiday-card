@@ -3,7 +3,7 @@
 // Outside Hanukkah, every candle burns. The tap on the menorah is in eggs.test.mjs.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, OUT, tapRoom, sceneWait } from "./harness.mjs";
+import { e2e, OUT, tapRoom } from "./harness.mjs";
 import { hanukkahNight } from "../../public/js/extras/hanukkah.js";
 
 const env = await e2e();
@@ -41,7 +41,7 @@ test("the night of Hanukkah, from the date alone", () => {
 
 describe("the menorah", { concurrency: true }, () => {
   test("one candle for each night, from the right end, and the shamash always burns", async () => {
-    const { page, hc } = await env.open({ wait: "eggs" });
+    const { hc } = await env.open({ wait: "eggs" });
     const { flames, candles } = await hc.eggs();
     assert.equal(flames, 9, "the menorah holds eight candles and the shamash");
     assert.equal(candles.filter((c) => c.shamash).length, 1);
@@ -49,7 +49,7 @@ describe("the menorah", { concurrency: true }, () => {
     for (const [local, night, what] of TIMES) {
       const n = night || 8;
       await hc.setNow(local);
-      await sceneWait(page, 0.05);
+      await hc.advance(0.05);
       assert.equal(await row(hc), expected(n), what);
       const now = await hc.eggs();
       assert.equal(now.menorahLit, n + 1, `${what}: the candles and the shamash`);
@@ -63,42 +63,41 @@ describe("the menorah", { concurrency: true }, () => {
   });
 
   test("at 4 pm, the candle for the new night lights by itself", async () => {
-    const { page, hc } = await env.open({ wait: "eggs" });
+    const { hc } = await env.open({ wait: "eggs" });
     await hc.setNow("2026-12-07T15:59:59");
-    await sceneWait(page, 0.05);
+    await hc.advance(0.05);
     assert.equal(await row(hc), expected(3));
     await hc.setNow("2026-12-07T16:00:00");
-    await sceneWait(page, 0.05);
+    await hc.advance(0.05);
     assert.equal(await row(hc), expected(4));
   });
 
   test("a tap lights only tonight's candles: the shamash first, then the newest candle, then to the right", async () => {
     const { page, hc } = await env.open({ hasTouch: true, wait: "eggs" });
     await hc.setNow("2026-12-06T18:00");
-    await sceneWait(page, 0.05);
+    await hc.advance(0.05);
     assert.equal(await row(hc), expected(3));
     await hc.spySounds(["chime", "snuff"]);
 
     const c = await hc.spotCenter("menorah");
+    await hc.pause();
     await tapRoom(page, c.x, c.y);
-    // Each frame, note each candle that comes alight, until the menorah is done.
-    const order = await page.evaluate(() => new Promise((done) => {
+    // At each step of 1/60 second, note each candle that comes alight, until the menorah is done.
+    const order = await page.evaluate(() => {
       const seen = [];
-      const look = () => {
-        const e = window.__hc.eggs();
+      for (let e = window.__hc.eggs(); e.lighting; e = window.__hc.eggs()) {
         for (const k of e.candles) if (k.state !== "out" && !seen.includes(k.x)) seen.push(k.x);
-        if (e.lighting) requestAnimationFrame(look);
-        else done(seen);
-      };
-      look();
-    }));
+        window.__hc.advance(1 / 60);
+      }
+      return seen;
+    });
     const { candles } = await hc.eggs();
     const shamash = candles.find((k) => k.shamash).x;
     const lit = candles.filter((k) => !k.shamash).slice(-3).map((k) => k.x);
     assert.deepEqual(order, [shamash, ...lit]);
     assert.equal(await row(hc), expected(3), "the other candles stay out");
     assert.deepEqual(await hc.sounds(), ["snuff", "chime:0", "chime:1", "chime:2", "chime:3"]);
-    await page.locator(".wish", { hasText: "What miracles are you grateful for?" }).waitFor({ timeout: 1000 });
+    await page.locator(".wish", { hasText: "What miracles are you grateful for?" }).waitFor();
   });
 
   test("the guest's own time zone decides the night", async () => {
@@ -106,7 +105,7 @@ describe("the menorah", { concurrency: true }, () => {
     for (const [timezoneId, n] of [["America/Los_Angeles", 2], ["Asia/Tokyo", 3]]) {
       const { page, hc, ctx } = await env.open({ timezoneId, wait: "eggs" });
       await page.clock.setFixedTime(new Date("2026-12-06T23:30:00Z"));
-      await sceneWait(page, 0.05);
+      await hc.advance(0.05);
       assert.equal(await row(hc), expected(n), timezoneId);
       await ctx.close();
     }
@@ -117,7 +116,7 @@ describe("the menorah", { concurrency: true }, () => {
     test(`the menorah on night ${night}, on a phone`, async () => {
       const { page, hc } = await env.open({ wait: "eggs", deviceScaleFactor: 3, reducedMotion: "reduce" });
       await hc.setNow(local);
-      await sceneWait(page, 0.1);
+      await hc.advance(0.1);
       assert.equal(await row(hc), expected(night));
       const a = await hc.toScreen(184, 32);
       const b = await hc.toScreen(222, 58);

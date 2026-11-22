@@ -3,7 +3,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { e2e, OUT, GARCIA, assertTucks, tapRoom, sceneWait } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tuckNow, tapRoom, advanceUntil, interactions, hearLine } from "./harness.mjs";
 
 const env = await e2e();
 const HINT = "I bet the plants would love some attention.";
@@ -39,9 +39,9 @@ describe("the plants", { concurrency: true }, () => {
       assert.equal(ids.length, 6);
       const center = (id) => ({ x: PLANTS[id].x + PLANTS[id].w / 2, y: PLANTS[id].y + PLANTS[id].h / 2 });
       const tap = (at) => tapRoom(page, at.x, at.y, { touch });
-      // Waits until every flower on a plant is open and the sparkles are gone, so each flower center shows.
-      const allOpen = (id) => page.waitForFunction((p) => {
-        const s = window.__hc.plants();
+      // Moves the scene clock until every flower on a plant is open and the sparkles are gone, so each flower center shows.
+      const allOpen = (id) => advanceUntil(page, (hc, p) => {
+        const s = hc.plants();
         return s.bloomed.includes(p) && s.flowers.filter((f) => f.plant === p).every((f) => f.stage === "full") && !s.twinkles;
       }, id);
 
@@ -49,21 +49,16 @@ describe("the plants", { concurrency: true }, () => {
       assert.deepEqual((await hc.plants()).bloomed, []);
       if (name === "phone") {
         await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "toast");
-        const lines = [];
-        for (let i = 0; i < 8; i++) {
-          const p = await hc.pointOn({ host: true, name: "Audrey" });
-          await page.touchscreen.tap(p.x, p.y);
-          lines.push((await hc.sprite({ host: true, name: "Audrey" })).bubble);
-        }
-        assert.ok(lines.includes(HINT), `Audrey hints at the plants: ${lines}`);
+        await hearLine(page, "Audrey", HINT);
         await hc.stillHosts();
       }
 
       // A tap on each plant but the last blooms that plant only, with a twinkle and a chime one note higher each time.
+      // The scene clock stops, so the corners and the sparkles of a tap wait for the checks. The test moves the clock by hand.
       await hc.spySounds(["chime", "bouquet"]);
+      await hc.pause();
       for (const [k, id] of ids.slice(0, -1).entries()) {
         await tap(center(id));
-        // The corners and the sparkles show for less than a second, so one call reads them right after the tap.
         const s = await page.evaluate(() => ({ ...window.__hc.plants(), pressed: window.__hc.pressed() }));
         assert.deepEqual(s.bloomed, ids.slice(0, k + 1), `${id} blooms`);
         assert.ok(s.twinkles > 0, `${id} sparkles`);
@@ -85,7 +80,7 @@ describe("the plants", { concurrency: true }, () => {
       const found = await page.evaluate(() => JSON.parse(localStorage.getItem("hc.found")));
       assert.ok(found.includes("plants"), `the plants count as found: ${found}`);
       // With one plant left, the room does not bloom yet.
-      await sceneWait(page, 1);
+      await hc.advance(1);
       assert.equal((await hc.plants()).moment, null);
 
       // A second tap on a plant in bloom sparkles and chimes its own note again. It changes nothing else.
@@ -96,14 +91,13 @@ describe("the plants", { concurrency: true }, () => {
       // The last plant blooms the whole room a moment later: petals, a sparkle on every plant, a chord, and Audrey's line.
       const last = ids.at(-1);
       await tap(center(last));
-      await page.waitForFunction(() => window.__hc.plants().moment, null, { timeout: 3000 });
+      await advanceUntil(page, (hc) => hc.plants().moment);
       assert.deepEqual(await hc.sounds(), [`chime:${ids.length - 1}`, "bouquet"]);
       assert.equal((await hc.sprite({ host: true, name: "Audrey" })).bubble, BLOOM_LINE);
-      await sceneWait(page, reduce === "reduce" ? 0.5 : 1.6);
+      await hc.advance(reduce === "reduce" ? 0.5 : 1.6);
       const moment = (await hc.plants()).moment;
       assert.ok(moment.petals.length >= 40, `petals fill the room: ${moment.petals.length}`);
       // Most petals show in their own color. A few hide behind a twinkle, a person, or another petal.
-      // The petals move each frame, so one call reads both the petals and the canvas.
       const { shown, all } = await page.evaluate(() => {
         const ps = window.__hc.plants().moment.petals;
         return { shown: ps.filter((p) => window.__hc.pixel(p.x, p.y) === p.color).length, all: ps.length };
@@ -116,18 +110,18 @@ describe("the plants", { concurrency: true }, () => {
       if (reduce === "reduce") {
         // With reduced motion, the petals rest on the floor and do not move.
         assert.ok(moment.petals.every((p) => p.y >= 90), "the petals rest on the floor");
-        await sceneWait(page, 0.3);
+        await hc.advance(0.3);
         assert.deepEqual((await hc.plants()).moment.petals, moment.petals);
       }
 
       // The moment ends. The flowers stay, and the room does not bloom again.
-      await page.waitForFunction(() => !window.__hc.plants().moment, null, { timeout: 9000 });
+      await advanceUntil(page, (hc) => !hc.plants().moment);
       const after = await hc.plants();
       assert.deepEqual(after.bloomed, ids);
       assert.ok(after.momentDone);
       for (const f of after.flowers) assert.equal(await hc.pixel(f.x, f.y), f.center, `${f.plant}: the flower stays`);
       await tap(center(last));
-      await sceneWait(page, 1);
+      await hc.advance(1);
       assert.equal((await hc.plants()).moment, null, "the room blooms once a visit");
       assert.deepEqual(await hc.sounds(), [`chime:${ids.length - 1}`]);
     });
@@ -171,14 +165,12 @@ describe("the plants", { concurrency: true }, () => {
 
   test("a tap on a plant tells the Worker for the family this browser signed up", async () => {
     const { page, hc, calls } = await env.open({ hasTouch: true, isMobile: true, mine: [GARCIA], wait: "eggs" });
-    await assertTucks(page);
+    await tuckNow(page);
     const { PLANTS } = await hc.constants();
     // Two fast taps on two plants bloom both, and one call goes out in the gap.
     for (const p of Object.values(PLANTS).slice(0, 2)) await tapRoom(page, p.x + p.w / 2, p.y + p.h / 2);
     assert.equal((await hc.plants()).bloomed.length, 2);
-    await page.waitForTimeout(300);
-    const sent = calls.filter((c) => c.path === "/api/interaction").map((c) => c.body);
-    assert.deepEqual(sent, [{ id: GARCIA.id, token: GARCIA.token, egg: "plants" }]);
+    assert.deepEqual(await interactions(page, calls), [{ id: GARCIA.id, token: GARCIA.token, egg: "plants" }]);
   });
 
   test("with the lamp off, the flowers and the petals take the dark blue of the room", async () => {
@@ -188,9 +180,10 @@ describe("the plants", { concurrency: true }, () => {
     const lamp = HOTSPOTS.find((h) => h.id === "lamp");
     await tapRoom(page, lamp.x + lamp.w / 2, lamp.y + lamp.h / 2, { touch: false });
     assert.equal((await hc.eggs()).lampOn, false);
+    await hc.pause();
     for (const p of Object.values(PLANTS)) await tapRoom(page, p.x + p.w / 2, p.y + p.h / 2, { touch: false });
-    await page.waitForFunction(() => window.__hc.plants().moment, null, { timeout: 3000 });
-    await sceneWait(page, 1.6);
+    await advanceUntil(page, (hc) => hc.plants().moment);
+    await hc.advance(1.6);
     // No flower and no petal shows its color in full light.
     const { flowers, moment } = await hc.plants();
     for (const f of flowers) assert.notEqual(await hc.pixel(f.x, f.y), f.center, `${f.plant}: the flower at ${f.x}, ${f.y} is dark`);

@@ -10,8 +10,8 @@ const KEY = "hc.found";
 // family() is the family this browser signed up last, or undefined.
 export function createFound({ family }) {
   const seen = new Set(load());
-  // A guest who taps fast sends at most one call for each extra in `gapMs`. The test API changes the gap.
-  const tracking = { gapMs: 5000, sentAt: new Map() };
+  // A guest who taps fast sends at most one call for each extra in `gapMs`. The test API changes the gap and reads `sent`, the count of calls.
+  const tracking = { gapMs: 5000, sentAt: new Map(), sent: 0 };
 
   // Records the interaction for the family this browser signed up last. A guest with no family sends nothing.
   // A failed call stays silent.
@@ -21,6 +21,7 @@ export function createFound({ family }) {
     const now = performance.now();
     if (now - (tracking.sentAt.get(egg) ?? -Infinity) < tracking.gapMs) return;
     tracking.sentAt.set(egg, now);
+    tracking.sent++;
     api.interaction({ id: f.id, token: f.token, egg }).catch(() => {});
   }
 

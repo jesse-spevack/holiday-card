@@ -3,7 +3,7 @@
 // The roof must not come and go through any of it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, GARCIA } from "./harness.mjs";
+import { e2e, GARCIA, sceneWait } from "./harness.mjs";
 
 const env = await e2e();
 
@@ -39,7 +39,8 @@ function watchRoof() {
 
 const flips = (log) => log.reduce((n, on, i) => n + (i > 0 && on !== log[i - 1] ? 1 : 0), 0);
 
-// The roof log from the first frame until the page settles, plus time for the camera to ease back out.
+// The roof log from the first frame until the page settles, plus time on the scene clock for the camera to ease back out.
+// The waits have no short time limits: on a slow machine the page settles late, but the camera moves on the scene clock.
 // A first visit settles when the Turnstile check has mounted and the host has typed the question.
 // A return visit settles when the thank-you has slid away.
 async function roofLog({ width, height, returning, box = false }) {
@@ -53,11 +54,11 @@ async function roofLog({ width, height, returning, box = false }) {
     routes, mine: returning ? [GARCIA] : undefined, init: [watchRoof],
   });
   if (returning) {
-    await page.waitForFunction(() => document.getElementById("app").classList.contains("tucked") && getComputedStyle(document.getElementById("dialog")).visibility === "hidden", null, { timeout: 10000 });
+    await page.waitForFunction(() => document.getElementById("app").classList.contains("tucked") && getComputedStyle(document.getElementById("dialog")).visibility === "hidden");
   } else {
-    await page.waitForFunction(() => document.querySelector(".fake-turnstile") && !document.querySelector("#say span"), null, { timeout: 10000 });
+    await page.waitForFunction(() => document.querySelector(".fake-turnstile") && !document.querySelector("#say span"));
   }
-  await page.waitForTimeout(returning ? 2500 : 1000);
+  await sceneWait(page, returning ? 2.5 : 1);
   const log = await page.evaluate(() => window.__roof);
   await ctx.close();
   return log;

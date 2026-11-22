@@ -2,7 +2,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
-import { e2e, OUT, GARCIA, assertTucks, tapRoom, sceneWait, waitForFamilies } from "./harness.mjs";
+import { e2e, OUT, GARCIA, tuckNow, tapRoom, waitForFamilies, interactions, hearLine } from "./harness.mjs";
 
 const env = await e2e();
 const HINT = "Poke the fire. It likes attention.";
@@ -57,7 +57,7 @@ describe("the fire", { concurrency: true }, () => {
     test(`a tap on the fire throws sparks, on ${name}`, async () => {
       const { page, hc, calls } = await env.open({ viewport, hasTouch: touch, isMobile: touch, reducedMotion: reduce, party: PARTY, mine: [GARCIA], wait: "eggs" });
       await waitForFamilies(page, { other1: 2, fam12345: 2 });
-      await assertTucks(page);
+      await tuckNow(page);
       await hc.stillHosts();
       await hc.stillGuests();
       // The guests stand at the front of the room, clear of the fire and the hosts.
@@ -75,17 +75,16 @@ describe("the fire", { concurrency: true }, () => {
       };
       await hc.found("album", "lamp", "dreidel", "menorah", "star", "waymo", "pets", "silly", "toast");
       if (name === "phone") {
-        let heard = false;
-        for (let i = 0; i < 40 && !heard; i++) heard = (await hear("Jess")) === HINT;
-        assert.ok(heard, "Jess hints at the fire");
+        await hearLine(page, "Jess", HINT);
         await page.waitForFunction(() => window.__hc.sprites({ host: true }).every((s) => !s.bubble));
       }
 
       // The tap: a burst of sparks and embers, a flare, a crackle, and the corners round the fireplace.
+      // The scene clock stops, so the sparks and the corners wait for the checks, and the test moves the clock by hand.
       await hc.spySounds(["crackle", "select"]);
       assert.equal((await hc.fire()).bursts, 0);
+      await hc.pause();
       await tapFire();
-      const t0 = await hc.time();
       const start = await hc.fire();
       assert.equal(start.bursts, 1);
       assert.ok(start.sparks > 0, `sparks: ${start.sparks}`);
@@ -95,48 +94,46 @@ describe("the fire", { concurrency: true }, () => {
       const found = await page.evaluate(() => JSON.parse(localStorage.getItem("hc.found")));
       assert.ok(found.includes("fire"), `the fire counts as found: ${found}`);
       // The tap goes on the record for the family this browser signed up.
-      const sent = () => calls.filter((c) => c.path === "/api/interaction").map((c) => c.body.egg);
-      for (let i = 0; i < 20 && !sent().includes("fire"); i++) await page.waitForTimeout(25);
-      assert.deepEqual(sent().filter((e) => e === "fire"), ["fire"]);
+      assert.deepEqual((await interactions(page, calls)).map((c) => c.egg).filter((e) => e === "fire"), ["fire"]);
 
       // The sparks fly up out of the fireplace and stay in the box over the fire and the chimney.
       // With reduced motion, a few sparks glow above the flames and fade where they are.
-      let top = Infinity;
-      let shot = false;
-      for (let i = 0; i < 40; i++) {
-        const s = await hc.fire();
-        if (!s.box) break;
-        const { box, bounds } = s;
-        assert.ok(box.x0 >= bounds.x0 && box.x1 <= bounds.x1 && box.y0 >= bounds.y0 && box.y1 <= bounds.y1, `the sparks stay over the fire: ${JSON.stringify(box)}`);
-        assert.equal(s.moving, reduce === "no-preference", "the sparks move");
-        top = Math.min(top, box.y0);
-        if (!shot && (await hc.time()) - t0 >= 0.22) {
-          shot = true;
-          if (reduce === "no-preference") {
-            await page.screenshot({ path: `${OUT}/fire-${name}.png` });
-            if (name === "phone") await zoom(page, "fire-zoom.png");
-          }
-        }
-        await page.waitForTimeout(25);
+      // The page notes the fire at each step of 1/30 second, for 2 seconds.
+      const steps = await page.evaluate(() => Array.from({ length: 60 }, () => ({ at: window.__hc.advance(1 / 30), ...window.__hc.fire() })));
+      for (const { at, box, bounds, moving } of steps.filter((s) => s.box)) {
+        assert.ok(box.x0 >= bounds.x0 && box.x1 <= bounds.x1 && box.y0 >= bounds.y0 && box.y1 <= bounds.y1, `at ${at}, the sparks stay over the fire: ${JSON.stringify(box)}`);
+        assert.equal(moving, reduce === "no-preference", "the sparks move");
       }
+      const top = Math.min(...steps.filter((s) => s.box).map((s) => s.box.y0));
       if (reduce === "no-preference") assert.ok(top < fire.y, `the sparks fly up out of the fireplace: ${top}`);
       else assert.ok(top >= fire.y, `the still sparks stay in the fireplace: ${top}`);
-
       // The flare dies down, and the sparks and the flare go out in about 2 seconds.
-      assert.ok((await hc.fire()).flare < start.flare, "the flare dies down");
-      await page.waitForFunction(() => { const f = window.__hc.fire(); return !f.box && f.flare === 0; }, null, { timeout: 3000 });
+      assert.ok(steps[5].flare < start.flare, "the flare dies down");
+      assert.deepEqual([steps.at(-1).box, steps.at(-1).flare], [null, 0], "the sparks and the flare go out in 2 seconds");
+
+      // A screenshot of the sparks 0.22 seconds after a tap, on the stopped clock.
+      if (reduce === "no-preference") {
+        await tapFire();
+        await hc.advance(0.22);
+        await page.screenshot({ path: `${OUT}/fire-${name}.png` });
+        if (name === "phone") await zoom(page, "fire-zoom.png");
+        await hc.advance(2);
+      }
 
       // Each fast tap gives its own burst and crackle, but the sparks never pass the cap.
       const taps = 20;
+      const before = (await hc.fire()).bursts;
+      await hc.sounds();
       for (let i = 0; i < taps; i++) await tapFire();
       const many = await hc.fire();
-      assert.equal(many.bursts, 1 + taps);
+      assert.equal(many.bursts, before + taps);
       const live = many.sparks + many.embers;
       assert.ok(live <= many.max, `${live} sparks and embers, cap ${many.max}`);
       // With motion, 20 bursts throw far more than the cap, so the cap holds them back. Reduced motion throws only a few.
       if (reduce === "no-preference") assert.ok(live > many.max / 2, `the cap is full: ${live}`);
       assert.deepEqual(await hc.sounds(), Array(taps).fill("crackle"));
-      await page.waitForFunction(() => !window.__hc.fire().box, null, { timeout: 3000 });
+      await hc.advance(2);
+      assert.equal((await hc.fire()).box, null, "the sparks of the fast taps go out");
 
       if (!touch) return;
       // The fire takes a finger-sized tap on a phone.
@@ -154,11 +151,11 @@ describe("the fire", { concurrency: true }, () => {
       assert.equal(await finds({ x: 100, y: 20 }), null, "a tap on the wall");
       // A host who stands in front of the fire takes a tap on the host, and the fire above still takes its own tap.
       await hc.place({ host: true, name: "Jesse" }, 128, 104);
-      const before = (await hc.fire()).bursts;
+      const bursts = (await hc.fire()).bursts;
       const line = await hear("Jesse");
       assert.ok(line, "Jesse says a line");
       assert.deepEqual(await hc.hotspotHits(), [], "a tap on Jesse by the fire finds no hidden thing");
-      assert.equal((await hc.fire()).bursts, before);
+      assert.equal((await hc.fire()).bursts, bursts);
       assert.equal(await finds(center), "fire", "the fire over Jesse's head");
 
       if (name === "phone") {
@@ -167,14 +164,18 @@ describe("the fire", { concurrency: true }, () => {
         for (let i = 0; i < 12; i++) after.push(await hear("Jess"));
         assert.ok(!after.includes(HINT), `no fire hint after the fire: ${after}`);
         // With the lamp off, the sparks glow in the dark room.
+        // After the reload, the camera zooms in on the family behind the thank-you. tuckNow brings back the whole room,
+        // so the tap on the lamp lands on the lamp.
         await page.reload();
         await page.waitForFunction(() => window.__hc?.loaded().eggs);
+        await tuckNow(page);
         await hc.stillHosts();
         const lamp = HOTSPOTS.find((h) => h.id === "lamp");
         await tapRoom(page, lamp.x + lamp.w / 2, lamp.y + lamp.h / 2);
         await page.waitForFunction(() => !window.__hc.eggs().lampOn);
+        await hc.pause();
         await tapFire();
-        await sceneWait(page, 0.12);
+        await hc.advance(0.12);
         await zoom(page, "fire-zoom-dark.png");
         await page.screenshot({ path: `${OUT}/fire-phone-dark.png` });
       }

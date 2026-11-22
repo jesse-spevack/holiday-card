@@ -46,6 +46,8 @@ export class Scene {
     this.camera = { scale: 2, x: 128, y: 120, target: null };
     this.last = performance.now();
     this.time = 0;
+    // The test API can stop the clock and move it by hand (pause and advance in test-api.js). A guest's clock never stops.
+    this.paused = false;
     this.onTap = onTap || (() => {});
     this.onHover = onHover || (() => {});
     this.onHotspot = onHotspot || (() => {});
@@ -312,11 +314,23 @@ export class Scene {
     for (const fn of [...this.frameListeners]) fn(now);
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
-    this.time += dt;
-    this.update(dt);
+    if (!this.paused) this.tick(dt);
     this.draw();
     this.updateOverlay();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  tick(dt) {
+    this.time += dt;
+    this.update(dt);
+  }
+
+  // Moves the clock `seconds` ahead at once, in steps of 1/60 second, then draws. Only the test API calls it.
+  advance(seconds) {
+    const step = 1 / 60;
+    for (let left = seconds; left > 1e-9; left -= step) this.tick(Math.min(step, left));
+    this.draw();
+    this.updateOverlay();
   }
 
   update(dt) {
