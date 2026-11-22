@@ -13,6 +13,7 @@ The pixel-art living room party is decoration and a thank-you.
 | Steps, address suggestions, confirm, send | `public/app.js` (`stepEnvelope`, `stepHousehold`, `stepAddress`, `stepUnit`, `stepConfirm`, `send`, `stepDone`) |
 | API calls from the page | `public/js/api.js` |
 | Room, sprites, door arrival, taps | `public/js/scene.js` |
+| Hidden pet reactions (a tap on a dog or a cat) | `public/js/pets.js`, with the sounds in `public/js/sound.js` |
 | Look picker ("New look") | `public/js/picker.js`, with ages in `public/assets/looks.json` |
 | Sound effects | `public/js/sound.js` |
 | Hidden photo album (the book on the sofa) | `public/js/album.js`, `public/album.css`, `src/album.ts` |

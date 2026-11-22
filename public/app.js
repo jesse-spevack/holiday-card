@@ -4,6 +4,7 @@ import { api } from "./js/api.js";
 import { openPicker } from "./js/picker.js";
 import { Album } from "./js/album.js";
 import { Eggs } from "./js/eggs.js";
+import { react } from "./js/pets.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -473,6 +474,8 @@ function onTap(sprite) {
     scene.say(sprite, HOST_LINES[Math.floor(Math.random() * HOST_LINES.length)], 3);
     return;
   }
+  // A pet reacts to every tap. In your own family, the editor opens at the same time.
+  const pet = react(sprite, { time: scene.time, sound });
   const saved = mineById(sprite.familyId);
   if (!saved) {
     const fam = scene.families.get(sprite.familyId);
@@ -480,11 +483,12 @@ function onTap(sprite) {
     if (sprite.bubble) scene.say(sprite, sprite.bubble, 4);
     return;
   }
-  openEditor(sprite, saved);
+  openEditor(sprite, saved, { quiet: !!pet });
 }
 
-function openEditor(sprite, saved) {
-  sound.select();
+// A pet's own sound plays in place of the editor's chime.
+function openEditor(sprite, saved, { quiet = false } = {}) {
+  if (!quiet) sound.select();
   const input = h("input", { id: "f-bubble", autocomplete: "off", ...NO_PASSWORD_MANAGER, maxlength: 40, value: saved.bubbles[sprite.index] || "", placeholder: "Say something", "aria-label": "Say something" });
   const save = async () => {
     const text = input.value.trim().slice(0, 40);

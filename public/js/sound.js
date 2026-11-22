@@ -51,6 +51,16 @@ export class Sound {
     [523, 659, 784, 1046].forEach((f, i) => this.tone(f, { at: 0.25 + i * 0.09, dur: 0.18, type: "square", gain: 0.035 }));
   }
   oops() { this.tone(220, { dur: 0.15, type: "triangle", gain: 0.06, slide: -80 }); }
+  // The hidden pet reactions (pets.js). The woof and the mrrp change a little on each tap.
+  woof() { if (this.ready()) woof(this.ctx, this.ctx.destination); }
+  mrrp() { if (this.ready()) mrrp(this.ctx, this.ctx.destination); }
+  puff() { if (this.ready()) puff(this.ctx, this.ctx.destination); }
+  beep() { [880, 1320, 990].forEach((f, i) => this.tone(f, { at: i * 0.09, dur: 0.06, gain: 0.025 })); }
+  warble() {
+    this.tone(520, { dur: 0.3, type: "sine", gain: 0.05, slide: 420 });
+    this.tone(940, { at: 0.3, dur: 0.35, type: "sine", gain: 0.04, slide: -380 });
+  }
+  waddle() { [0, 0.17, 0.34, 0.51].forEach((at, i) => this.tone(i % 2 ? 392 : 330, { at, dur: 0.06, type: "triangle", gain: 0.06 })); }
   // The book sounds play a recording. Until it loads, or if it fails to load, they play the swish.
   pageTurn() { if (this.ready() && !this.sample(FLIPS, 0.18)) swish(this.ctx, this.ctx.destination); }
   coverOpen() { if (this.ready() && !this.sample(["book-open"], 0.13)) swish(this.ctx, this.ctx.destination, { cover: true }); }
@@ -158,6 +168,81 @@ function burst(ctx, out, t, dur, type) {
   src.start(t, Math.random() * 0.5);
   src.stop(t + dur + 0.05);
   return { filter, gain: amp.gain };
+}
+
+// A soft woof: a low buzz through a closing filter, with a little breath. Sometimes two woofs.
+export function woof(ctx, out, { at = 0 } = {}) {
+  const pitch = 0.85 + Math.random() * 0.3;
+  const count = Math.random() < 0.35 ? 2 : 1;
+  for (let k = 0; k < count; k++) {
+    const t = ctx.currentTime + at + k * 0.18;
+    const f = 200 * pitch * (k ? 0.92 : 1);
+    const osc = ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(f * 0.8, t);
+    osc.frequency.linearRampToValueAtTime(f * 1.25, t + 0.03);
+    osc.frequency.exponentialRampToValueAtTime(f * 0.6, t + 0.15);
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.Q.value = 2;
+    filter.frequency.setValueAtTime(1000 * pitch, t);
+    filter.frequency.exponentialRampToValueAtTime(350, t + 0.15);
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(0, t);
+    amp.gain.linearRampToValueAtTime(0.11, t + 0.015);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+    osc.connect(filter).connect(amp).connect(out);
+    osc.start(t);
+    osc.stop(t + 0.2);
+    const breath = burst(ctx, out, t, 0.08, "lowpass");
+    breath.filter.frequency.value = 1400;
+    breath.gain.linearRampToValueAtTime(0.04, t + 0.01);
+    breath.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+  }
+}
+
+// A soft cat "mrrp": a quick purr trill that rises into a short meow.
+export function mrrp(ctx, out, { at = 0 } = {}) {
+  const t = ctx.currentTime + at;
+  const p = 0.9 + Math.random() * 0.2;
+  const osc = ctx.createOscillator();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(380 * p, t);
+  osc.frequency.linearRampToValueAtTime(600 * p, t + 0.14);
+  osc.frequency.linearRampToValueAtTime(720 * p, t + 0.24);
+  osc.frequency.exponentialRampToValueAtTime(500 * p, t + 0.4);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 1800;
+  const amp = ctx.createGain();
+  amp.gain.setValueAtTime(0, t);
+  amp.gain.linearRampToValueAtTime(0.07, t + 0.02);
+  amp.gain.setValueAtTime(0.07, t + 0.26);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+  // the trill: a fast wobble of the volume at the start
+  const trill = ctx.createOscillator();
+  trill.frequency.value = 30;
+  const depth = ctx.createGain();
+  depth.gain.setValueAtTime(0.05, t);
+  depth.gain.linearRampToValueAtTime(0, t + 0.14);
+  trill.connect(depth).connect(amp.gain);
+  osc.connect(filter).connect(amp).connect(out);
+  osc.start(t);
+  trill.start(t);
+  osc.stop(t + 0.45);
+  trill.stop(t + 0.45);
+}
+
+// A small dragon puff: a breath of noise that rises, like a tiny flame.
+export function puff(ctx, out, { at = 0 } = {}) {
+  const t = ctx.currentTime + at + 0.15;
+  const fire = burst(ctx, out, t, 0.4, "bandpass");
+  fire.filter.Q.value = 0.7;
+  fire.filter.frequency.setValueAtTime(400, t);
+  fire.filter.frequency.exponentialRampToValueAtTime(1600, t + 0.2);
+  fire.filter.frequency.exponentialRampToValueAtTime(700, t + 0.4);
+  fire.gain.linearRampToValueAtTime(0.13, t + 0.04);
+  fire.gain.linearRampToValueAtTime(0, t + 0.4);
 }
 
 // A soft paper swish: noise through a band-pass filter that sweeps up and back down, then a small low flop.

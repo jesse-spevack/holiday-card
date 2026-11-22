@@ -1,6 +1,8 @@
 // The living room party. Draws at the room's native 256x192 pixels on a canvas,
 // which CSS scales up with crisp pixels. Bubbles and nametags are HTML on top.
 
+import { drawPet, drawPetMark } from "./pets.js";
+
 export const ROOM_W = 256;
 export const ROOM_H = 192;
 
@@ -304,7 +306,9 @@ export class Scene {
       const hop = !this.reducedMotion && age < 0.25 ? Math.round(Math.sin((age / 0.25) * Math.PI) * 4) : 0;
       const x = Math.round(s.x - s.img.width / 2);
       const y = Math.round(s.y - s.img.height - s.bob - hop);
-      if (s.flip) {
+      if (s.react) {
+        drawPet(g, s, x, y, this.time, this.reducedMotion);
+      } else if (s.flip) {
         g.save();
         g.scale(-1, 1);
         g.drawImage(s.img, -x - s.img.width, y);
@@ -314,6 +318,7 @@ export class Scene {
       }
     }
     this.eggs?.drawFront(g);
+    for (const s of visible) if (s.react) drawPetMark(g, s, this.time, this.reducedMotion);
   }
 
   flicker() {
