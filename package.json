@@ -8,6 +8,7 @@
     "deploy": "scripts/deploy.sh",
     "test": "vitest run",
     "e2e": "node --test --test-concurrency=4 \"test/e2e/*.test.mjs\"",
+    "og": "node art/scripts/og.mjs",
     "typecheck": "pnpm types && tsc --noEmit",
     "db:migrate": "wrangler d1 migrations apply holiday-card --remote",
     "interactions": "scripts/interactions.sh",

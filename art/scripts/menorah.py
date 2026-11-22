@@ -5,7 +5,7 @@ The menorah on the window sill held six candles and the shamash. A Hanukkah meno
 so this script paints one more candle at each end of the candle bar on public/assets/room.png.
 The candles on the menorah show the night of Hanukkah (public/js/extras/hanukkah.js), so each night needs its own candle.
 The script sets exact pixels, so a second run gives the same image.
-Run art/scripts/og.py after a change, so the link preview shows it.
+Run pnpm og after a change, so the link preview shows it.
 """
 import os
 from PIL import Image

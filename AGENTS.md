@@ -70,7 +70,7 @@ No build step. The browser loads ES modules as they are.
 
 ### Art (`art/`)
 
-Python scripts with Pillow, run from the repo root. The docstring at the top of each script gives its usage.
+Python scripts with Pillow, and one Node script, run from the repo root. The docstring at the top of each script gives its usage.
 
 | Script | Makes |
 |---|---|
@@ -80,7 +80,7 @@ Python scripts with Pillow, run from the repo root. The docstring at the top of 
 | `art/scripts/table_wine.py` | The wine bottle and glasses, drawn pixel by pixel on `public/assets/room.png` |
 | `art/scripts/menorah.py` | The two end candles that make the menorah hold eight candles and the shamash, drawn pixel by pixel on `public/assets/room.png` |
 | `art/scripts/book.py` | The photo album sprite on the sofa, `public/assets/book.png` |
-| `art/scripts/og.py` | The link preview, `public/assets/og.png`. Run it after each change to the room or the hosts |
+| `art/scripts/og.mjs` | The link preview, `public/assets/og.png`, from the real page in Google Chrome. It also puts a new `?v=` hash in the `og:image` address in `public/index.html`. Run `pnpm og` after each change to the room, the hosts, or the extras |
 | `art/scripts/album.py` | The album photos in KV. See "Data rules" |
 
 `public/assets/` holds the only copy of each image that the site uses. `art/assets/` holds only source art that the site does not serve:
@@ -108,6 +108,7 @@ pnpm e2e            # the page in Google Chrome with a fake API, 4 files at a ti
 node --test test/e2e/album.test.mjs   # one feature only
 E2E_SLOW=6 pnpm e2e # each page with a CPU 6 times slower, to find a test that depends on a fast machine
 pnpm typecheck
+pnpm og            # make the link preview again from the page, see art/scripts/og.mjs
 pnpm preview        # upload this branch as a preview and print its URL
 pnpm interactions   # read only: the hidden extras that each family played with, from the production D1. Add --local for pnpm dev
 pnpm run deploy     # main only. See "Deploy".

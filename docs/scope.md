@@ -175,7 +175,7 @@ Nothing on screen points to these.
   figures match the room's warm light, soft shading and brown outline. Big heads, about 2 heads tall.
   Frame sizes: adults 48px (about 36px tall), kids 40px (about 29px), small pets 24px (about 21px).
   One call returns 25 variations. `art/scripts/looks.py` has the prompts and the picks.
-- Each figure gets a small drop shadow, and figures stand in groups, not in rows (`art/scripts/og.py` draws the link preview this way).
+- Each figure gets a small drop shadow, and figures stand in groups, not in rows (the scene draws them this way).
 - Room: a cozy modern living room (cream walls, light oak floor, white fireplace, navy sofa and armchairs,
   snowy window with the menorah, latke table on the right, rug in the middle, front door at the bottom).
   Retro Diffusion `rd_pro__topdown`, 256x192. `public/assets/room.png` is the only copy. The first room prompt is in git history (`art/scripts/generate.py` at 16e0ec2).

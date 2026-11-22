@@ -6,6 +6,7 @@
 //   node --test test/e2e/album.test.mjs    one file
 // Screenshots go to build/e2e (or E2E_OUT).
 // E2E_SLOW=4 slows the CPU of each page 4 times (Chrome's CPU throttle), to find a test that depends on a fast machine.
+// art/scripts/og.mjs uses serve, launch, and openPage to draw the link preview from the page.
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
@@ -90,8 +91,8 @@ function fakeApi({ party = PARTY, calls }) {
   };
 }
 
-// Starts the server and the browser for one test file, and checks after the file that no page threw an error.
-export async function e2e() {
+// Serves public/ (and the test sprites at /t/) on a free port. Returns the server and the page address in test mode.
+export async function serve() {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url, "http://x").pathname;
     try {
@@ -102,55 +103,65 @@ export async function e2e() {
       res.writeHead(404).end();
     }
   });
-  const env = { browser: null, base: "", errors: [] };
+  await new Promise((r) => server.listen(0, r));
+  return { server, base: `http://127.0.0.1:${server.address().port}/?test` };
+}
+
+// Starts Google Chrome.
+export const launch = () => chromium.launch({ channel: "chrome" });
+
+// Opens the page in a new browser context and waits for the test API. Each page error goes into `errors`.
+// options: Playwright context options (viewport, reducedMotion, hasTouch, ...), plus
+//   party: the /api/party reply, mine: families this browser signed up before,
+//   realLooks: use public/assets/looks.json, not the test looks, album: serve the fake album,
+//   query: more of the address after "?test", init: scripts to run before the page loads,
+//   wait: what to wait for: "api" (the default), "room" (the room and the four hosts), or "eggs" (the room, the book, and the extras).
+export async function openPage(browser, base, errors, { party, mine, realLooks = false, album = false, query = "", init = [], wait = "api", routes = [], ...context } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, ...context });
+  const page = await ctx.newPage();
+  page.on("pageerror", (e) => errors.push(String(e)));
+  if (process.env.E2E_SLOW) await (await ctx.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.E2E_SLOW) });
+  const calls = [];
+  await page.route("**/api/**", fakeApi({ party, calls }));
+  if (!realLooks) await page.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
+  const albumCalls = [];
+  if (album) {
+    await page.route("**/album/**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      albumCalls.push(path);
+      if (path === "/album/list") return route.fulfill({ contentType: "application/json", body: JSON.stringify(ALBUM) });
+      return route.fulfill({ contentType: "image/png", body: await readFile(join(ART, "sample-dad.png")) });
+    });
+  }
+  for (const [pattern, handler] of routes) await page.route(pattern, handler);
+  if (mine) await page.addInitScript((m) => localStorage.setItem("hc.families", JSON.stringify(m)), mine);
+  for (const script of init) await page.addInitScript(script);
+  await page.goto(base + query);
+  await page.waitForFunction(() => window.__hc);
+  if (wait === "room" || wait === "eggs") {
+    await page.waitForFunction((eggs) => {
+      const l = window.__hc.loaded();
+      return l.room && l.hosts === 4 && (!eggs || (l.book && l.eggs));
+    }, wait === "eggs");
+  }
+  return { page, ctx, calls, albumCalls, hc: api(page) };
+}
+
+// Starts the server and the browser for one test file, and checks after the file that no page threw an error.
+// env.open(options) opens a page, with the options of openPage.
+export async function e2e() {
+  const env = { browser: null, base: "", errors: [], server: null };
   before(async () => {
-    await new Promise((r) => server.listen(0, r));
-    env.base = `http://127.0.0.1:${server.address().port}/?test`;
+    ({ server: env.server, base: env.base } = await serve());
     await mkdir(OUT, { recursive: true });
-    env.browser = await chromium.launch({ channel: "chrome" });
+    env.browser = await launch();
   });
   after(async () => {
     await env.browser?.close();
-    server.close();
+    env.server?.close();
     assert.deepEqual(env.errors, [], "a page threw an error");
   });
-
-  // Opens the page in a new browser context and waits for the test API.
-  // options: Playwright context options (viewport, reducedMotion, hasTouch, ...), plus
-  //   party: the /api/party reply, mine: families this browser signed up before,
-  //   realLooks: use public/assets/looks.json, not the test looks, album: serve the fake album,
-  //   query: more of the address after "?test", init: scripts to run before the page loads,
-  //   wait: what to wait for: "api" (the default), "room" (the room and the four hosts), or "eggs" (the room, the book, and the extras).
-  env.open = async ({ party, mine, realLooks = false, album = false, query = "", init = [], wait = "api", routes = [], ...context } = {}) => {
-    const ctx = await env.browser.newContext({ viewport: { width: 390, height: 844 }, ...context });
-    const page = await ctx.newPage();
-    page.on("pageerror", (e) => env.errors.push(String(e)));
-    if (process.env.E2E_SLOW) await (await ctx.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.E2E_SLOW) });
-    const calls = [];
-    await page.route("**/api/**", fakeApi({ party, calls }));
-    if (!realLooks) await page.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
-    const albumCalls = [];
-    if (album) {
-      await page.route("**/album/**", async (route) => {
-        const path = new URL(route.request().url()).pathname;
-        albumCalls.push(path);
-        if (path === "/album/list") return route.fulfill({ contentType: "application/json", body: JSON.stringify(ALBUM) });
-        return route.fulfill({ contentType: "image/png", body: await readFile(join(ART, "sample-dad.png")) });
-      });
-    }
-    for (const [pattern, handler] of routes) await page.route(pattern, handler);
-    if (mine) await page.addInitScript((m) => localStorage.setItem("hc.families", JSON.stringify(m)), mine);
-    for (const script of init) await page.addInitScript(script);
-    await page.goto(env.base + query);
-    await page.waitForFunction(() => window.__hc);
-    if (wait === "room" || wait === "eggs") {
-      await page.waitForFunction((eggs) => {
-        const l = window.__hc.loaded();
-        return l.room && l.hosts === 4 && (!eggs || (l.book && l.eggs));
-      }, wait === "eggs");
-    }
-    return { page, ctx, calls, albumCalls, hc: api(page) };
-  };
+  env.open = (options) => openPage(env.browser, env.base, env.errors, options);
   return env;
 }
 
