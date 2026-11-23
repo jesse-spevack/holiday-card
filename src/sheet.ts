@@ -49,7 +49,7 @@ async function callSheet(env: Env, body: Record<string, unknown>): Promise<Recor
   const result = reply.data as { ok?: boolean; error?: string } | undefined;
   if (!result?.ok) {
     console.error("sheet_failed", body.action, reply.status, result?.error ?? reply.text.slice(0, 200));
-    throw new HttpError(502, "sheet_failed");
+    throw new HttpError(502, "sheet_failed", `${body.action} ${reply.status} ${String(result?.error ?? "no_json").slice(0, 60)}`);
   }
   return result as Record<string, unknown>;
 }

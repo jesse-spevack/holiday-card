@@ -1,5 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { uaClass } from "../src/log";
 import { sha256, type PartyFamily } from "../src/party";
 import { OPENROUTER, PLACES, SHEET, fakeSheet, llmReply, stubOutbound } from "./outbound";
 
@@ -49,7 +50,7 @@ async function submitFamily() {
 }
 
 beforeEach(async () => {
-  await env.DB.batch([env.DB.prepare("DELETE FROM invites"), env.DB.prepare("DELETE FROM interactions"), env.DB.prepare("DELETE FROM members"), env.DB.prepare("DELETE FROM families")]);
+  await env.DB.batch([env.DB.prepare("DELETE FROM errors"), env.DB.prepare("DELETE FROM invites"), env.DB.prepare("DELETE FROM interactions"), env.DB.prepare("DELETE FROM members"), env.DB.prepare("DELETE FROM families")]);
 });
 
 afterEach(() => {
@@ -925,5 +926,122 @@ describe("album", () => {
     const response = await request("/album/list");
 
     expect(response.status).toBe(404);
+  });
+});
+
+type ErrorRow = { source: string; route: string; code: string; status: number | null; detail: string; ua: string; country: string; family_id: string | null; version: string };
+
+async function errorRows(): Promise<ErrorRow[]> {
+  return (await env.DB.prepare("SELECT * FROM errors ORDER BY id").all<ErrorRow>()).results;
+}
+
+const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1";
+// Every piece of guest data in SUBMISSION. None of it may reach a log line or an error row.
+const GUEST_DATA = ["Garcia", "Sofia", "Biscuit", "Maple", "Apt 2B", "Evanston", "02139"];
+
+describe("error log", () => {
+  it("writes one row for a failed submit, with no guest data in the row or the log lines", async () => {
+    const log = vi.spyOn(console, "log");
+    const error = vi.spyOn(console, "error");
+    stubOutbound({ [SHEET]: () => Response.json({ error: "forbidden" }) });
+
+    const response = await SELF.fetch("https://hi.verynormal.dev/api/submit", {
+      method: "POST",
+      body: JSON.stringify({ ...SUBMISSION, token: "secret-token", turnstileToken: "secret-turnstile" }),
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": freshIp(), "User-Agent": IPHONE },
+    });
+
+    expect(response.status).toBe(502);
+    const rows = await errorRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ source: "worker", route: "POST /api/submit", code: "sheet_failed", status: 502, ua: "Safari 18 iOS 18.7" });
+    expect(rows[0].detail).toBe("add 200 forbidden");
+    expect(rows[0].family_id).toMatch(/^[0-9a-f-]{36}$/);
+    const written = JSON.stringify(rows) + JSON.stringify([...log.mock.calls, ...error.mock.calls]);
+    for (const secret of [...GUEST_DATA, "secret-token", "secret-turnstile", "10.0."]) expect(written).not.toContain(secret);
+  });
+
+  it("writes a row for a 4xx, with the family id of a known family", async () => {
+    const { id } = await submitFamily();
+
+    await post("/api/sprite", { id, token: "wrong", index: 0, look: "adult-01" });
+
+    expect(await errorRows()).toMatchObject([{ route: "POST /api/sprite", code: "forbidden", status: 403, family_id: id }]);
+  });
+
+  it("writes the message and the stack of a 500", async () => {
+    savingServices();
+    await env.DB.exec("CREATE TRIGGER fail_family BEFORE INSERT ON families BEGIN SELECT RAISE(ABORT, 'party-down'); END;");
+    try {
+      await post("/api/submit", SUBMISSION);
+    } finally {
+      await env.DB.exec("DROP TRIGGER fail_family;");
+    }
+
+    const [row] = await errorRows();
+    expect(row).toMatchObject({ code: "server_error", status: 500 });
+    expect(row.detail).toContain("party-down");
+  });
+
+  it("keeps a page report with only its allowed fields", async () => {
+    const response = await SELF.fetch("https://hi.verynormal.dev/api/log", {
+      method: "POST",
+      body: JSON.stringify({
+        step: "submit", code: "network", where: "app.js:421:30", online: false, family: "fam-1",
+        address: SUBMISSION.address, envelope: SUBMISSION.envelope, household: SUBMISSION.household, token: "secret-token",
+      }),
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": freshIp(), "User-Agent": IPHONE },
+    });
+
+    expect(response.status).toBe(204);
+    const rows = await errorRows();
+    expect(rows).toMatchObject([{ source: "page", route: "submit", code: "network", status: null, family_id: "fam-1", ua: "Safari 18 iOS 18.7" }]);
+    expect(JSON.parse(rows[0].detail)).toEqual({ where: "app.js:421:30", online: false });
+    for (const secret of [...GUEST_DATA, "secret-token"]) expect(JSON.stringify(rows)).not.toContain(secret);
+  });
+
+  it("drops a step that is not a plain name, and a family id that is not an id", async () => {
+    await post("/api/log", { step: "1428 Maple Ave, Evanston", code: "x", family: "The Garcia Family" });
+
+    expect(await errorRows()).toMatchObject([{ route: "unknown", family_id: null }]);
+  });
+
+  it("refuses a page report over 2 KB, and keeps no row for it", async () => {
+    const response = await post("/api/log", { step: "submit", code: "x".repeat(3000) });
+
+    expect(response.status).toBe(413);
+    expect(await errorRows()).toHaveLength(0);
+  });
+
+  it("rate-limits page reports, and keeps no row for a refused one", async () => {
+    const ip = freshIp();
+    const statuses = [];
+    for (let i = 0; i < 21; i++) statuses.push((await post("/api/log", { step: "submit", code: "network" }, ip)).status);
+
+    expect(statuses[19]).toBe(204);
+    expect(statuses[20]).toBe(429);
+    expect(await errorRows()).toHaveLength(20);
+  });
+
+  it("deletes rows older than 30 days when it writes a new one", async () => {
+    await env.DB.prepare("INSERT INTO errors (at, source, route, code) VALUES (datetime('now', '-31 days'), 'page', 'old', 'old')").run();
+
+    await post("/api/log", { step: "submit", code: "network" });
+
+    expect((await errorRows()).map((r) => r.code)).toEqual(["network"]);
+  });
+});
+
+describe("uaClass", () => {
+  it.each([
+    [IPHONE, "Safari 18 iOS 18.7"],
+    ["Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36", "Chrome 131 Android 15"],
+    ["Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0", "Instagram iOS 17.5"],
+    ["Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0 Mobile/15E148 Safari/604.1", "Chrome 131 iOS 18.1"],
+    ["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15", "Safari 18 macOS"],
+    ["curl/8.4.0", "bot"],
+    ["", ""],
+  ])("%s is %s", (ua, want) => {
+    expect(uaClass(ua)).toBe(want);
   });
 });

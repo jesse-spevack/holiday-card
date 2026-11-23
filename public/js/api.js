@@ -1,6 +1,7 @@
 // Calls to our Cloudflare function. Every call throws on failure so the page can offer a retry.
 // In demo mode ("/#demo", demo.js), every write stays in the page: demoWrite answers it, and only the reads go out.
 import { DEMO, demoWrite } from "./demo.js";
+import { report } from "./report.js";
 
 async function call(path, options = {}) {
   if (DEMO && options.method && options.method !== "GET") return demoWrite(path, JSON.parse(options.body || "{}"));
@@ -8,7 +9,9 @@ async function call(path, options = {}) {
   try {
     res = await fetch(path, { ...options, headers: options.body ? { "content-type": "application/json" } : undefined });
   } catch {
-    // The call did not reach the Worker: no connection, or a content blocker.
+    // The call did not reach the Worker: no connection, or a content blocker. The Worker cannot log it, so the page does.
+    // The path only: the query of /api/places holds what the guest typed.
+    report(`fetch:${path.split("?")[0]}`, "network");
     throw new Error("network");
   }
   const data = await res.json().catch(() => ({}));

@@ -38,12 +38,18 @@ export async function parseHousehold(env: Env, note: string): Promise<{ type: Ki
   try {
     return await requestMembers(env, note);
   } catch (err) {
-    console.error("household_retry", String(err));
+    console.error(JSON.stringify({ event: "household_retry", reason: reason(err) }));
     return await requestMembers(env, note).catch((retryErr) => {
-      console.error("household_failed", String(retryErr));
-      throw new HttpError(502, "household_failed");
+      throw new HttpError(502, "household_failed", reason(retryErr));
     });
   }
+}
+
+// Why a read failed, with no guest data. A parse error can quote the model's reply, which can echo the household text.
+function reason(err: unknown): string {
+  if (err instanceof HttpError) return err.detail || err.code;
+  if (err instanceof SyntaxError) return "bad_reply";
+  return String(err instanceof Error ? err.message : err).split(":")[0].slice(0, 40);
 }
 
 async function requestMembers(env: Env, note: string): Promise<{ type: Kind }[]> {
