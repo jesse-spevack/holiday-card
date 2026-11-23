@@ -97,8 +97,10 @@ export async function serve() {
     const path = new URL(req.url, "http://x").pathname;
     try {
       const file = path.startsWith("/t/") ? join(ART, path.slice(3)) : join(ROOT, path === "/" ? "index.html" : path);
+      // The file is read before the headers go, so a missing file (such as /favicon.ico) gets a clean 404.
+      const body = await readFile(file);
       res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream" });
-      res.end(await readFile(file));
+      res.end(body);
     } catch {
       res.writeHead(404).end();
     }

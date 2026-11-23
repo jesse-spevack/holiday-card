@@ -19,6 +19,9 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
    Audrey and Eddie walk together. Each host goes back home now and then. With reduced motion, the hosts stay at home.
 6. Surprise: tapping your own sprite lets you change its look or give it a chat bubble (about 40 characters, no filter).
    The browser remembers which sprites are yours.
+   Each guest's line shows once in a visit, after the thank-you tucks away. The lines take turns, one at a time, and a bubble never covers another bubble.
+   After a line shows once, it does not show again on its own, so the room stays clear. A tap on a guest shows their line again.
+   A new or changed line (from the party poll, another tab, or the editor) shows once. The record stays in memory, so a reload shows each line once again.
 
 ## Photo album (a hidden extra)
 
@@ -156,6 +159,19 @@ Nothing on screen points to these.
   "Happy New Year!", and "We're so glad you're in our lives." No Hanukkah greetings.
 - About half of the host lines hint at a hidden extra, in the voice of that host (the `hints` of each extra in `public/js/extras/`, joined in `HOST_LINES` in `public/js/hosts.js`).
   A hint stops after this browser finds its extra (`hc.found` in local storage). A host never says the same line twice in a row.
+- The guest gets help to find the hidden extras. It starts after the thank-you tucks away, so only a guest with a family in this browser gets it.
+  A guest with no family sees the form, and the room stays as it was. The form comes first, and a found extra is recorded for a family.
+  - The thank-you says "Tap around the room. We hid some surprises."
+  - The hosts speak on their own (`public/js/idle.js`). After about 20 quiet seconds, a host says a hint at an extra that the guest has not found.
+    A tap or a key starts the wait again. An open album, dreidel game, look picker, or sprite editor, or a hidden tab, stops the wait.
+    After the guest finds every extra, a host says a thank-you line about every 75 seconds. A new bubble never covers another bubble.
+  - The glint (`public/js/glint.js`): every 4 seconds, a small gold twinkle shows on the tap area of an extra that the guest has not found.
+    The extras take turns in the order of their list. The cars, the pets, and the silly looks have no tap area, so they get no glint.
+    The twinkle has a soft dark edge, so it shows on the light wall and in the dark room. With reduced motion, it is a still sparkle every 8 seconds.
+  - The counter (`public/js/counter.js`), in the bottom right corner of the room, below the floor where people stand: for example "3 of 12 surprises".
+    It counts only the extras that fit the guest now, so the pets count only with a pet at the party. A car counts once the guest sees it drive past.
+    A tap on the counter makes a host say a hint. At the last find, the room sparkles, a short tune plays, Jess says "You found every surprise!",
+    and the counter turns gold with "All 12 found!".
 - Details in the room: a menorah and dreidels on the window sill, wrapped presents under the window, latkes and cocoa,
   snow, blue and white bunting. No Christmas imagery.
 - Hovering over a family shows its envelope name. Hovering over the hosts shows Eddie, Audrey, Jess, and Jesse.

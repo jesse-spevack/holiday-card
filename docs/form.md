@@ -19,6 +19,7 @@ The hosts ("Jesse, Jess, Eddie & Audrey Spevack") ask one question at a time in 
    "Yes, send it" starts the door arrival at once and calls `POST /api/submit` during it. On failure, the button works again.
 5. **Done**: the browser saves `{id, token, name, members, bubbles}` in localStorage key `hc.families`. A return visit goes straight to the party.
    After 7 seconds, the thank-you slides away and the camera shows the whole room. "Add another address" in the top bar brings back step 1.
+   Then the guest gets help to find the hidden extras: a glint, the hosts' own hints, and a counter. See "Look" in `docs/scope.md`.
    On a tall screen, the room then sits under a snowy roof in a night sky, with "Happy holidays from Jesse, Jess, Eddie & Audrey Spevack" below it.
 
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
@@ -90,7 +91,8 @@ Hints under the answer line:
 ### After confirm
 
 - Thank you. You mean a lot to us.
-- Your family is at our party now. Tap them to change a look or say something. Then poke around the room. A few things in here might surprise you.
+- Your family is at our party now. Tap them to change a look or say something.
+- Tap around the room. We hid some surprises. (in gold, on its own line)
 
 No card timing anywhere.
 

@@ -60,7 +60,9 @@ describe("the form", { concurrency: true }, () => {
     await page.getByRole("alert").filter({ hasText: "Something went wrong. Try again?" }).waitFor();
     await page.getByRole("button", { name: "Yes, send it" }).click();
     await said(page, "Thank you. You mean a lot to us.");
-    await page.locator("#dialog .hint").filter({ hasText: "Then poke around the room. A few things in here might surprise you." }).waitFor();
+    await page.locator("#dialog .hint").filter({ hasText: "Your family is at our party now. Tap them to change a look or say something." }).waitFor();
+    // the thank-you tells the guest that the room hides surprises
+    await page.locator("#dialog .hint.surprise").filter({ hasText: "Tap around the room. We hid some surprises." }).waitFor();
     assert.ok(await page.locator("#dialog").isVisible());
     // while the dialog shows, the greeting stays away
     assert.equal((await nightState(page)).greeting, false);

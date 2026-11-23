@@ -100,6 +100,42 @@ button, input { font: inherit; }
 }
 @keyframes pop { from { transform: translate(-50%, -80%) scale(0.6); opacity: 0; } }
 
+/* The counter of the hidden extras (public/js/counter.js), in the bottom right corner of the room, below the floor where
+   people stand. It is a small dialog box: the panel, a white border, and a dark edge. Names and bubbles show over it. */
+.counter {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 5px;
+  pointer-events: auto;
+  cursor: pointer;
+  background: var(--panel);
+  color: var(--gold);
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--night);
+  font-family: var(--label);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  animation: fade-in 200ms ease both;
+}
+.counter[hidden] { display: none; }
+.counter-icon { display: block; width: 9px; height: 9px; flex: none; }
+.counter-icon svg { display: block; width: 100%; height: 100%; }
+.counter.done { background: var(--gold); color: var(--night); }
+.counter.cheer { animation: cheer 600ms steps(6) both; }
+.counter:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+@media (hover: hover) { .counter:hover { border-color: var(--gold); } }
+@keyframes cheer {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.3); }
+  60% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
 .pop {
   position: absolute;
   transform: translate(-50%, -100%);
@@ -160,6 +196,7 @@ button, input { font: inherit; }
 .answer input:focus { border-bottom-color: var(--gold); }
 .answer input::placeholder { color: #8a8ca8; }
 .hint { font-family: var(--body); font-size: 13px; line-height: 1.4; color: var(--muted); margin: 0; }
+.hint.surprise { color: var(--gold); }
 .error { font-family: var(--body); font-size: 14px; color: #ffb3a7; margin: 0; }
 .error:empty { display: none; }
 .address { margin: 0; font-size: 19px; line-height: 1.4; color: var(--gold); white-space: pre-line; }
@@ -210,6 +247,8 @@ button, input { font: inherit; }
 @media (min-width: 900px) {
   /* A wide room has space for a whole hint on one line. */
   .bubble { max-width: 360px; }
+  .counter { right: 8px; bottom: 8px; gap: 7px; padding: 5px 10px 5px 8px; font-size: 13px; border-width: 3px; box-shadow: 0 0 0 3px var(--night); }
+  .counter-icon { width: 12px; height: 12px; }
   #app {
     max-width: none;
     display: grid;
@@ -230,7 +269,7 @@ button, input { font: inherit; }
 
 /* With reduced motion, nothing slides. This rule comes after the wide-screen rules, so it also stops the column slide there. */
 @media (prefers-reduced-motion: reduce) {
-  .bubble, .again { animation: none; }
+  .bubble, .again, .counter, .counter.cheer { animation: none; }
   #app, .dialog, #app.tucked .dialog { transition: none; }
 }
 

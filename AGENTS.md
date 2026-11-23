@@ -41,13 +41,16 @@ No build step. The browser loads ES modules as they are.
 | `public/index.html`, `public/style.css` | Markup and the main styles |
 | `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules. It names no hidden extra |
 | `public/js/api.js` | Every call to the Worker |
-| `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter; the page colors |
+| `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter and the twinkle (`drawTwinkle`); the page colors |
 | `public/js/masks.js`, `public/js/words.js` | Shared helpers for the extras: room-sized masks and the sky behind the window glass; the words that show on the room for a moment |
 | `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test`. Each extra adds its own part (its `test`) |
 | `public/js/room.js` | Every place in `room.png` that the code uses: the floor, the window, the fire, the menorah, the lamp, the book, the dreidels, the wine, the plants, the presents, and the tap boxes of the extras |
 | `public/js/scene.js` | The room canvas, the frame loop, sprites, bubbles, names, the camera, taps, and the arrival from below the room. Layers (`addLayer`) draw over it, and `onFrame` listeners run each frame |
 | `public/js/ambience.js` | The room's own motions: the snow in the window, the fire glow, and the candle flames |
 | `public/js/hosts.js` | The hosts (`HOSTS`) and their lines (`HOST_LINES`): the thanks, and the hints from the extras |
+| `public/js/idle.js` | The hosts speak on their own: a hint after about 20 quiet seconds, and the hint for a tap on the counter |
+| `public/js/glint.js` | The gold twinkle on the tap area of an extra that the guest has not found, and the room's sparkle at the last find |
+| `public/js/counter.js` | The counter in the corner of the room ("3 of 12 surprises"), and the cheer at the last find |
 | `public/js/registry.js` | The registry of the hidden extras: the shape of an extra, the tap areas (`HOTSPOTS`), the taps, the hints, and the test hooks |
 | `public/js/found.js` | The extras this browser found, and the record of each interaction (`POST /api/interaction`) |
 | `public/js/picker.js` | The look picker. Ages and looks come from `public/assets/looks.json` |
@@ -143,6 +146,9 @@ What the registry does for an extra:
   A host stops a hint after this browser finds the extra. `fits(ctx)` can hide the hints for a guest, for example with no pet at the party.
 - Layers: the `layer` from `setup` goes on the scene. Its hooks are in `Scene.addLayer` in `scene.js`.
 - Other extras: `ctx.extra(name)` gives the runtime of an extra earlier in the list, for example `ctx.extra("lamp").dark`.
+- Help to find it: after the thank-you, the glint visits its `spots`, the counter counts it while `fits(ctx)` is true, and the hosts hint at it on their own.
+  The registry gives these modules the extras that fit with `fitting()`.
+  An extra that opens a window over the room gives `covers` in its runtime. While it is true, the hosts stay quiet and the cheer at the last find waits.
 
 To test an extra:
 
@@ -177,6 +183,9 @@ The rules:
 - `hc.pointOn` fails when other sprites cover a sprite. Call `stillHosts` or `place` first, or move the stopped clock until the sprite shows.
 - A host says a random line. To check a hint, tap until the host says it, with `hearLine`. A fixed number of taps can miss it.
 - After `page.reload()` on a return visit, the camera zooms in on the family. Call `tuckNow` before a tap on the room.
+- After the thank-you, a host speaks on their own after 20 quiet scene seconds (`idle.js`), and the glint draws on the room (`glint.js`).
+  A test that moves the stopped clock far sees these lines. Read them with `hc.idle()`, and wait for a line of an extra, not for any bubble.
+- A bubble lasts on the wall clock. When a test moves the stopped clock far, an old bubble stays and can block a new host line.
 - Before a PR that adds or changes an e2e test, run `E2E_SLOW=6 pnpm e2e` too.
 
 ## Check a branch: preview

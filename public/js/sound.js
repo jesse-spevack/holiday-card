@@ -124,6 +124,14 @@ export class Sound {
     this.tone(f * 2.76, { dur: 0.3, type: "sine", gain: 0.012 });
   }
 
+  // A short tune when the guest finds the last surprise (counter.js): four quick notes that go up, then the top note held,
+  // like a treasure found in an old handheld game.
+  fanfare() {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, { at: i * 0.08, dur: 0.07, gain: 0.03 }));
+    this.tone(1046.5, { at: 0.34, dur: 0.45, gain: 0.03 });
+    this.tone(1318.51, { at: 0.34, dur: 0.45, type: "triangle", gain: 0.02 });
+  }
+
   // A soft chord for a room in bloom: C, E, G, and the D above, one after another like a harp, then held.
   bouquet() {
     [523.25, 659.25, 783.99, 1174.66].forEach((f, i) => {

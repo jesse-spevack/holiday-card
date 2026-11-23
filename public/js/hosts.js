@@ -23,12 +23,20 @@ const THANKS = {
 const HINTS = hintsByHost();
 export const HOST_LINES = Object.fromEntries(HOSTS.map(({ id }) => [id, [...THANKS[id], ...(HINTS[id] ?? [])]]));
 
-// A random line for a host: never the line this host said last, and only the hints where shows(egg) is true.
-export function hostLine(sprite, shows) {
-  const lines = HOST_LINES[sprite.id]
+// The lines that a host can say now: the thanks, and the hints where shows(egg) is true.
+// kind "hint" keeps only the hints, and "thanks" only the thanks.
+export function hostLines(id, shows, kind = "any") {
+  return HOST_LINES[id]
     .map((l) => (typeof l === "string" ? { text: l } : l))
-    .filter((l) => !l.egg || shows(l.egg))
-    .filter((l) => l.text !== sprite.lastLine);
+    .filter((l) => (l.egg ? kind !== "thanks" && shows(l.egg) : kind !== "hint"));
+}
+
+// A random line for a host: never the line this host said last, and only the hints where shows(egg) is true.
+// kind is as in hostLines. A host with no line of that kind says any line.
+export function hostLine(sprite, shows, kind = "any") {
+  const of = (k) => hostLines(sprite.id, shows, k).filter((l) => l.text !== sprite.lastLine);
+  const kept = of(kind);
+  const lines = kept.length ? kept : of("any");
   const line = lines[Math.floor(Math.random() * lines.length)];
   sprite.lastLine = line.text;
   return line.text;
