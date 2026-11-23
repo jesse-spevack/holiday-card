@@ -1,6 +1,9 @@
 // Calls to our Cloudflare function. Every call throws on failure so the page can offer a retry.
+// In demo mode ("/#demo", demo.js), every write stays in the page: demoWrite answers it, and only the reads go out.
+import { DEMO, demoWrite } from "./demo.js";
 
 async function call(path, options = {}) {
+  if (DEMO && options.method && options.method !== "GET") return demoWrite(path, JSON.parse(options.body || "{}"));
   const res = await fetch(path, {
     ...options,
     headers: options.body ? { "content-type": "application/json" } : undefined,

@@ -13,6 +13,7 @@ import { Idle } from "./js/idle.js";
 import { Counter, DONE_LINE } from "./js/counter.js";
 import { US_LINES, usAddressProblem } from "./js/us.js";
 import { Marker } from "./js/marker.js";
+import { DEMO, demoFamily } from "./js/demo.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -69,7 +70,7 @@ const POLL_MS = 30000;
 
 // "?new" shows the site as a first-time guest sees it. It forgets this browser's families
 // (the sound setting stays), then takes "new" out of the address, so a reload works as usual.
-if (new URLSearchParams(location.search).has("new")) {
+if (!DEMO && new URLSearchParams(location.search).has("new")) {
   try { localStorage.removeItem(SAVED); } catch {}
   const rest = location.search.slice(1).split("&").filter((p) => p && decodeURIComponent(p.split("=")[0]) !== "new");
   history.replaceState(history.state, "", location.pathname + (rest.length ? `?${rest.join("&")}` : "") + location.hash);
@@ -107,10 +108,13 @@ const state = {
 };
 
 // ---------- saved families (this browser's own) ----------
+// Demo mode (demo.js) holds its made-up family in memory, never in the saved families, so a reload starts fresh.
 function loadMine() {
+  if (DEMO) return [demoFamily()];
   try { return JSON.parse(localStorage.getItem(SAVED)) || []; } catch { return []; }
 }
 function saveMine() {
+  if (DEMO) return;
   try { localStorage.setItem(SAVED, JSON.stringify(state.mine)); } catch {}
 }
 const mineById = (id) => state.mine.find((f) => f.id === id);
@@ -850,7 +854,7 @@ function cycleBubbles() {
 
 // Another tab of this browser changed a line of this browser's own family. The new line shows once.
 addEventListener("storage", (e) => {
-  if (e.key !== SAVED) return;
+  if (e.key !== SAVED || DEMO) return;
   let fresh = [];
   try { fresh = JSON.parse(e.newValue) || []; } catch {}
   for (const f of fresh) {
@@ -897,6 +901,21 @@ function onTap(sprite) {
   }
 }
 
+// ---------- demo mode ----------
+// "/#demo" (demo.js) plays the moment after a sign-up with a made-up family: it waits at the door, walks in with the
+// door sound, and the hosts thank it. Then the party goes on as for any guest. A "Demo" label shows in the top bar.
+async function demoArrives() {
+  const f = state.mine[0];
+  scene.families.set(f.id, { id: f.id, name: f.name, mine: true });
+  const sprites = await spritesFor(f.id, f.members, { mine: true });
+  sprites.forEach((s) => { s.bubble = f.bubbles[s.index] || ""; });
+  scene.placeAtEntrance(sprites);
+  sound.arrive();
+  const center = scene.enter(sprites);
+  scene.focus(center.x, center.y - 12, 1);
+  go("done");
+}
+
 // ---------- start ----------
 async function start() {
   const soundBtn = $("sound");
@@ -907,6 +926,7 @@ async function start() {
   syncSound();
   soundBtn.addEventListener("click", () => { sound.toggle(); syncSound(); });
   myFamily.addEventListener("click", () => openFamily());
+  $("demo-tag").hidden = !DEMO;
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
@@ -932,14 +952,15 @@ async function start() {
 
   // A used invite link adds its family to this browser before the party shows.
   await invited;
-  for (const f of state.mine) await addFamily(f, { walkIn: false, mine: true });
+  if (DEMO) await demoArrives();
+  else for (const f of state.mine) await addFamily(f, { walkIn: false, mine: true });
   await loadParty(true);
   // A hidden tab does not ask for the party. The next check after the guest comes back does.
   setInterval(() => { if (!document.hidden) loadParty(false); }, POLL_MS);
   setInterval(cycleBubbles, 3500);
 
   // A friend on a new invite link confirms first, also in a browser with a family.
-  if (state.mine.length && !inviting()) {
+  if (state.mine.length && !inviting() && !DEMO) {
     const last = scene.familySprites(state.mine.at(-1).id);
     if (last.length) scene.focus(last[0].x, last[0].y - 12, 1);
     go("done");

@@ -57,6 +57,7 @@ No build step. The browser loads ES modules as they are.
 | `public/js/counter.js` | The counter in the corner of the room ("3 of 12 surprises"), from the moment the room shows, and the cheer at the last find |
 | `public/js/registry.js` | The registry of the hidden extras: the shape of an extra, the tap areas (`HOTSPOTS`), the taps, the hints, and the test hooks |
 | `public/js/found.js` | The extras this browser found, and the record of each interaction (`POST /api/interaction`) |
+| `public/js/demo.js` | Demo mode (`/#demo`): the made-up family, and the replies to every write, so nothing leaves the page. `api.js` holds the one switch |
 | `public/js/picker.js` | The look picker. Ages and looks come from `public/assets/looks.json` |
 | `public/js/sound.js` | Sound effects with Web Audio, and the recorded sounds. `tone()` and the noise buffers are shared with `dreidel-sound.js` |
 | `public/js/night.js`, `public/night.css` | The snowy night, roof, and greeting around the room on a tall screen. It runs on the scene's frames |
@@ -211,6 +212,8 @@ What a preview is:
 - A sign-up does not work on a preview. The Turnstile widget accepts only `hi.verynormal.dev`, so the widget shows an error on a `workers.dev` URL.
 - Do not try to make sign-up work on a preview. A sign-up that works on a preview writes a real row to the Sheet and a real family to the party.
 - The room, the party, the album, and the hidden extras work on a preview.
+- `#demo` works on a preview too: `https://<branch>-holiday-card.jspevack.workers.dev/#demo` shows the branch as a guest who just signed up,
+  with a made-up family, "My family", and every extra. No write leaves the page, so Jesse can check a branch on his phone with no real data.
 - A preview is public. Anyone with the URL can open it.
 - A branch with a new migration cannot get its schema on a preview. Never apply a migration to the production D1 from a branch.
 
