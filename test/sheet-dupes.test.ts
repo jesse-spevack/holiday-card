@@ -242,7 +242,8 @@ describe("the rows from the Sheets API", () => {
 
 describe("the backup", () => {
   it("writes the date in a form that Sheets reads back", () => {
-    expect(serialToText(46348.64288032407)).toBe("2026-11-22 15:25:45");
+    // 0.75 days is 18:00, and 0.000006 days is 0.52 seconds, so the time rounds up to the next second.
+    expect(serialToText(46000.750006)).toBe("2025-12-09 18:00:01");
     expect(serialToText(null)).toBe("");
   });
 
