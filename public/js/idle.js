@@ -1,5 +1,5 @@
 // The hosts speak on their own. After the thank-you tucks away, a host says a line about every 20 seconds while the guest
-// does nothing: no tap, no key, no open album, dreidel game, look picker, or sprite editor, and the tab shows.
+// does nothing: no tap, no key, no open album, dreidel game, or look picker, and the tab shows. The hosts wait while the dialog shows.
 // A host prefers a hint at an extra that the guest has not found (hostLine in hosts.js). After the guest finds every extra,
 // the hosts speak much less often, with the thanks only. A new bubble never covers a bubble that shows (Scene.sayClear).
 // The wait runs on the scene clock, so the tests can stop and move it. hint() is the hint on demand for the counter (counter.js).

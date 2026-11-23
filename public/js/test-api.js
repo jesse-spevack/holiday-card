@@ -11,7 +11,7 @@ import { GLINT } from "./glint.js";
 import { IDLE } from "./idle.js";
 import { FLOOR, WINDOW } from "./room.js";
 
-export function testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter, lines }) {
+export function testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter, lines, marker }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -153,6 +153,8 @@ export function testApi({ scene, sound, extras, found, tuckNow, glint, idle, cou
     glint: () => glint.state(),
     // The hosts' own lines: { on, quiet, wait, said: [{ host, text, hint, at }] }. quiet and wait are scene seconds.
     idle: () => idle.state(),
+    // The gold arrow of "My family": { on, familyId, index, tip }. tip is the arrow's point in room pixels, after the last frame.
+    marker: () => marker.state(),
     // The counter: { shown, text, done, celebrations, found, total, missing, box }. missing is the names of the extras left.
     counter: () => counter.state(),
     // One turn of the guests' own lines now, as the 3.5-second timer does (cycleBubbles in app.js).

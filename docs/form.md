@@ -18,14 +18,25 @@ The hosts ("Jesse, Jess, Eddie & Audrey Spevack") ask one question at a time in 
 4. **Confirm**: the envelope name, street plus unit, and city, state and ZIP. "Fix it" goes back to step 3.
    "Yes, send it" starts the door arrival at once and calls `POST /api/submit` during it. On failure, the button works again.
 5. **Done**: the browser saves `{id, token, name, members, bubbles}` in localStorage key `hc.families`. A return visit goes straight to the party.
-   After 7 seconds, the thank-you slides away and the camera shows the whole room. "Add another address" in the top bar brings back step 1.
+   After 7 seconds, the thank-you slides away and the camera shows the whole room. "My family" in the top bar opens the family panel.
+   One browser holds one family, so nothing offers a second sign-up.
    Then the hosts start to give hints on their own. The glint and the counter help each visitor from the first step. See "Look" in `docs/scope.md`.
    On a tall screen, the room then sits under a snowy roof in a night sky, with "Happy holidays from Jesse, Jess, Eddie & Audrey Spevack" below it.
 
-6. **My address**: after the thank-you, "My address" in the top bar shows the address on file for this browser's family, from the Sheet.
-   "Yes, all good" closes it. "Change it" goes through step 1 (the envelope name), step 3, step 3b, and step 4, with no household step.
-   Step 3 offers "Same address" to keep the address and change only the envelope name. "Yes, save it" calls `POST /api/address/change`.
-   A browser with two or more families first picks one ("Which address?"). A family with no row in the Sheet tells the address again.
+6. **My family**: after the thank-you, "My family" in the top bar opens a panel in the dialog. The speaker is the envelope name.
+   - State 1: "Who do you want to change?", one card for each person (the sprite and its line, or "No line yet"), four on a row,
+     then "Change address" and "Done". A tap on your own sprite in the room opens the panel on that person (state 2).
+   - State 2: a tap on a card picks that person. The card gets a gold border, and a gold arrow shows over the person in the room.
+     The arrow follows the person. When the camera zooms in (the thank-you), it also keeps the person in view.
+     "What should they say?" with the line (`f-line`, 40 characters), "New look" (the look picker), and "Save". A pet gets both too.
+     Save sends `POST /api/sprite`, the person says the line in the room, and the panel goes back to state 1 with a thank-you.
+     A tap on the picked card, or Escape, goes back to state 1. Escape in state 1 closes the panel.
+   - "Change address" shows the address on file for this family, from the Sheet. "Yes, all good" goes back to the panel.
+     "Change it" goes through step 1 (the envelope name), step 3, step 3b, and step 4, with no household step.
+     Step 3 offers "Same address" to keep the address and change only the envelope name. "Yes, save it" calls `POST /api/address/change`.
+     A family with no row in the Sheet tells the address again.
+   - A browser with two or more families (from before one browser held one family) shows the family it signed up last,
+     with a "Switch to *[name]*" link to the next one.
 
 7. **Invite link** (`/#invite=<token>`, from `pnpm invite`): the page calls `POST /api/invite` first and says "Let me find your invitation...".
    - A new link: "Is this where we should send your card?" with the envelope name and the address from the Sheet.
@@ -37,8 +48,7 @@ The hosts ("Jesse, Jess, Eddie & Audrey Spevack") ask one question at a time in 
 
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 
-After that, a tap on one of your own sprites opens a small editor. "Say something" sets a speech bubble.
-"New look" opens the look picker. A person sees every person look, from the oldest to the youngest, then the silly looks.
+"New look" in "My family" opens the look picker. A person sees every person look, from the oldest to the youngest, then the silly looks.
 A pet sees the dogs, then the cats, then the silly pets. Each person look in `looks.json` has an `age`: `older`, `adult`, `teen`, `kid`, or `baby`.
 
 ## API contract
@@ -117,17 +127,24 @@ Hints under the answer line:
 - Step 1: Write it how you'd like it on the envelope.
 - Step 2: Pets count. I guess.
 
-### My address
+### My family
+
+| State | Speaker | Line | Buttons |
+|---|---|---|---|
+| The family | The envelope name | Who do you want to change? | (one card per person) / Change address / Done ▸ |
+| One person | The envelope name | What should they say? | (the line) / New look / Save ▸ |
+| After a save | The envelope name | Thank you! Who else do you want to change? | as "The family" |
+
+### Change address
 
 | Step | Host says | Buttons |
 |---|---|---|
-| Pick a family (two or more) | Which address? | (one per family) / Close |
-| Loading | Let me find your address... | Close |
+| Loading | Let me find your address... | Back |
 | On file | We'll mail your card to: *[full address]*. Still right? | Change it / Yes, all good ▸ |
-| No row | Hmm, we can't find your address. Can you tell us again? | Close / Next ▸ |
-| Sheet down | We can't reach our address book right now. (hint: Your card is safe. Try again in a minute?) | Close / Try again |
+| No row | Hmm, we can't find your address. Can you tell us again? | Back / Next ▸ |
+| Sheet down | We can't reach our address book right now. (hint: Your card is safe. Try again in a minute?) | Back / Try again |
 | Confirm | We'll mail your card to: *[full address]*. Look right? | Fix it / Yes, save it ▸ |
-| Saved | Got it. Thank you for telling us! (hint: We'll mail your card to your new address.) | (tucks away after 4 seconds) |
+| Saved | Got it. Thank you for telling us! (hint: We'll mail your card to your new address.) | (goes back to "My family" after 4 seconds) |
 
 ### Invite links
 

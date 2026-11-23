@@ -39,19 +39,11 @@ button, input { font: inherit; }
   background: transparent; color: var(--ink);
   border: 2px solid var(--line); cursor: pointer;
 }
-.again {
+.bar-btn {
   height: 44px; margin: 0 8px 0 auto; padding: 0 12px;
   background: transparent; color: var(--ink);
-  border: 2px solid var(--line); font-size: 15px; cursor: pointer;
+  border: 2px solid var(--line); font-size: 15px; white-space: nowrap; cursor: pointer;
   animation: fade-in 200ms ease both;
-}
-/* "My address" comes first and takes the free space, so the two buttons sit together on the right. */
-#my-address:not([hidden]) + .again { margin-left: 0; }
-.again { white-space: nowrap; }
-/* A small phone fits both buttons on one line with smaller words. */
-@media (max-width: 389px) {
-  .bar { padding-left: 12px; }
-  .again { padding: 0 8px; font-size: 13px; margin-right: 6px; }
 }
 .sound .mute { display: none; }
 .sound[aria-pressed="false"] .wave { display: none; }
@@ -144,27 +136,6 @@ button, input { font: inherit; }
   100% { transform: scale(1); }
 }
 
-.pop {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  pointer-events: auto;
-  background: var(--panel);
-  border: 3px solid var(--ink);
-  box-shadow: 0 0 0 3px var(--night);
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 220px;
-  z-index: 5;
-}
-.pop input {
-  height: 40px; padding: 0 8px;
-  background: var(--ink); color: var(--night);
-  border: 2px solid var(--gold); font-size: 16px;
-}
-.pop .row { display: flex; gap: 8px; }
-.pop button { flex: 1; }
 
 /* The top margin keeps a band of night between the room and the dialog on a short phone, so the counter in the
    corner of the room does not touch the dialog. */
@@ -228,6 +199,10 @@ button, input { font: inherit; }
 .credit { font-family: var(--body); font-size: 10px; color: var(--muted); text-align: right; margin: 0; }
 .spacer { flex: 1 1 auto; }
 .actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+/* A dialog that scrolls ("My family" with two rows of cards on a short phone) keeps its buttons in view.
+   The scroll padding keeps a field that scrolls into view above them. */
+.dialog { scroll-padding-bottom: 72px; }
+.dialog .actions { position: sticky; bottom: -16px; margin: 0 -16px -16px; padding: 0 16px 16px; background: var(--panel); }
 .actions .end { margin-left: auto; display: flex; gap: 12px; }
 .btn {
   height: 48px; padding: 0 20px;
@@ -246,9 +221,41 @@ button, input { font: inherit; }
   font-family: var(--body); font-size: 13px; text-decoration: underline; cursor: pointer;
   align-self: flex-start;
 }
-.btn:focus-visible, .link:focus-visible, .sound:focus-visible, .again:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.btn:focus-visible, .link:focus-visible, .sound:focus-visible, .bar-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .noscript { padding: 24px; font-family: var(--body); }
+
+/* "My family" (app.js): a card for each person, four on a row. Each card shows the sprite and its line.
+   The figure box fits the tallest look (41 room pixels), so the cards in a row line up. */
+.fam-grid { --fig: 62px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.fam-card {
+  --s: 1.5;
+  min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 8px 4px 6px;
+  background: transparent; color: var(--ink);
+  border: 2px solid var(--line); cursor: pointer;
+  font-size: 13px;
+}
+/* Pets are small, so their cards show them larger, as the look picker does. */
+.fam-card.pet { --s: 2.25; }
+.fam-card[aria-pressed="true"] { border-color: var(--gold); box-shadow: inset 0 0 0 2px var(--gold); }
+.fam-card:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+@media (hover: hover) { .fam-card:not([aria-pressed="true"]):hover { border-color: var(--ink); } }
+.fam-figure { width: 100%; height: var(--fig); display: flex; align-items: flex-end; justify-content: center; }
+.fam-figure img {
+  width: calc(var(--w) * var(--s) * 1px); height: calc(var(--h) * var(--s) * 1px);
+  max-width: 100%; object-fit: contain; object-position: bottom;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
+/* A line of 40 characters shows its first two lines. The input under the cards shows all of it. */
+.fam-line {
+  width: 100%; min-height: 2.4em;
+  line-height: 1.2; text-align: center; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.fam-line.empty { color: var(--muted); opacity: 0.75; }
+.fam-switch { margin-top: -4px; }
 
 .turnstile { display: flex; justify-content: center; }
 .turnstile:not(:empty) { padding: 8px 0 12px; }
@@ -274,12 +281,15 @@ button, input { font: inherit; }
   .bar { grid-area: bar; }
   .stage { grid-area: stage; margin: 0 0 24px 24px; min-height: 0; }
   .dialog { grid-area: dialog; align-self: center; margin: 0 24px; max-height: calc(100dvh - 160px); }
+  .fam-grid { --fig: 82px; }
+  .fam-card { --s: 2; }
+  .fam-card.pet { --s: 3; }
   .turnstile { grid-area: turnstile; padding-bottom: 24px; }
 }
 
 /* With reduced motion, nothing slides. This rule comes after the wide-screen rules, so it also stops the column slide there. */
 @media (prefers-reduced-motion: reduce) {
-  .bubble, .again, .counter, .counter.cheer { animation: none; }
+  .bubble, .bar-btn, .counter, .counter.cheer { animation: none; }
   #app, .dialog, #app.tucked .dialog { transition: none; }
 }
 
@@ -358,7 +368,6 @@ button, input { font: inherit; }
   font-family: var(--label); font-size: 10px;
 }
 .picker-close:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
-.pop .btn { padding: 0 8px; white-space: nowrap; }
 @media (min-width: 700px) and (min-height: 560px) {
   .picker { --s: 3; }
   .picker.pets { --s: 4; }

@@ -28,7 +28,7 @@ describe("the dreidel game", { concurrency: true }, () => {
       await game.waitFor();
       assert.equal(await state(), "idle");
       await page.locator(".dreidel-name", { hasText: "Tap to spin" }).waitFor();
-      assert.equal(await page.locator(".pop").count(), 0, "a dreidel never opens the sprite editor");
+      assert.equal(await page.locator(".fam-grid").count(), 0, "a dreidel never opens My family");
       assert.equal(await page.locator(".wish").count(), 0, "a dreidel never sends a star");
       assert.equal((await hc.eggs()).lighting, false, "a dreidel never lights the menorah");
       assert.equal(await page.evaluate(() => document.getElementById("app").hasAttribute("inert")), true);

@@ -12,6 +12,7 @@ import { Glint } from "./js/glint.js";
 import { Idle } from "./js/idle.js";
 import { Counter, DONE_LINE } from "./js/counter.js";
 import { US_LINES, usAddressProblem } from "./js/us.js";
+import { Marker } from "./js/marker.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -37,11 +38,15 @@ const night = new Night({ stage: $("stage"), reducedMotion, clock: scene });
 const unfound = () => extras.fitting().filter((e) => !found.has(e.name));
 const hidden = (egg) => !found.has(egg) && extras.fits(egg);
 const glint = new Glint({ scene, reducedMotion, targets: unfound });
-// The guest is busy while a window covers the room (the album, the dreidel game, the look picker) or the sprite editor shows.
-const busy = () => !!scene.popEl || extras.covered() || !!document.querySelector('[aria-modal="true"]:not([hidden])');
+// The guest is busy while a window covers the room (the album, the dreidel game, the look picker).
+// "My family" shows in the dialog, and an open dialog stops the hosts' own lines (tuck).
+const busy = () => extras.covered() || !!document.querySelector('[aria-modal="true"]:not([hidden])');
 const idle = new Idle({ scene, shows: hidden, left: () => unfound().length, busy });
+// The gold arrow over the person that "My family" picks.
+const marker = new Marker({ scene, reducedMotion });
 scene.addLayer(glint);
 scene.addLayer(idle);
+scene.addLayer(marker);
 const counter = new Counter({
   scene, fitting: () => extras.fitting(), has: found.has, busy,
   onAsk: () => {
@@ -55,8 +60,7 @@ const counter = new Counter({
     if (jess) scene.say(jess, DONE_LINE, 4);
   },
 });
-const again = $("again");
-const myAddress = $("my-address");
+const myFamily = $("my-family");
 const TUCK_MS = 7000;
 // The thank-you after a changed address is short, so the guest gets back to the party soon.
 const SAVED_MS = 4000;
@@ -165,12 +169,20 @@ function typeOut(el, text) {
 }
 dialog.addEventListener("pointerdown", () => typing?.finish());
 
-function frame(sayText, ...body) {
+const HOST_NAMES = "Jesse, Jess, Eddie & Audrey Spevack";
+const frame = (sayText, ...body) => frameAs(HOST_NAMES, sayText, ...body);
+
+// The dialog: the speaker, the line that the speaker types out, and the body. The same line again shows at once,
+// so a new pick in "My family" does not type its question again.
+let saidLast = "";
+function frameAs(speaker, sayText, ...body) {
   dialog.classList.toggle("small", state.step === "done" || state.step === "saved");
   dialog.innerHTML = "";
   const say = h("p", { class: "say", id: "say" });
-  dialog.append(h("span", { class: "speaker" }, "Jesse, Jess, Eddie & Audrey Spevack"), say, ...body.flat().filter(Boolean));
-  typeOut(say, sayText);
+  dialog.append(h("span", { class: "speaker" }, speaker), say, ...body.flat().filter(Boolean));
+  if (sayText === saidLast && !typing) say.textContent = sayText;
+  else typeOut(say, sayText);
+  saidLast = sayText;
   const input = dialog.querySelector("input");
   if (input && !matchMedia("(pointer: coarse)").matches) input.focus();
 }
@@ -207,13 +219,15 @@ function go(step) {
   clearTimeout(tuckTimer);
   tuckTimer = null;
   state.step = step;
-  scene.closePop();
+  if (step !== "family") marker.show(null);
   ({
     1: stepEnvelope, 2: stepHousehold, 3: stepAddress, unit: stepUnit, 4: stepConfirm, done: stepDone,
-    which: stepWhich, onfile: stepOnFile, saved: stepSaved, opening: stepOpening, invite: stepInvite,
+    onfile: stepOnFile, saved: stepSaved, opening: stepOpening, invite: stepInvite, family: stepFamily,
   }[step])();
 }
 const changing = () => state.mode === "change";
+// The steps of the form: the sign-up, an invite, and the address steps. A tap on your own sprite waits until they end.
+const inForm = () => [1, 2, 3, "unit", 4, "opening", "invite", "onfile", "saved"].includes(state.step) && !app.classList.contains("tucked");
 const inviting = () => state.mode === "invite";
 
 function stepEnvelope() {
@@ -282,6 +296,9 @@ function stepAddress() {
   const list = h("ul", { class: "choices", id: "choices" });
   const credit = h("p", { class: "credit", id: "credit", hidden: true }, "powered by Google");
   const manual = h("div", { id: "manual", hidden: true }, btn("Use what I typed", () => {
+    // A search that still runs must not write over the line that this tap shows.
+    clearTimeout(searchTimer);
+    searchSeq++;
     const v = $("f-address").value.trim();
     if (!v) return showError("We need something here.");
     const problem = usAddressProblem({ street: v });
@@ -426,8 +443,7 @@ let tuckTimer = null;
 function stepDone() {
   frame("Thank you. You mean a lot to us.",
     h("p", { class: "hint" }, "Your family is at our party now. Tap them to change a look or say something."),
-    h("p", { class: "hint surprise" }, "Tap around the room. We hid some surprises."),
-    btn("Add another address", restart, "link"));
+    h("p", { class: "hint surprise" }, "Tap around the room. We hid some surprises."));
   tuckTimer = setTimeout(tuckAway, TUCK_MS);
 }
 
@@ -438,12 +454,11 @@ function tuckAway() {
   scene.focus(ROOM_W / 2, ROOM_H / 2, 0);
 }
 
-// A tucked dialog gives its space to the room. The top bar then shows "Add another address".
+// A tucked dialog gives its space to the room. The top bar then shows "My family".
 function tuck(away) {
   if (app.classList.contains("tucked") === away) return;
   const hadFocus = dialog.contains(document.activeElement);
-  again.hidden = !away;
-  myAddress.hidden = !away || !state.mine.length;
+  myFamily.hidden = !away || !state.mine.length;
   if (away) {
     // The height starts from its current size, so it can slide down to zero.
     dialog.style.height = `${dialog.offsetHeight}px`;
@@ -456,14 +471,7 @@ function tuck(away) {
   night.showGreeting(away);
   // The hosts speak on their own only to a guest with a family in this browser, after the thank-you.
   idle[away && state.mine.length > 0 ? "start" : "stop"]();
-  if (away && hadFocus) again.focus();
-}
-
-function restart() {
-  clearForm();
-  scene.focus(ROOM_W / 2, ROOM_H / 2, 0);
-  go(1);
-  tuck(false);
+  if (away && hadFocus && !myFamily.hidden) myFamily.focus();
 }
 
 function clearForm() {
@@ -515,39 +523,161 @@ function stepInvite() {
       h("span", { class: "end" }, btn("Yes, that's us ▸", () => { state.inviteOk = true; sound.candle(); go(2); }))));
 }
 
-// ---------- change my address ----------
-// A guest with a family in this browser can see the address on file and change it. The address stays in the Sheet.
-// The steps 1, 3, unit, and 4 of the sign-up serve here too, with no household step and no new family.
-function openMyAddress() {
-  sound.select();
+// ---------- my family ----------
+// "My family" in the top bar, and a tap on one of your own sprites, open one panel in the dialog. It shows a card
+// for each person. A pick marks the person in the room with a gold arrow, and edits their line and look.
+// "Change address" runs the address steps below for this family. A browser with two or more families (from before
+// one browser held one family) shows the family it signed up last, with a link to switch.
+const panel = { saved: null, index: null, thanks: false };
+const TYPE_NAMES = { adult: "Grown-up", kid: "Kid", baby: "Baby", dog: "Dog", cat: "Cat" };
+const LINE_MAX = 40;
+
+function openFamily(saved = state.mine.at(-1), index = null, { quiet = false } = {}) {
+  if (!saved) return;
+  if (!quiet) sound.select();
   clearForm();
-  state.mode = "change";
-  go(state.mine.length > 1 ? "which" : "onfile");
+  Object.assign(panel, { saved, index, thanks: false });
+  go("family");
   tuck(false);
 }
 
-function closeChange() {
-  readSeq++;
-  clearForm();
+function closeFamily() {
+  sound.candle();
+  Object.assign(panel, { saved: null, index: null, thanks: false });
   tuckAway();
 }
 
-// A browser with two or more families picks one.
-function stepWhich() {
-  const list = h("ul", { class: "choices", role: "list" },
-    state.mine.map((f) => h("li", {}, h("button", { type: "button", class: "choice", onClick: () => {
-      sound.select();
-      state.changing = f;
-      go("onfile");
-    } }, h("span", {}, f.name)))));
-  frame("Which address?", list, h("div", { class: "spacer" }),
-    h("div", { class: "actions" }, btn("Close", closeChange, "btn ghost")));
+// "Grown-up 2" and the line, so a screen reader tells the cards apart. The guests gave no names.
+function cardLabel(saved, index) {
+  const type = saved.members[index].type;
+  const same = saved.members.filter((m) => m.type === type);
+  const nth = same.length > 1 ? ` ${saved.members.slice(0, index + 1).filter((m) => m.type === type).length}` : "";
+  return `${TYPE_NAMES[type] || "Guest"}${nth}`;
+}
+
+function familyCards(saved) {
+  const sprites = scene.familySprites(saved.id);
+  return h("div", { class: "fam-grid", role: "group", "aria-label": saved.name },
+    saved.members.map((m, index) => {
+      const sprite = sprites.find((s) => s.index === index);
+      const look = lookById(sprite?.look || m.look);
+      const line = saved.bubbles[index] || "";
+      const on = panel.index === index;
+      return h("button", {
+        type: "button", class: `fam-card${m.type === "dog" || m.type === "cat" ? " pet" : ""}`, "aria-pressed": String(on), "data-index": index,
+        "aria-label": `${cardLabel(saved, index)}: ${line || "No line yet"}`,
+        onClick: () => pickCard(on ? null : index),
+      },
+        h("span", { class: "fam-figure" },
+          look && h("img", { src: `/${look.src.replace(/^\//, "")}`, alt: "", style: `--w: ${look.w}; --h: ${look.h}` })),
+        h("span", { class: `fam-line${line ? "" : " empty"}` }, line || "No line yet"));
+    }));
+}
+
+function pickCard(index) {
+  sound.select();
+  panel.index = index;
+  panel.thanks = false;
+  go("family");
+}
+
+// State 1 lists the family. State 2 (panel.index) edits one person.
+function stepFamily() {
+  const saved = panel.saved;
+  const sprite = panel.index === null ? null : scene.familySprites(saved.id).find((s) => s.index === panel.index);
+  marker.show(sprite || null);
+  const others = state.mine.filter((f) => f !== saved);
+  const next = others.at(-1);
+  const switchTo = next && btn(`Switch to ${next.name}`, () => openFamily(next), "link fam-switch");
+  if (panel.index === null || !sprite) {
+    frameAs(saved.name, panel.thanks ? "Thank you! Who else do you want to change?" : "Who do you want to change?",
+      familyCards(saved), switchTo,
+      h("div", { class: "spacer" }),
+      h("div", { class: "actions" }, btn("Change address", () => openAddress(saved), "btn ghost"),
+        h("span", { class: "end" }, btn("Done", closeFamily))));
+    return;
+  }
+  const save = () => saveLine(saved, sprite, $("f-line").value);
+  frameAs(saved.name, "What should they say?",
+    familyCards(saved),
+    answer({ id: "f-line", label: "What should they say", value: saved.bubbles[sprite.index] || "", placeholder: "Say something", maxlength: LINE_MAX, onEnter: save }),
+    h("div", { class: "spacer" }),
+    h("div", { class: "actions" }, btn("New look", (e) => newLook(saved, sprite, e.currentTarget), "btn ghost", { id: "f-new-look" }),
+      h("span", { class: "end" }, btn("Save", save))));
+  // Two rows of cards can make the dialog scroll on a short phone. The line to edit then scrolls into view.
+  $("f-line").scrollIntoView({ block: "nearest" });
+}
+
+// The person says the new line in the room, and the panel goes back to the whole family with a thank-you.
+function saveLine(saved, sprite, value) {
+  const text = value.trim().slice(0, LINE_MAX);
+  saved.bubbles[sprite.index] = text;
+  sprite.bubble = text;
+  saveMine();
+  scene.say(sprite, text, 6);
+  lineShown(sprite);
+  api.sprite({ id: saved.id, token: saved.token, index: sprite.index, bubble: text }).catch(() => sound.oops());
+  sound.candle();
+  Object.assign(panel, { index: null, thanks: true });
+  go("family");
+}
+
+function newLook(saved, sprite, returnFocus) {
+  sound.select();
+  const wear = async (look) => {
+    sprite.img = await image(look.src);
+    sprite.look = look.id;
+    extras.look(sprite, look);
+    saved.members[sprite.index].look = look.id;
+    saveMine();
+    sound.pop();
+    sprite.popAt = scene.time;
+    scene.updateOverlay();
+    api.sprite({ id: saved.id, token: saved.token, index: sprite.index, look: look.id }).catch(() => sound.oops());
+    // The card shows the new look. The line that the guest typed stays, and the focus goes back to "New look".
+    if (state.step === "family" && panel.saved === saved && panel.index === sprite.index) {
+      const value = $("f-line")?.value;
+      go("family");
+      if (value !== undefined) $("f-line").value = value;
+      $("f-new-look")?.focus();
+    }
+  };
+  openPicker({ library: state.looks, type: sprite.type, current: sprite.look, onPick: wear, returnFocus });
+}
+
+// Escape in "My family" goes back one state: from a person to the family, and from the family to the party.
+// A window over the page (the look picker, the album, the dreidel game) takes its own Escape.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || state.step !== "family" || app.classList.contains("tucked")) return;
+  if (document.querySelector('[aria-modal="true"]:not([hidden])')) return;
+  e.preventDefault();
+  if (panel.index !== null) pickCard(null);
+  else closeFamily();
+});
+
+// ---------- change my address ----------
+// "Change address" in "My family" shows the address on file and lets the guest change it. The address stays in the Sheet.
+// The steps 1, 3, unit, and 4 of the sign-up serve here too, with no household step and no new family.
+function openAddress(saved) {
+  sound.select();
+  clearForm();
+  Object.assign(state, { mode: "change", changing: saved });
+  go("onfile");
+}
+
+// The address steps end back in "My family".
+function closeChange() {
+  readSeq++;
+  const saved = state.changing;
+  clearForm();
+  if (saved) openFamily(saved, null, { quiet: true });
+  else tuckAway();
 }
 
 let readSeq = 0;
 async function stepOnFile() {
   const family = state.changing || (state.changing = state.mine.at(-1));
-  const close = btn("Close", closeChange, "btn ghost");
+  const close = btn("Back", closeChange, "btn ghost");
   if (!state.onFile) {
     const seq = ++readSeq;
     const left = () => seq !== readSeq || state.step !== "onfile";
@@ -754,53 +884,17 @@ function onTap(sprite) {
     scene.say(sprite, hostLine(sprite, hidden), 4);
     return;
   }
-  // An extra can react to a tap on a guest (a pet does). In your own family, the editor opens at the same time.
+  // An extra can react to a tap on a guest (a pet does). In your own family, "My family" opens on that person
+  // at the same time, unless the guest is in the middle of the form. The pet's own sound plays in place of the chime.
   const pet = extras.tapSprite(sprite);
   const saved = mineById(sprite.familyId);
-  if (!saved) {
-    const fam = scene.families.get(sprite.familyId);
-    if (fam && fam.id !== "pending") scene.setTag(fam.id, fam.name, { seconds: 3 });
-    if (sprite.bubble) {
-      scene.say(sprite, sprite.bubble, 4);
-      lineShown(sprite);
-    }
-    return;
-  }
-  openEditor(sprite, saved, { quiet: !!pet });
-}
-
-// An extra's own sound (a pet's) plays in place of the editor's chime.
-function openEditor(sprite, saved, { quiet = false } = {}) {
-  if (!quiet) sound.select();
-  const input = h("input", { id: "f-bubble", autocomplete: "off", ...NO_PASSWORD_MANAGER, maxlength: 40, value: saved.bubbles[sprite.index] || "", placeholder: "Say something", "aria-label": "Say something" });
-  const save = async () => {
-    const text = input.value.trim().slice(0, 40);
-    saved.bubbles[sprite.index] = text;
-    sprite.bubble = text;
-    saveMine();
-    scene.closePop();
-    scene.say(sprite, text, 6);
+  if (saved && !inForm()) return openFamily(saved, sprite.index, { quiet: !!pet });
+  const fam = scene.families.get(sprite.familyId);
+  if (fam && fam.id !== "pending") scene.setTag(fam.id, fam.name, { seconds: 3 });
+  if (sprite.bubble) {
+    scene.say(sprite, sprite.bubble, 4);
     lineShown(sprite);
-    api.sprite({ id: saved.id, token: saved.token, index: sprite.index, bubble: text }).catch(() => sound.oops());
-  };
-  const wear = async (look) => {
-    sprite.img = await image(look.src);
-    sprite.look = look.id;
-    extras.look(sprite, look);
-    saved.members[sprite.index].look = look.id;
-    saveMine();
-    sound.pop();
-    sprite.popAt = scene.time;
-    scene.updateOverlay();
-    api.sprite({ id: saved.id, token: saved.token, index: sprite.index, look: look.id }).catch(() => sound.oops());
-  };
-  const newLook = (e) => {
-    sound.select();
-    openPicker({ library: state.looks, type: sprite.type, current: sprite.look, onPick: wear, returnFocus: e.currentTarget });
-  };
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
-  scene.openPop(sprite, h("div", {}, input, h("div", { class: "row" }, btn("New look", newLook, "btn ghost"), btn("Save", save))));
-  input.focus();
+  }
 }
 
 // ---------- start ----------
@@ -812,8 +906,7 @@ async function start() {
   };
   syncSound();
   soundBtn.addEventListener("click", () => { sound.toggle(); syncSound(); });
-  again.addEventListener("click", restart);
-  myAddress.addEventListener("click", openMyAddress);
+  myFamily.addEventListener("click", () => openFamily());
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
@@ -862,6 +955,6 @@ if (new URLSearchParams(location.search).has("test")) {
   };
   // lineTurn runs one turn of the guests' lines now, as the 3.5-second timer does. pollParty asks for the party now.
   const lines = { lineTurn: cycleBubbles, pollParty: () => loadParty(false) };
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter, lines }); });
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter, lines, marker }); });
 }
 start();

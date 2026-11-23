@@ -304,7 +304,7 @@ export const nightState = (pg) => pg.evaluate(() => {
   return out;
 });
 
-// After the thank-you, the dialog slides away within about 7 seconds and the top bar offers "Add another address".
+// After the thank-you, the dialog slides away within about 7 seconds and the top bar offers "My family".
 // The page notes the time, so a slow test runner does not count. The time starts at this call, after the thank-you shows.
 export async function assertTucks(pg) {
   const took = await pg.evaluate(() => new Promise((done) => {
@@ -320,7 +320,7 @@ export async function assertTucks(pg) {
   }));
   assert.ok(took < 8000, `the dialog tucks within about 7 seconds: ${took} ms`);
   await pg.locator("#dialog").waitFor({ state: "hidden" });
-  await pg.getByRole("button", { name: "Add another address" }).waitFor();
+  await pg.getByRole("button", { name: "My family" }).waitFor();
 }
 
 // Tucks the thank-you now, without the 7-second wait, and waits until the camera shows the whole room.
@@ -328,7 +328,7 @@ export async function assertTucks(pg) {
 export async function tuckNow(page) {
   await page.waitForFunction(() => window.__hc.tuckNow());
   await page.locator("#dialog").waitFor({ state: "hidden" });
-  await page.getByRole("button", { name: "Add another address" }).waitFor();
+  await page.getByRole("button", { name: "My family" }).waitFor();
   // The camera eases out to the whole room on the scene clock. Three scene seconds settle it.
   await api(page).advance(3);
 }

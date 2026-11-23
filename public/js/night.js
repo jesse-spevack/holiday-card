@@ -91,7 +91,7 @@ export class Night {
     this.greeting.className = "night-greeting";
     this.greeting.innerHTML = '<p class="night-hi">Happy holidays</p><p class="night-from">from Jesse, Jess, Eddie &amp; Audrey Spevack</p>';
     this.greeting.hidden = true;
-    // Both sit behind the room, so bubbles and the sprite editor always show on top.
+    // Both sit behind the room, so bubbles and names always show on top.
     stage.prepend(this.canvas, this.greeting);
     loadCss(CSS);
     this.art = null; // the roof, eave, and moon, chosen for the stage at rest
