@@ -9,6 +9,8 @@ const env = await e2e();
 const PARTY = { families: [{ id: "other1", name: "The Lees", members: [{ type: "adult", look: "t-dad" }, { type: "dog", look: "t-dog" }], bubbles: ["", ""] }] };
 // The extras with a tap area in the room. The cars, the pets, and the silly looks have none.
 const IN_ROOM = ["album", "lamp", "star", "menorah", "toast", "plants", "fire", "presents", "dreidel"];
+// With no car in the window, the window (the star) does not glint.
+const NO_CAR = IN_ROOM.filter((egg) => egg !== "star");
 
 // The glints that show in `seconds` of scene time, in order: [{ egg, id, x, y }]. The clock must be stopped.
 async function watch(page, seconds) {
@@ -79,16 +81,18 @@ describe("the glint", { concurrency: true }, () => {
       assert.equal((await hc.glint()).on, true);
       await tuckNow(page);
       await hc.pause();
+      await hc.holdCars();
       await hc.stillHosts();
       await hc.stillGuests();
       const { GLINT } = await hc.constants();
       const times = reduce === "reduce" ? GLINT.still : GLINT;
 
       // One glint at a time, every few seconds. In two full rounds, each extra with a tap area glints, and no other extra.
-      const rounds = await watch(page, times.every * IN_ROOM.length * 2 + 2);
-      assert.deepEqual([...new Set(rounds.map((g) => g.egg))].sort(), [...IN_ROOM].sort());
+      // With no car in the window, the window does not glint.
+      const rounds = await watch(page, times.every * NO_CAR.length * 2 + 2);
+      assert.deepEqual([...new Set(rounds.map((g) => g.egg))].sort(), [...NO_CAR].sort());
       // The extras take turns in the order of their list.
-      assert.deepEqual(rounds.slice(0, IN_ROOM.length).map((g) => g.egg), rounds.slice(IN_ROOM.length, IN_ROOM.length * 2).map((g) => g.egg));
+      assert.deepEqual(rounds.slice(0, NO_CAR.length).map((g) => g.egg), rounds.slice(NO_CAR.length, NO_CAR.length * 2).map((g) => g.egg));
       // The plants take turns too, so the glint visits more than one plant.
       assert.ok(new Set(rounds.filter((g) => g.egg === "plants").map((g) => g.id)).size > 1);
 
@@ -135,7 +139,7 @@ describe("the glint", { concurrency: true }, () => {
       const after = await watch(page, times.every * IN_ROOM.length + 2);
       const eggs = new Set(after.map((g) => g.egg));
       assert.ok(!eggs.has("lamp") && !eggs.has("fire"), `no glint on a found extra: ${[...eggs]}`);
-      assert.equal(eggs.size, IN_ROOM.length - 2);
+      assert.equal(eggs.size, NO_CAR.length - 2);
 
       // A guest who finds every extra in the room sees no glint.
       await hc.found(...IN_ROOM);
@@ -156,3 +160,36 @@ test("a glint stops at once when the guest finds its extra", async () => {
   await hc.advance(1 / 30);
   assert.equal((await hc.glint()).shown, null);
 });
+
+// The window glints only while a car drives past, and then before the other extras.
+for (const reduce of ["no-preference", "reduce"]) {
+  test(`the window glints only while a car shows in it, with reduced motion ${reduce}`, async () => {
+    const { page, hc } = await env.open({ viewport: { width: 400, height: 844 }, hasTouch: true, reducedMotion: reduce, party: PARTY, mine: [GARCIA], wait: "eggs" });
+    await tuckNow(page);
+    await hc.pause();
+    await hc.holdCars();
+    const { GLINT } = await hc.constants();
+    const times = reduce === "reduce" ? GLINT.still : GLINT;
+    const before = await watch(page, times.every * IN_ROOM.length + 2);
+    assert.ok(before.length && !before.some((g) => g.egg === "star"), `no window glint with no car: ${JSON.stringify(before)}`);
+
+    await hc.sendWaymo();
+    await advanceUntil(page, (hc) => hc.carInSight());
+    const during = await page.evaluate((every) => {
+      const hc = window.__hc;
+      const seen = [];
+      for (let t = 0; t < every + 1 && hc.carInSight(); t += 0.1) {
+        hc.advance(0.1);
+        const s = hc.glint().shown;
+        if (s && !seen.includes(s.egg)) seen.push(s.egg);
+      }
+      return seen;
+    }, times.every);
+    assert.ok(during.includes("star"), `the window glints while the car shows: ${JSON.stringify(during)}`);
+
+    await advanceUntil(page, (hc) => !hc.carInSight(), null, { max: 60 });
+    await hc.holdCars();
+    const after = await watch(page, times.every * IN_ROOM.length + 2);
+    assert.ok(after.length && !after.some((g) => g.egg === "star"), `no window glint after the car: ${JSON.stringify(after)}`);
+  });
+}

@@ -34,6 +34,12 @@ export function joinRoad({ scene, reducedMotion, found }, car) {
   return road;
 }
 
+// True while some part of a car shows through the window glass. The star glints on the window only then (star.js).
+export function carInSight(scene) {
+  const road = roads.get(scene);
+  return !!(road?.car && road.inSight());
+}
+
 class Road {
   constructor(scene, reducedMotion) {
     this.scene = scene;
@@ -45,7 +51,15 @@ class Road {
     // The car on the road: { kind, car, x, dir, until, shouted }, or null.
     this.car = null;
     // The test hooks that every car extra shares. They are the same functions, so the test API takes them once.
-    this.test = { carPixels: () => this.pixels() };
+    this.test = {
+      carPixels: () => this.pixels(),
+      // holdCars: no car drives until a test sends one, and a car on the road goes at once.
+      holdCars: () => {
+        this.car = null;
+        for (const kind of Object.keys(this.cars)) this.next[kind] = Infinity;
+      },
+      carInSight: () => carInSight(this.scene),
+    };
   }
 
   add(car, found) {

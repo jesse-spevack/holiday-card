@@ -4,6 +4,7 @@
 import { WINDOW_TAP } from "../room.js";
 import { Sky } from "../masks.js";
 import { showWords } from "../words.js";
+import { carInSight } from "./road.js";
 
 const STAR = { tail: 14, seconds: 1, fade: 0.4, still: 1.4 };
 // The wish sits high on the window glass, away from the menorah. It has no box, so the star shows around its letters.
@@ -92,6 +93,8 @@ export default {
     return {
       layer: star,
       tap: () => star.shoot(),
+      // The window glints only while a car drives past, so the glint does not sit on an empty window.
+      cue: () => carInSight(ctx.scene),
       test: () => ({ eggs: () => ({ star: !!star.star }) }),
     };
   },

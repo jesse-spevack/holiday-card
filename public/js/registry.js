@@ -20,6 +20,7 @@
 //   layer               a scene layer (Scene.addLayer in scene.js).
 //   tap(id)             a tap on the spot `id`.
 //   open(id)            false while the spot `id` takes no taps (the book while the album is open).
+//   cue(id)             optional. The glint shows on the spot `id` only while cue(id) is true, and then before other spots (glint.js).
 //   tapSprite(sprite)   a tap on a guest sprite. Return true when the extra reacts; the registry then records it.
 //   look(sprite, look)  a guest puts a new look on their own sprite. Return true when that finds the extra.
 //   covers              true while a window of the extra covers the room (the album, the dreidel game), from the tap until it closes.
@@ -49,7 +50,8 @@ export function setupExtras({ scene, sound, reducedMotion, found, mine }) {
   const owner = new Map(EXTRAS.flatMap((e) => (e.spots ?? []).map((s) => [s.id, e])));
   scene.spots = HOTSPOTS.map((s) => {
     const runtime = live.get(owner.get(s.id).name);
-    return runtime.open ? { ...s, open: () => runtime.open(s.id) } : s;
+    if (!runtime.open && !runtime.cue) return s;
+    return { ...s, ...(runtime.open && { open: () => runtime.open(s.id) }), ...(runtime.cue && { cue: () => runtime.cue(s.id) }) };
   });
   // Runs `hook` on each extra that has it, and records the first extra whose hook returns true.
   const first = (hook, ...args) => {
