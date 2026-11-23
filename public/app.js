@@ -11,6 +11,7 @@ import { Night } from "./js/night.js";
 import { Glint } from "./js/glint.js";
 import { Idle } from "./js/idle.js";
 import { Counter, DONE_LINE } from "./js/counter.js";
+import { US_LINES, usAddressProblem } from "./js/us.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -55,7 +56,10 @@ const counter = new Counter({
   },
 });
 const again = $("again");
+const myAddress = $("my-address");
 const TUCK_MS = 7000;
+// The thank-you after a changed address is short, so the guest gets back to the party soon.
+const SAVED_MS = 4000;
 const SAVED = "hc.families";
 const POLL_MS = 30000;
 
@@ -81,6 +85,10 @@ const state = {
   session: newSession(),
   looks: {},
   mine: loadMine(),
+  // "new" for a sign-up. "change" while a guest changes the address of a family in this browser (changing).
+  mode: "new",
+  changing: null,
+  onFile: null,
 };
 
 // ---------- saved families (this browser's own) ----------
@@ -147,7 +155,7 @@ function typeOut(el, text) {
 dialog.addEventListener("pointerdown", () => typing?.finish());
 
 function frame(sayText, ...body) {
-  dialog.classList.toggle("small", state.step === "done");
+  dialog.classList.toggle("small", state.step === "done" || state.step === "saved");
   dialog.innerHTML = "";
   const say = h("p", { class: "say", id: "say" });
   dialog.append(h("span", { class: "speaker" }, "Jesse, Jess, Eddie & Audrey Spevack"), say, ...body.flat().filter(Boolean));
@@ -179,15 +187,22 @@ function showError(text) {
   if (el) el.textContent = text;
   sound.oops();
 }
+// The host line for a failed call: the US-only lines for an address outside the US, else a retry.
+const failLine = (err) => US_LINES[err?.message] || "Something went wrong. Try again?";
 
 // ---------- steps ----------
 function go(step) {
+  clearTimeout(searchTimer);
   clearTimeout(tuckTimer);
   tuckTimer = null;
   state.step = step;
   scene.closePop();
-  ({ 1: stepEnvelope, 2: stepHousehold, 3: stepAddress, unit: stepUnit, 4: stepConfirm, done: stepDone }[step])();
+  ({
+    1: stepEnvelope, 2: stepHousehold, 3: stepAddress, unit: stepUnit, 4: stepConfirm, done: stepDone,
+    which: stepWhich, onfile: stepOnFile, saved: stepSaved,
+  }[step])();
 }
+const changing = () => state.mode === "change";
 
 function stepEnvelope() {
   const next = () => {
@@ -195,14 +210,14 @@ function stepEnvelope() {
     if (!v) return showError("We need something here.");
     state.envelope = v;
     sound.candle();
-    go(2);
+    go(changing() ? 3 : 2);
   };
-  frame("We're sending holiday cards! Whose name goes on the envelope?",
+  frame(changing() ? "Whose name goes on the envelope?" : "We're sending holiday cards! Whose name goes on the envelope?",
     answer({ id: "f-envelope", label: "Name on the envelope", value: state.envelope, placeholder: "The Garcia Family", onEnter: next }),
     h("p", { class: "hint" }, "Write it how you'd like it on the envelope."),
     errorLine(),
     h("div", { class: "spacer" }),
-    h("div", { class: "actions" }, h("span", { class: "end" }, btn("Next ▸", next))));
+    h("div", { class: "actions" }, changing() && btn("Back", () => go("onfile"), "btn ghost"), h("span", { class: "end" }, btn("Next ▸", next))));
 }
 
 function stepHousehold() {
@@ -246,6 +261,8 @@ function stepAddress() {
   const manual = h("div", { id: "manual", hidden: true }, btn("Use what I typed", () => {
     const v = $("f-address").value.trim();
     if (!v) return showError("We need something here.");
+    const problem = usAddressProblem({ street: v });
+    if (problem) return showError(US_LINES[problem]);
     state.address = { street: v, city: "", state: "", zip: "", formatted: v, manual: true };
     sound.select();
     go("unit");
@@ -269,7 +286,8 @@ function stepAddress() {
       } catch {
         suggestions = [];
       }
-      if (seq !== searchSeq) return;
+      // The guest can leave the step while Google answers, so a late answer has no list to fill.
+      if (seq !== searchSeq || !list.isConnected) return;
       list.innerHTML = "";
       credit.hidden = !suggestions.length;
       for (const s of suggestions) {
@@ -285,11 +303,13 @@ function stepAddress() {
     sound.select();
     try {
       const { address } = await api.place(s.id, state.session);
-      state.address = address;
       state.session = newSession();
+      const problem = usAddressProblem(address);
+      if (problem) return showError(US_LINES[problem]);
+      state.address = address;
       go("unit");
-    } catch {
-      showError("Something went wrong. Try again?");
+    } catch (err) {
+      showError(failLine(err));
     }
   };
   frame("Where should we mail your card?",
@@ -298,7 +318,9 @@ function stepAddress() {
       onInput: search, onEnter: () => list.querySelector("button")?.click(),
     }),
     list, manual, errorLine(), h("div", { class: "spacer" }), credit,
-    h("div", { class: "actions" }, btn("Back", () => go(2), "btn ghost")));
+    h("div", { class: "actions" }, btn("Back", () => go(changing() ? 1 : 2), "btn ghost"),
+      // A guest who changes only the envelope name keeps the address that they have.
+      changing() && state.address && h("span", { class: "end" }, btn("Same address ▸", () => { sound.select(); go("unit"); }, "btn ghost"))));
   if (state.addressQuery) search();
 }
 
@@ -315,11 +337,12 @@ function stepUnit() {
       h("span", { class: "end" }, btn("Skip", () => next(true), "btn ghost"), btn("Next ▸", () => next(false)))));
 }
 
-function addressLines() {
-  const a = state.address;
-  const street = state.unit ? `${a.street}, ${state.unit}` : a.street;
+// The envelope as the card printer sees it: the name, the street and unit, and the city, state, and ZIP.
+// A typed address has the whole address in its street.
+function addressLines(envelope = state.envelope, a = state.address, unit = state.unit) {
+  const street = unit ? `${a.street}, ${unit}` : a.street;
   const place = a.manual ? "" : `${a.city}, ${a.state} ${a.zip}`.trim();
-  return [state.envelope, street, place].filter(Boolean).join("\n");
+  return [envelope, street, place].filter(Boolean).join("\n");
 }
 
 function stepConfirm() {
@@ -329,7 +352,7 @@ function stepConfirm() {
     errorLine(),
     h("div", { class: "spacer" }),
     h("div", { class: "actions" }, btn("Fix it", () => go(3), "btn ghost"),
-      h("span", { class: "end" }, btn("Yes, send it ▸", send, "btn", { id: "send" }))));
+      h("span", { class: "end" }, changing() ? btn("Yes, save it ▸", saveAddress, "btn", { id: "send" }) : btn("Yes, send it ▸", send, "btn", { id: "send" }))));
 }
 
 // The family walks into the room while the Sheet saves.
@@ -354,10 +377,10 @@ async function send() {
     scene.renameFamily("pending", { id, name: saved.name, mine: true });
     resetTurnstile();
     go("done");
-  } catch {
+  } catch (err) {
     resetTurnstile();
     button.disabled = false;
-    showError("Something went wrong. Try again?");
+    showError(failLine(err));
   }
 }
 
@@ -384,6 +407,7 @@ function tuck(away) {
   if (app.classList.contains("tucked") === away) return;
   const hadFocus = dialog.contains(document.activeElement);
   again.hidden = !away;
+  myAddress.hidden = !away || !state.mine.length;
   if (away) {
     // The height starts from its current size, so it can slide down to zero.
     dialog.style.height = `${dialog.offsetHeight}px`;
@@ -400,13 +424,120 @@ function tuck(away) {
 }
 
 function restart() {
-  Object.assign(state, {
-    envelope: "", household: "", householdAsked: "", members: null, membersPromise: null,
-    addressQuery: "", address: null, unit: "", session: newSession(),
-  });
+  clearForm();
   scene.focus(ROOM_W / 2, ROOM_H / 2, 0);
   go(1);
   tuck(false);
+}
+
+function clearForm() {
+  Object.assign(state, {
+    envelope: "", household: "", householdAsked: "", members: null, membersPromise: null,
+    addressQuery: "", address: null, unit: "", session: newSession(), mode: "new", changing: null, onFile: null,
+  });
+}
+
+// ---------- change my address ----------
+// A guest with a family in this browser can see the address on file and change it. The address stays in the Sheet.
+// The steps 1, 3, unit, and 4 of the sign-up serve here too, with no household step and no new family.
+function openMyAddress() {
+  sound.select();
+  clearForm();
+  state.mode = "change";
+  go(state.mine.length > 1 ? "which" : "onfile");
+  tuck(false);
+}
+
+function closeChange() {
+  readSeq++;
+  clearForm();
+  tuckAway();
+}
+
+// A browser with two or more families picks one.
+function stepWhich() {
+  const list = h("ul", { class: "choices", role: "list" },
+    state.mine.map((f) => h("li", {}, h("button", { type: "button", class: "choice", onClick: () => {
+      sound.select();
+      state.changing = f;
+      go("onfile");
+    } }, h("span", {}, f.name)))));
+  frame("Which address?", list, h("div", { class: "spacer" }),
+    h("div", { class: "actions" }, btn("Close", closeChange, "btn ghost")));
+}
+
+let readSeq = 0;
+async function stepOnFile() {
+  const family = state.changing || (state.changing = state.mine.at(-1));
+  const close = btn("Close", closeChange, "btn ghost");
+  if (!state.onFile) {
+    const seq = ++readSeq;
+    const left = () => seq !== readSeq || state.step !== "onfile";
+    frame("Let me find your address...", errorLine(), h("div", { class: "spacer" }), h("div", { class: "actions" }, close));
+    let found;
+    try {
+      found = await api.addressRead({ id: family.id, token: family.token });
+    } catch {
+      if (left()) return;
+      frame("We can't reach our address book right now.",
+        h("p", { class: "hint" }, "Your card is safe. Try again in a minute?"),
+        h("div", { class: "spacer" }),
+        h("div", { class: "actions" }, close, h("span", { class: "end" }, btn("Try again", () => go("onfile")))));
+      return sound.oops();
+    }
+    if (left()) return;
+    state.onFile = found;
+  }
+  const { envelope, address } = state.onFile;
+  const change = () => {
+    sound.select();
+    state.envelope = envelope || family.name;
+    if (address) {
+      state.address = onFileAddress(address);
+      state.unit = address.unit;
+    }
+    go(1);
+  };
+  if (!address) {
+    frame("Hmm, we can't find your address. Can you tell us again?", h("div", { class: "spacer" }),
+      h("div", { class: "actions" }, close, h("span", { class: "end" }, btn("Next ▸", change))));
+    return;
+  }
+  frame("We'll mail your card to:",
+    h("p", { class: "address" }, addressLines(envelope, onFileAddress(address), address.unit)),
+    h("p", { class: "say", style: "font-size:19px" }, "Still right?"),
+    h("div", { class: "spacer" }),
+    h("div", { class: "actions" }, btn("Change it", change, "btn ghost"),
+      h("span", { class: "end" }, btn("Yes, all good ▸", () => { sound.candle(); closeChange(); }))));
+}
+
+// An address from the Sheet. With no city, state, or ZIP, the guest typed it by hand.
+const onFileAddress = (a) => ({ ...a, formatted: a.street, manual: !a.city && !a.state && !a.zip });
+
+async function saveAddress() {
+  const button = $("send");
+  button.disabled = true;
+  $("error").textContent = "";
+  const family = state.changing;
+  try {
+    const address = { ...state.address, unit: state.unit };
+    const { name } = await api.addressChange({ id: family.id, token: family.token, envelope: state.envelope, address });
+    family.name = name;
+    saveMine();
+    const fam = scene.families.get(family.id);
+    if (fam) fam.name = name;
+    sound.candle();
+    go("saved");
+  } catch (err) {
+    button.disabled = false;
+    showError(failLine(err));
+  }
+}
+
+function stepSaved() {
+  frame("Got it. Thank you for telling us!",
+    h("p", { class: "hint" }, "We'll mail your card to your new address."));
+  tuckTimer = setTimeout(closeChange, SAVED_MS);
 }
 
 // ---------- looks ----------
@@ -604,6 +735,7 @@ async function start() {
   syncSound();
   soundBtn.addEventListener("click", () => { sound.toggle(); syncSound(); });
   again.addEventListener("click", restart);
+  myAddress.addEventListener("click", openMyAddress);
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 

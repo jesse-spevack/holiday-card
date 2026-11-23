@@ -4,6 +4,7 @@
     "module": "es2022",
     "moduleResolution": "bundler",
     "strict": true,
+    "allowJs": true,
     "noEmit": true,
     "skipLibCheck": true,
     "lib": ["es2023"],

@@ -1,7 +1,9 @@
 // The pure rules of `pnpm sheet:dupes`: the address key, the duplicate groups, the kept row, and the delete requests.
 // It has no I/O, so test/sheet-dupes.test.ts tests it. scripts/sheet-dupes.mjs reads and changes the Sheet.
 
-export const HEADERS = ["added_at", "name", "household", "street", "unit", "city", "state", "zip"] as const;
+export const HEADERS = ["added_at", "name", "household", "street", "unit", "city", "state", "zip", "family_id", "updated_at"] as const;
+// The Sheet had only these columns before family ids. The script still reads a Sheet with only these.
+const FIRST_HEADERS = 8;
 
 export type Contact = {
   row: number; // The row number in the Sheet. Row 1 is the header.
@@ -13,6 +15,8 @@ export type Contact = {
   city: string;
   state: string;
   zip: string;
+  familyId: string; // The family at the party. Empty for a row from before family ids.
+  updatedAt: number | null; // A Sheets serial date, when the guest last changed the address. Null when never.
 };
 
 export type Group = {
@@ -141,10 +145,10 @@ export function nameKey(name: string): string {
   return clean(name);
 }
 
-// The newest row stays: a guest who signs up again likely gave new data.
+// The newest row stays: a guest who signs up again likely gave new data. A row changed by its guest is as new as the change.
 // A row with no date is the oldest. For two equal dates, the row nearer the bottom is newer, because the Sheet adds rows at the bottom.
 export function newest(rows: Contact[]): Contact {
-  const time = (c: Contact) => c.addedAt ?? -Infinity;
+  const time = (c: Contact) => Math.max(c.addedAt ?? -Infinity, c.updatedAt ?? -Infinity);
   return rows.reduce((best, c) => (time(c) > time(best) || (time(c) === time(best) && c.row > best.row) ? c : best));
 }
 
@@ -162,16 +166,30 @@ function distinct(rows: Contact[], key: (c: Contact) => string): number {
   return new Set(rows.map(key)).size;
 }
 
+// Rows join one group when they have the same address key or the same family id.
+// A family that changed its address can have rows at two addresses, and they still go to one mailbox now.
+function linked(rows: Contact[]): Contact[][] {
+  const parent = new Map(rows.map((c) => [c, c]));
+  const root = (c: Contact): Contact => (parent.get(c) === c ? c : root(parent.get(c)!));
+  for (const key of [addressKey, (c: Contact) => c.familyId]) {
+    for (const [first, ...rest] of bucket(rows, key).values()) rest.forEach((c) => parent.set(root(c), root(first)));
+  }
+  const out = new Map<Contact, Contact[]>();
+  for (const c of rows) out.set(root(c), [...(out.get(root(c)) ?? []), c]);
+  return [...out.values()];
+}
+
 export function findDuplicates(contacts: Contact[]): Report {
   const skipped = contacts.filter((c) => !clean(c.street));
   const rows = contacts.filter((c) => clean(c.street));
 
   const groups: Group[] = [];
-  for (const [key, list] of bucket(rows, addressKey)) {
+  for (const list of linked(rows)) {
     if (list.length < 2) continue;
     const keep = newest(list);
+    const keys = new Set(list.map(addressKey));
     groups.push({
-      key,
+      key: keys.size === 1 ? addressKey(keep) : `family ${keep.familyId || list.find((c) => c.familyId)?.familyId}`,
       keep,
       remove: list.filter((c) => c !== keep).sort((a, b) => a.row - b.row),
       namesDiffer: distinct(list, (c) => nameKey(c.name)) > 1,
@@ -181,9 +199,12 @@ export function findDuplicates(contacts: Contact[]): Report {
   const top = (g: Group) => Math.min(g.keep.row, ...g.remove.map((c) => c.row));
   groups.sort((a, b) => top(a) - top(b));
 
+  // A name in one group is no news: the group shows it already.
+  const inGroup = new Map(groups.flatMap((g) => [g.keep, ...g.remove].map((c) => [c, g] as const)));
   const sameName: SameName[] = [];
   for (const [name, list] of bucket(rows, (c) => nameKey(c.name))) {
-    if (distinct(list, addressKey) > 1) sameName.push({ name, rows: list });
+    const oneGroup = inGroup.has(list[0]) && list.every((c) => inGroup.get(c) === inGroup.get(list[0]));
+    if (distinct(list, addressKey) > 1 && !oneGroup) sameName.push({ name, rows: list });
   }
 
   return { groups, sameName, skipped };
@@ -213,16 +234,18 @@ export function cellText(value: unknown): string {
 }
 
 // Rows from the values API, header first, as contacts. The API leaves out empty cells at the end of a row.
+// The header must start with the first 8 columns. The newer columns are optional, but each one that is there must be in its place.
 export function parseValues(values: unknown[][]): Contact[] {
   const [header = [], ...rest] = values;
-  const got = header.map(cellText);
-  if (got.slice(0, HEADERS.length).join(",") !== HEADERS.join(",")) {
-    throw new Error(`The header of the Contacts tab is "${got.join(",")}". The script expects "${HEADERS.join(",")}".`);
+  const got = header.map(cellText).slice(0, HEADERS.length);
+  const fits = got.length >= FIRST_HEADERS && got.every((h, i) => h === HEADERS[i] || (i >= FIRST_HEADERS && !h));
+  if (!fits) {
+    throw new Error(`The header of the Contacts tab is "${header.map(cellText).join(",")}". The script expects "${HEADERS.join(",")}".`);
   }
   const contacts: Contact[] = [];
   rest.forEach((cells, i) => {
     if (!cells.some((v) => cellText(v))) return;
-    const [added, name, household, street, unit, city, state, zip] = HEADERS.map((_, k) => cells[k]);
+    const [added, name, household, street, unit, city, state, zip, familyId, updated] = HEADERS.map((_, k) => cells[k]);
     contacts.push({
       row: i + 2,
       addedAt: typeof added === "number" ? added : null,
@@ -233,6 +256,8 @@ export function parseValues(values: unknown[][]): Contact[] {
       city: cellText(city),
       state: cellText(state),
       zip: cellText(zip),
+      familyId: cellText(familyId),
+      updatedAt: typeof updated === "number" ? updated : null,
     });
   });
   return contacts;
@@ -243,7 +268,7 @@ export function toCsv(contacts: Contact[]): string {
   const quote = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   const lines = [["row", ...HEADERS].join(",")];
   for (const c of contacts) {
-    const cells = [String(c.row), serialToText(c.addedAt), c.name, c.household, c.street, c.unit, c.city, c.state, c.zip];
+    const cells = [String(c.row), serialToText(c.addedAt), c.name, c.household, c.street, c.unit, c.city, c.state, c.zip, c.familyId, serialToText(c.updatedAt)];
     lines.push(cells.map(quote).join(","));
   }
   return lines.join("\n") + "\n";

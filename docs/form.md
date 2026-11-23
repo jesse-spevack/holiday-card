@@ -22,6 +22,11 @@ The hosts ("Jesse, Jess, Eddie & Audrey Spevack") ask one question at a time in 
    Then the hosts start to give hints on their own. The glint and the counter help each visitor from the first step. See "Look" in `docs/scope.md`.
    On a tall screen, the room then sits under a snowy roof in a night sky, with "Happy holidays from Jesse, Jess, Eddie & Audrey Spevack" below it.
 
+6. **My address**: after the thank-you, "My address" in the top bar shows the address on file for this browser's family, from the Sheet.
+   "Yes, all good" closes it. "Change it" goes through step 1 (the envelope name), step 3, step 3b, and step 4, with no household step.
+   Step 3 offers "Same address" to keep the address and change only the envelope name. "Yes, save it" calls `POST /api/address/change`.
+   A browser with two or more families first picks one ("Which address?"). A family with no row in the Sheet tells the address again.
+
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 
 After that, a tap on one of your own sprites opens a small editor. "Say something" sets a speech bubble.
@@ -41,6 +46,8 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 | `POST /api/submit` | see below | `201 { "id", "token" }` |
 | `POST /api/sprite` | `{ "id", "token", "index", "look"?, "bubble"? }` (bubble at most 40 characters) | `{ "ok": true }` |
 | `POST /api/interaction` | `{ "id", "token", "egg" }` (egg from `EGGS` in `src/interactions.ts`) | `204` with no body |
+| `POST /api/address/read` | `{ "id", "token" }` | `{ "envelope", "address": { "street", "unit", "city", "state", "zip" } }`, or `"address": null` with no Sheet row |
+| `POST /api/address/change` | `{ "id", "token", "envelope", "address": { "street", "unit", "city", "state", "zip" } }` | `{ "ok": true, "name" }` |
 | `GET /api/party` | | `{ "families": [{ "id", "name", "members": [{"type","look"}], "bubbles": ["..."] }] }` |
 | `GET /album/list` | | The album pages and captions, from KV |
 | `GET /album/<hash>.jpg` | | One album photo, from KV |
@@ -58,11 +65,21 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 ```
 
 A typed address with no match sends `street` as typed, with empty `city`, `state` and `zip`.
-The Worker checks Turnstile, then writes the contact to the Sheet, then writes the family to D1.
+The Worker picks the family id, checks Turnstile, then writes the contact with the family id to the Sheet, then writes the family to D1.
+
+We mail cards inside the US only (`public/js/us.js`). An address outside the US fails with `422` and one of these codes:
+
+- `not_us`: a state, a ZIP, or a country from outside the US. `GET /api/place` also refuses a place outside the US with this code.
+- `no_state`: a typed address that names no US state, so nobody can tell where it goes.
+
+The page checks the same rule before it calls the Worker, so the guest sees the host line on the address step.
+
+The address calls need the family's own token. They call the Apps Script, so they share one rate limit (`ADDRESS_LIMIT`).
+The change writes the Sheet row first. A new envelope name then also changes the name at the party.
 
 ## Where the data goes
 
-- **Sheet** (contact list only), tab `Contacts`: `added_at, name, household, street, unit, city, state, zip`.
+- **Sheet** (contact list only), tab `Contacts`: `added_at, name, household, street, unit, city, state, zip, family_id, updated_at`.
   `household` holds the envelope name. `name` holds who lives there, as the guest wrote it.
 - **D1** (the party): `families` (envelope name, household text, edit token hash, `hidden`) and `members`
   (type, look id, bubble, `bubble_hidden`). The party never returns addresses or the household text.
@@ -88,6 +105,18 @@ Hints under the answer line:
 - Step 1: Write it how you'd like it on the envelope.
 - Step 2: Pets count. I guess.
 
+### My address
+
+| Step | Host says | Buttons |
+|---|---|---|
+| Pick a family (two or more) | Which address? | (one per family) / Close |
+| Loading | Let me find your address... | Close |
+| On file | We'll mail your card to: *[full address]*. Still right? | Change it / Yes, all good ▸ |
+| No row | Hmm, we can't find your address. Can you tell us again? | Close / Next ▸ |
+| Sheet down | We can't reach our address book right now. (hint: Your card is safe. Try again in a minute?) | Close / Try again |
+| Confirm | We'll mail your card to: *[full address]*. Look right? | Fix it / Yes, save it ▸ |
+| Saved | Got it. Thank you for telling us! (hint: We'll mail your card to your new address.) | (tucks away after 4 seconds) |
+
 ### After confirm
 
 - Thank you. You mean a lot to us.
@@ -100,6 +129,8 @@ No card timing anywhere.
 
 - Blank answer: We need something here.
 - No address match: We can't find that one. Type the full address and we'll use it as written.
+- Outside the US (`not_us`): Sorry, we can only mail cards inside the US.
+- Typed with no state (`no_state`): Add the city and state, like Ely, MN. We can only mail cards inside the US.
 - Save failed: Something went wrong. Try again?
 
 ### Timing behind the scenes
