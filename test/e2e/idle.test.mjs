@@ -96,12 +96,17 @@ describe("the hosts speak on their own", { concurrency: true }, () => {
   test("no host speaks while the editor, the album, or the dreidel game is open, or while the tab hides", async () => {
     const { page, hc } = await party({ album: true });
     const { IDLE } = await hc.constants();
-    // the sprite editor of the guest's own family
+    // My family, from a tap on the guest's own sprite
     const p = await hc.pointOn({ familyId: "fam12345", index: 0 });
     await page.touchscreen.tap(p.x, p.y);
-    await page.locator(".pop").waitFor();
+    await page.getByLabel("What should they say").waitFor();
     await hc.advance(IDLE.every * 2);
     assert.deepEqual(await said(hc), []);
+    await page.getByRole("button", { name: "Save" }).click();
+    await page.getByRole("button", { name: "Done" }).click();
+    await page.locator("#dialog").waitFor({ state: "hidden" });
+    // The camera eases out to the whole room on the scene clock.
+    await hc.advance(3);
     // the photo album: a window over the whole page
     const book = await hc.spotCenter("book");
     await tapRoom(page, book.x, book.y);

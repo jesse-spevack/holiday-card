@@ -18,7 +18,7 @@ describe("the form", { concurrency: true }, () => {
     // a phone shows the whole room, wall to wall
     await page.waitForFunction(() => window.__hc.loaded().room);
     await assertWholeRoom(page, "phone, step 1");
-    assert.ok(await page.getByRole("button", { name: "Add another address" }).isHidden());
+    assert.ok(await page.getByRole("button", { name: "My family" }).isHidden());
     // The glint and the counter help a first-time visitor from the start. The hosts do not speak on their own over the form.
     await page.waitForFunction(() => window.__hc.glint().on && window.__hc.counter().shown);
     assert.equal((await hc.idle()).on, false);
@@ -107,10 +107,10 @@ describe("the form", { concurrency: true }, () => {
     await page.mouse.move(2, 2);
     await page.screenshot({ path: `${OUT}/5-done.png` });
 
-    // tap your own sprite, say something
+    // a tap on your own sprite opens My family on that person: say something
     const mine = await hc.pointOn({ familyId: "fam12345" });
     await page.mouse.click(mine.x, mine.y);
-    await page.getByLabel("Say something").fill("We love you guys");
+    await page.getByLabel("What should they say").fill("We love you guys");
     await page.getByRole("button", { name: "Save" }).click();
     await page.locator(".bubble", { hasText: "We love you guys" }).waitFor();
     const bubbleCall = spriteCalls().at(-1).body;
@@ -146,7 +146,6 @@ describe("the form", { concurrency: true }, () => {
     assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem("hc.families"))))[0].members[0].look, "t-ninja");
 
     // a pet sees only pets
-    await page.mouse.click(2, 2);
     const pet = await hc.pointOn({ familyId: "fam12345", index: 3 });
     await page.mouse.click(pet.x, pet.y);
     await page.getByRole("button", { name: "New look" }).click();
@@ -154,19 +153,9 @@ describe("the form", { concurrency: true }, () => {
     assert.deepEqual(await picker.locator(".look-tile").evaluateAll((ts) => ts.map((t) => t.dataset.look)), ["t-dog", "t-cat", "t-robodog"]);
     await picker.getByRole("button", { name: "Close" }).click();
     await picker.waitFor({ state: "detached" });
-
-    // the editor stays inside the stage when its sprite stands at the room's right edge
-    await hc.place({ familyId: "fam12345", index: 1 }, 196, 150);
-    const edge = await hc.pointOn({ familyId: "fam12345", index: 1 });
-    await page.mouse.click(edge.x, edge.y);
-    await page.getByLabel("Say something").waitFor();
-    const popFit = await page.evaluate(() => {
-      const st = document.getElementById("stage").getBoundingClientRect();
-      const pop = document.querySelector(".pop").getBoundingClientRect();
-      return { st: [st.left, st.top, st.right, st.bottom], pop: [pop.left, pop.top, pop.right, pop.bottom] };
-    });
-    assert.ok(popFit.pop[0] >= popFit.st[0] && popFit.pop[1] >= popFit.st[1] && popFit.pop[2] <= popFit.st[2] && popFit.pop[3] <= popFit.st[3], JSON.stringify(popFit));
-    await page.screenshot({ path: `${OUT}/6-edge-editor.png` });
+    await page.getByRole("button", { name: "Save" }).click();
+    await page.getByRole("button", { name: "Done" }).click();
+    await page.locator("#dialog").waitFor({ state: "hidden" });
 
     // coming back on the same browser goes straight to the party, and the thank-you hides again
     await page.reload();
@@ -178,13 +167,9 @@ describe("the form", { concurrency: true }, () => {
     await assertWholeRoom(page, "phone, return visit");
     await page.screenshot({ path: `${OUT}/7-return-tucked.png` });
 
-    // "Add another address" in the top bar brings back step 1
-    await page.getByRole("button", { name: "Add another address" }).click();
-    await said(page, "Whose name goes on the envelope?");
-    assert.ok(await page.locator("#dialog").isVisible());
-    await page.locator(".night-greeting").waitFor({ state: "hidden" });
-    assert.ok(await page.getByRole("button", { name: "Add another address" }).isHidden());
-    await assertWholeRoom(page, "phone, after restart");
+    // One browser holds one family, so nothing offers a second sign-up.
+    assert.equal(await page.getByRole("button", { name: "Add another address" }).count(), 0);
+    assert.equal(await page.getByText("Add another address").count(), 0);
 
     // "?new" forgets this browser's families, starts at step 1, keeps the sound setting, and leaves the address clean
     await page.evaluate(() => localStorage.setItem("hc.sound", "off"));

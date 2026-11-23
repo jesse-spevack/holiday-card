@@ -471,7 +471,7 @@ export class Scene {
     return this.drawn;
   }
 
-  // ---- HTML on top: bubbles, nametags, popovers ----
+  // ---- HTML on top: bubbles and nametags ----
   pin(el, x, y) {
     el.style.left = `${(x / ROOM_W) * 100}%`;
     el.style.top = `${(y / ROOM_H) * 100}%`;
@@ -490,7 +490,6 @@ export class Scene {
       const y = Math.max(...members.map((s) => s.y));
       this.pin(fam.tagEl, x, y + 3);
     }
-    if (this.popEl && this.popSprite) this.pinPop();
   }
 
   // A bubble sits above its sprite, but it stays inside the stage near an edge.
@@ -501,19 +500,6 @@ export class Scene {
     const x = clamp(left + s.x * scale, gap + half, this.stage.clientWidth - gap - half);
     s.bubbleEl.style.left = `${x - left}px`;
     s.bubbleEl.style.top = `${((s.y - (s.img?.height || 30) - 3) / ROOM_H) * 100}%`;
-  }
-
-  // The editor popover sits above its sprite, but it stays inside the stage near an edge.
-  pinPop() {
-    const { popEl: el, popSprite: s } = this;
-    const { left, top, scale } = this.view;
-    const gap = 8;
-    const x = left + s.x * scale;
-    const y = top + (s.y - (s.img?.height || 30) - 4) * scale;
-    const cx = clamp(x, gap + el.offsetWidth / 2, this.stage.clientWidth - gap - el.offsetWidth / 2);
-    const bottom = clamp(y, gap + el.offsetHeight, this.stage.clientHeight - gap);
-    el.style.left = `${cx - left}px`;
-    el.style.top = `${bottom - top}px`;
   }
 
   // An empty text takes the bubble away.
@@ -615,22 +601,6 @@ export class Scene {
     }
   }
 
-  openPop(sprite, el) {
-    this.closePop();
-    this.popSprite = sprite;
-    this.popEl = el;
-    el.classList.add("pop");
-    el.addEventListener("pointerup", (e) => e.stopPropagation());
-    this.overlay.append(el);
-    this.updateOverlay();
-  }
-
-  closePop() {
-    this.popEl?.remove();
-    this.popEl = null;
-    this.popSprite = null;
-  }
-
   // The sprite under a point. A tap prefers a sprite it hits. Then, with `min` (the smallest target in room
   // pixels, for a finger), it takes the nearest sprite whose area grown to that size holds the point.
   spriteAt(x, y, min = 0) {
@@ -682,7 +652,6 @@ export class Scene {
   }
 
   handlePress(e) {
-    if (this.popEl && this.popEl.contains(e.target)) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
     this.showPress(this.targetAt(e), true);
   }
@@ -695,14 +664,12 @@ export class Scene {
   }
 
   handleTap(e) {
-    if (this.popEl && this.popEl.contains(e.target)) return;
     const target = this.targetAt(e);
     this.showPress(target, false);
     if (target?.sprite) {
       this.onTap(target.sprite);
       return;
     }
-    this.closePop();
     if (target?.spot) this.onHotspot(target.spot.id);
   }
 }

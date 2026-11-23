@@ -1,4 +1,4 @@
-// "My address": a guest with a family in this browser sees the address on file and changes it.
+// "Change address" in "My family": a guest with a family in this browser sees the address on file and changes it.
 // Also the US-only lines on the sign-up form.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,18 +16,23 @@ async function returnVisit(options = {}) {
 }
 
 const changeCalls = (calls) => calls.filter((c) => c.path === "/api/address/change");
+// "My family" in the top bar, then "Change address" in it.
+async function openAddress(page) {
+  await page.getByRole("button", { name: "My family" }).click();
+  await page.getByRole("button", { name: "Change address" }).click();
+}
 
 describe("my address", { concurrency: true }, () => {
   test("a returning guest changes the address and the envelope name", async () => {
     const { page, calls, hc } = await returnVisit({ viewport: { width: 400, height: 844 }, deviceScaleFactor: 2 });
-    await page.getByRole("button", { name: "My address" }).click();
+    await openAddress(page);
 
     await said(page, "We'll mail your card to:");
     assert.equal(await page.locator(".address").innerText(), "The Garcia Family\n1428 Maple Ave, Apt 2B\nEvanston, IL 60201");
     const read = calls.find((c) => c.path === "/api/address/read");
     assert.deepEqual(read.body, { id: GARCIA.id, token: GARCIA.token });
     // The top bar buttons hide while the dialog shows.
-    assert.ok(await page.getByRole("button", { name: "My address" }).isHidden());
+    assert.ok(await page.getByRole("button", { name: "My family" }).isHidden());
     await typed(page);
     await page.screenshot({ path: `${OUT}/address-on-file.png` });
 
@@ -59,9 +64,12 @@ describe("my address", { concurrency: true }, () => {
     });
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("hc.families")));
     assert.equal(saved[0].name, "The Garcia-Lee Family");
-    // The thank-you goes away on its own, and the party shows the new name.
+    // The thank-you goes back to My family on its own, with the new name. Done shows the party with the new name.
+    await page.locator("#dialog .speaker", { hasText: "The Garcia-Lee Family" }).waitFor();
+    await said(page, "Who do you want to change?");
+    await page.getByRole("button", { name: "Done" }).click();
     await page.locator("#dialog").waitFor({ state: "hidden" });
-    await page.getByRole("button", { name: "My address" }).waitFor();
+    await page.getByRole("button", { name: "My family" }).waitFor();
     const at = await hc.pointOn({ familyId: GARCIA.id });
     await page.mouse.move(at.x, at.y);
     await page.locator(".tag", { hasText: "The Garcia-Lee Family" }).waitFor();
@@ -69,13 +77,13 @@ describe("my address", { concurrency: true }, () => {
 
   test("'Yes, all good' closes with no change, and 'Same address' keeps the address", async () => {
     const { page, calls } = await returnVisit();
-    await page.getByRole("button", { name: "My address" }).click();
+    await openAddress(page);
     await page.getByRole("button", { name: "Yes, all good" }).click();
-    await page.locator("#dialog").waitFor({ state: "hidden" });
+    await said(page, "Who do you want to change?");
     assert.equal(changeCalls(calls).length, 0);
 
     // A second look reads the address again, and a new envelope name can keep the old address.
-    await page.getByRole("button", { name: "My address" }).click();
+    await page.getByRole("button", { name: "Change address" }).click();
     await page.getByRole("button", { name: "Change it" }).click();
     await page.getByLabel("Name on the envelope").fill("The Garcias");
     await page.getByRole("button", { name: "Next" }).click();
@@ -90,7 +98,7 @@ describe("my address", { concurrency: true }, () => {
 
   test("a family with no address on file tells it again", async () => {
     const { page, calls } = await returnVisit({ onFile: null });
-    await page.getByRole("button", { name: "My address" }).click();
+    await openAddress(page);
     await said(page, "we can't find your address");
     await page.getByRole("button", { name: "Next" }).click();
     assert.equal(await page.getByLabel("Name on the envelope").inputValue(), GARCIA.name);
@@ -105,26 +113,16 @@ describe("my address", { concurrency: true }, () => {
     assert.equal(changeCalls(calls).length, 1);
   });
 
-  test("a browser with two families picks one", async () => {
+  test("a browser with two families changes the address of the family on show", async () => {
     const onFile = (id) => (id === LEES.id ? { envelope: LEES.name, address: { street: "9 Elm St", unit: "", city: "Denver", state: "CO", zip: "80203" } } : ON_FILE);
     const { page, calls } = await returnVisit({ mine: [GARCIA, LEES], onFile });
-    await page.getByRole("button", { name: "My address" }).click();
-    await said(page, "Which address?");
-    await page.getByRole("button", { name: "The Lee Family" }).click();
+    await openAddress(page);
     await said(page, "We'll mail your card to:");
     assert.equal(await page.locator(".address").innerText(), "The Lee Family\n9 Elm St\nDenver, CO 80203");
     assert.equal(calls.find((c) => c.path === "/api/address/read").body.id, LEES.id);
-  });
-
-  test("the two top bar buttons fit on a small phone", async () => {
-    for (const width of [400, 360]) {
-      const { page } = await returnVisit({ viewport: { width, height: 740 } });
-      const boxes = await page.evaluate(() => ["my-address", "again", "sound"].map((id) => document.getElementById(id).getBoundingClientRect().toJSON()));
-      const [mine, again, sound] = boxes;
-      assert.ok(mine.left >= 0 && mine.right <= again.left - 4 && again.right <= sound.left - 4 && sound.right <= width, `${width}: ${JSON.stringify(boxes)}`);
-      assert.ok(boxes.every((b) => b.height >= 44), JSON.stringify(boxes));
-      if (width === 360) await page.screenshot({ path: `${OUT}/address-bar-360.png` });
-    }
+    // Back goes to My family of the same family.
+    await page.getByRole("button", { name: "Yes, all good" }).click();
+    await page.locator("#dialog .speaker", { hasText: "The Lee Family" }).waitFor();
   });
 });
 
@@ -168,7 +166,7 @@ describe("US addresses only", { concurrency: true }, () => {
 
   test("the change refuses a typed address outside the US", async () => {
     const { page, calls } = await returnVisit();
-    await page.getByRole("button", { name: "My address" }).click();
+    await openAddress(page);
     await page.getByRole("button", { name: "Change it" }).click();
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByLabel("Street address").fill("zzzz 55 King St W, Toronto ON, Canada");

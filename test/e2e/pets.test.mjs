@@ -41,19 +41,20 @@ describe("the pets", { concurrency: true }, () => {
     assert.deepEqual(await hc.sounds(), ["mrrp"]);
     await hc.advance(0.3);
     await page.screenshot({ path: `${OUT}/pet-cat.png` });
-    assert.equal(await page.locator(".pop").count(), 0, "another family's pet never opens the editor");
+    assert.equal(await page.locator(".fam-grid").count(), 0, "another family's pet never opens My family");
 
-    // your own pet reacts, and the editor opens too, with the woof in place of the chime
+    // your own pet reacts, and My family opens on it too, with the woof in place of the chime.
+    // A pet gets a line and a new look, as a person does.
     const ownDog = await hc.pointOn({ familyId: "fam12345", type: "dog" });
     await page.touchscreen.tap(ownDog.x, ownDog.y);
-    await page.getByLabel("Say something").waitFor();
+    await page.getByLabel("What should they say").waitFor();
+    await page.getByRole("button", { name: "New look" }).waitFor();
     assert.equal((await reaction({ familyId: "fam12345", type: "dog" }))?.kind, "dog");
     assert.deepEqual(await hc.sounds(), ["woof"]);
-    // a person in your family opens the editor with its chime, and does not react
-    await page.touchscreen.tap(2, 2);
+    // a person in your family opens My family with its chime, and does not react
     const ownMom = await hc.pointOn({ familyId: "fam12345", type: "adult" });
     await page.touchscreen.tap(ownMom.x, ownMom.y);
-    await page.getByLabel("Say something").waitFor();
+    await page.waitForFunction(() => document.querySelector('.fam-card[aria-pressed="true"]')?.dataset.index === "0");
     assert.equal(await reaction({ familyId: "fam12345", type: "adult" }), null);
     assert.deepEqual(await hc.sounds(), ["select"]);
   });

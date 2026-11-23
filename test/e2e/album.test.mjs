@@ -60,7 +60,7 @@ describe("the photo album", { concurrency: true }, () => {
       await page.locator("figcaption", { hasText: "Waymos arrived in Denver" }).waitFor();
       const opened = name === "phone" ? "coverOpen: swish" : "coverOpen: book-open";
       assert.deepEqual(await sounds(), [opened]);
-      assert.equal(await page.locator(".pop").count(), 0, "the book never opens the sprite editor");
+      assert.equal(await page.locator(".fam-grid").count(), 0, "the book never opens My family");
       assert.equal(await hc.bookHidden(), true);
       // the book is pixel art scaled by a whole number, and the photos stay smooth
       const art = await page.evaluate(() => {
