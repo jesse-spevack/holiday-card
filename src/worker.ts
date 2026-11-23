@@ -99,8 +99,9 @@ async function submit(request: Request, env: Env): Promise<Response> {
   await rateLimit(env.WRITE_LIMIT, request);
   const body = await readJson(request);
   // The bot trap: a person never fills `extra` (the hidden input in index.html). A bot gets a fake 201, and nothing is written.
+  // The error log gets a row, so `pnpm errors` shows it if autofill ever fills the trap for a real guest.
   if (typeof body.extra === "string" && body.extra.trim()) {
-    console.log("submit_trap");
+    await logError(env, request, { source: "worker", route: "POST /api/submit", code: "submit_trap", status: 201 });
     return json({ id: crypto.randomUUID(), token: crypto.randomUUID() }, 201);
   }
   const envelope = field(body, "envelope", { max: 120 });
