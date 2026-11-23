@@ -446,6 +446,8 @@ export default {
     return {
       // The game grows from the small dreidel that the guest taps.
       tap: (id) => dreidel.open(() => scene.roomRect(DREIDELS[id])),
+      // From the tap until the game closes.
+      get covers() { return dreidel.isOpen || dreidel.busy; },
       test: ({ spy }) => ({
         // { face, speed }: the side to land on and how much faster the clock runs.
         rigDreidel: (rig) => { dreidel.rig = rig; },

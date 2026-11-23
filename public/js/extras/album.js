@@ -582,6 +582,8 @@ export default {
       layer: book,
       open: () => !!(book.img && book.shown),
       tap: () => album.open(),
+      // From the tap, while the album loads, until it closes.
+      get covers() { return album.isOpen || album.busy; },
       test: ({ rect, center }) => ({
         loaded: () => ({ book: !!book.img }),
         bookCenter: () => center(bookRect()),

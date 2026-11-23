@@ -8,6 +8,9 @@ import { openPicker } from "./js/picker.js";
 import { setupExtras } from "./js/registry.js";
 import { createFound } from "./js/found.js";
 import { Night } from "./js/night.js";
+import { Glint } from "./js/glint.js";
+import { Idle } from "./js/idle.js";
+import { Counter, DONE_LINE } from "./js/counter.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -26,6 +29,29 @@ const dialog = $("dialog");
 const found = createFound({ family: () => state.mine.at(-1) });
 const extras = setupExtras({ scene, sound, reducedMotion, found: found.mark, mine: () => state.mine });
 const night = new Night({ stage: $("stage"), reducedMotion, clock: scene });
+// The help to find the hidden extras. It starts after the thank-you tucks away (tuck): the glint on an extra that the guest
+// has not found, the hosts' own lines while the guest does nothing, and the counter in the corner of the room.
+const unfound = () => extras.fitting().filter((e) => !found.has(e.name));
+const hidden = (egg) => !found.has(egg) && extras.fits(egg);
+const glint = new Glint({ scene, reducedMotion, targets: unfound });
+// The guest is busy while a window covers the room (the album, the dreidel game, the look picker) or the sprite editor shows.
+const busy = () => !!scene.popEl || extras.covered() || !!document.querySelector('[aria-modal="true"]:not([hidden])');
+const idle = new Idle({ scene, shows: hidden, left: () => unfound().length, busy });
+scene.addLayer(glint);
+scene.addLayer(idle);
+const counter = new Counter({
+  scene, fitting: () => extras.fitting(), has: found.has, busy,
+  onAsk: () => {
+    sound.select();
+    idle.hint();
+  },
+  onDone: (spots) => {
+    glint.burst(spots);
+    sound.fanfare();
+    const jess = scene.sprites.find((s) => s.id === "jessica");
+    if (jess) scene.say(jess, DONE_LINE, 4);
+  },
+});
 const again = $("again");
 const TUCK_MS = 7000;
 const SAVED = "hc.families";
@@ -338,7 +364,8 @@ async function send() {
 let tuckTimer = null;
 function stepDone() {
   frame("Thank you. You mean a lot to us.",
-    h("p", { class: "hint" }, "Your family is at our party now. Tap them to change a look or say something. Then poke around the room. A few things in here might surprise you."),
+    h("p", { class: "hint" }, "Your family is at our party now. Tap them to change a look or say something."),
+    h("p", { class: "hint surprise" }, "Tap around the room. We hid some surprises."),
     btn("Add another address", restart, "link"));
   tuckTimer = setTimeout(tuckAway, TUCK_MS);
 }
@@ -365,6 +392,11 @@ function tuck(away) {
   }
   app.classList.toggle("tucked", away);
   night.showGreeting(away);
+  // Only a guest with a family in this browser gets the help, since a found extra is recorded for a family.
+  const help = away && state.mine.length > 0;
+  glint[help ? "start" : "stop"]();
+  idle[help ? "start" : "stop"]();
+  counter.show(help);
   if (away && hadFocus) again.focus();
 }
 
@@ -453,10 +485,11 @@ async function loadParty(first) {
   }
 }
 
+// A guest's bubble waits for its next turn while it would cover another bubble, such as a host's line.
 function cycleBubbles() {
   const talkers = scene.sprites.filter((s) => s.bubble && !s.bubbleEl);
   const s = talkers[Math.floor(Math.random() * talkers.length)];
-  if (s) scene.say(s, s.bubble, 4);
+  if (s) scene.sayClear(s, s.bubble, 4);
 }
 
 const hostSprites = () => scene.sprites.filter((s) => s.host);
@@ -479,7 +512,7 @@ function onTap(sprite) {
     sound.select();
     scene.pause(sprite, 3);
     scene.showNames(hostSprites(), 3);
-    scene.say(sprite, hostLine(sprite, (egg) => !found.has(egg) && extras.fits(egg)), 4);
+    scene.say(sprite, hostLine(sprite, hidden), 4);
     return;
   }
   // An extra can react to a tap on a guest (a pet does). In your own family, the editor opens at the same time.
@@ -575,6 +608,6 @@ if (new URLSearchParams(location.search).has("test")) {
     if (tuckTimer) tuckAway();
     return app.classList.contains("tucked");
   };
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found, tuckNow }); });
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter }); });
 }
 start();

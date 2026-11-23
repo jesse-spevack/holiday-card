@@ -4,7 +4,7 @@
 // The plants, their tap areas, and the flower spots are PLANTS in room.js. The scene draws this module as a layer.
 
 import { PLANTS, ROOM_W, ROOM_H } from "../room.js";
-import { eachPixel } from "../pixels.js";
+import { eachPixel, drawTwinkle } from "../pixels.js";
 import { PALETTE } from "../palette.js";
 import { NIGHT_TINT } from "./lamp.js";
 
@@ -177,13 +177,7 @@ export class Plants {
       // A dot, then a gold cross with a white heart, then a dot again.
       const k = age / T.twinkle;
       const big = this.reducedMotion || (k > 0.25 && k < 0.7);
-      g.fillStyle = PALETTE.gold;
-      if (big) {
-        g.fillRect(t.x - 1, t.y, 3, 1);
-        g.fillRect(t.x, t.y - 1, 1, 3);
-      }
-      g.fillStyle = "#ffffff";
-      g.fillRect(t.x, t.y, 1, 1);
+      drawTwinkle(g, t.x, t.y, big ? 1 : 0, { gold: PALETTE.gold });
     }
   }
 

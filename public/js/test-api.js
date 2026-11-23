@@ -7,9 +7,11 @@
 import { TAP_PX, pickSpot } from "./scene.js";
 import { HOSTS, HOST_LINES } from "./hosts.js";
 import { HOTSPOTS } from "./registry.js";
+import { GLINT } from "./glint.js";
+import { IDLE } from "./idle.js";
 import { FLOOR, WINDOW } from "./room.js";
 
-export function testApi({ scene, sound, extras, found, tuckNow }) {
+export function testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -134,8 +136,8 @@ export function testApi({ scene, sound, extras, found, tuckNow }) {
       }
       return out;
     },
-    // HOTSPOTS, FLOOR, HOSTS, HOST_LINES, TAP_PX, and WINDOW, and the constants of the extras (DREIDELS, PLANTS, TRUCK).
-    constants: () => ({ HOTSPOTS, FLOOR, HOSTS, HOST_LINES, TAP_PX, WINDOW, ...fromExtras.constants() }),
+    // HOTSPOTS, FLOOR, HOSTS, HOST_LINES, TAP_PX, WINDOW, GLINT, and IDLE, and the constants of the extras (DREIDELS, PLANTS, TRUCK).
+    constants: () => ({ HOTSPOTS, FLOOR, HOSTS, HOST_LINES, TAP_PX, WINDOW, GLINT, IDLE, ...fromExtras.constants() }),
 
     // ---- the hidden extras ----
     // The state of the room extras that have no test API of their own: { star, lampOn, lighting, menorahLit, flames, candles,
@@ -146,6 +148,16 @@ export function testApi({ scene, sound, extras, found, tuckNow }) {
       const [r, g, b] = scene.ctx.getImageData(x, y, 1, 1).data;
       return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
     },
+    // ---- the help to find the extras ----
+    // The glint: { on, shown: { egg, id, x, y, age } or null, nextIn, twinkles }. x, y is the white heart in room pixels.
+    glint: () => glint.state(),
+    // The hosts' own lines: { on, quiet, wait, said: [{ host, text, hint, at }] }. quiet and wait are scene seconds.
+    idle: () => idle.state(),
+    // The counter: { shown, text, done, celebrations, found, total, missing, box }. missing is the names of the extras left.
+    counter: () => counter.state(),
+    // Says a line over a sprite for `seconds` of wall time, as a guest's bubble does. An empty text takes the bubble away.
+    say: (want, text, seconds = 30) => scene.say(one(want), text, seconds),
+
     // Marks extras as found, so the hosts stop their hints.
     found: (...names) => { for (const name of names) found.seen.add(name); },
     // The time in ms between two interaction calls for the same extra (found.js). The page uses 5000.

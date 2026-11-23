@@ -22,6 +22,7 @@
 //   open(id)            false while the spot `id` takes no taps (the book while the album is open).
 //   tapSprite(sprite)   a tap on a guest sprite. Return true when the extra reacts; the registry then records it.
 //   look(sprite, look)  a guest puts a new look on their own sprite. Return true when that finds the extra.
+//   covers              true while a window of the extra covers the room (the album, the dreidel game), from the tap until it closes.
 //   test(helpers)       the extra's part of the test API on window.__hc (test-api.js). helpers is { rect, center, spy }.
 
 import { EXTRAS } from "./extras/index.js";
@@ -77,6 +78,16 @@ export function setupExtras({ scene, sound, reducedMotion, found, mine }) {
     fits(name) {
       const e = EXTRAS.find((x) => x.name === name);
       return e?.fits ? e.fits(ctxOf(e)) : true;
+    },
+    // True while a window of an extra covers the room.
+    covered: () => EXTRAS.some((e) => live.get(e.name).covers),
+    // The extras that fit this guest now, in the order of the list: [{ name, spots }].
+    // spots are the tap areas of the extra that take taps now. An extra with no tap area (a car, the pets) has none.
+    fitting() {
+      return EXTRAS.filter((e) => !e.fits || e.fits(ctxOf(e))).map((e) => ({
+        name: e.name,
+        spots: scene.spots.filter((s) => owner.get(s.id) === e && (s.open?.() ?? true)),
+      }));
     },
     // The test API of every extra. A name that two extras give must be the same function.
     // eggs, constants, and loaded give an object, and the test API joins the objects of every extra.

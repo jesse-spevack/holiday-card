@@ -516,8 +516,10 @@ export class Scene {
     el.style.top = `${bottom - top}px`;
   }
 
+  // An empty text takes the bubble away.
   say(sprite, text, seconds = 4) {
-    if (sprite.bubbleEl) sprite.bubbleEl.remove();
+    sprite.bubbleEl?.remove();
+    sprite.bubbleEl = null;
     clearTimeout(sprite.bubbleTimer);
     if (!text) return;
     const el = document.createElement("div");
@@ -534,6 +536,17 @@ export class Scene {
         if (sprite.bubbleEl === el) sprite.bubbleEl = null;
       }, seconds * 1000);
     }
+  }
+
+  // Says the line only when its bubble covers no other bubble, and returns true. Else nothing shows, and it returns false.
+  // A sprite that says a line already does not say a new one.
+  sayClear(sprite, text, seconds = 4) {
+    if (sprite.bubbleEl) return false;
+    this.say(sprite, text, seconds);
+    const box = bubbleBox(sprite.bubbleEl);
+    const clash = this.sprites.some((s) => s !== sprite && s.bubbleEl && overlaps(box, bubbleBox(s.bubbleEl)));
+    if (clash) this.say(sprite, "");
+    return !clash;
   }
 
   // A name label under a family. It shows on hover or for a few seconds after a tap.
@@ -706,6 +719,15 @@ function fitBubble(el) {
   if (widest) el.style.width = `${Math.ceil(widest + sides) + 1}px`;
   el.style.animation = "";
 }
+
+// The box of a bubble in the overlay, without its pop animation. Every bubble moves up by its height and left by half its width.
+function bubbleBox(el) {
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  return { x: el.offsetLeft - w / 2, y: el.offsetTop - h, w, h };
+}
+// Two boxes overlap, with a gap of `gap` pixels or less between them.
+const overlaps = (a, b, gap = 2) => a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
 
 const inside = (b, x, y) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
 
