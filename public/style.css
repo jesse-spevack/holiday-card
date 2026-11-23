@@ -45,6 +45,15 @@ button, input { font: inherit; }
   border: 2px solid var(--line); font-size: 15px; white-space: nowrap; cursor: pointer;
   animation: fade-in 200ms ease both;
 }
+/* "Demo" in the top bar, only in demo mode (/#demo, demo.js). Calm: muted letters in a thin box, like the counter's label. */
+.demo-tag {
+  display: inline-block;
+  padding: 4px 7px 3px;
+  border: 2px solid var(--line);
+  color: var(--muted);
+  font-family: var(--label); font-size: 11px; line-height: 1; letter-spacing: 0.06em;
+}
+.demo-tag[hidden] { display: none; }
 .sound .mute { display: none; }
 .sound[aria-pressed="false"] .wave { display: none; }
 .sound[aria-pressed="false"] .mute { display: block; }

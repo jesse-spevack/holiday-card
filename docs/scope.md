@@ -167,6 +167,14 @@ Nothing on screen points to these.
   The gelt coin sounds are `gelt-pile` and `gelt-few` in `public/assets/sounds/`, from the same Kenney pack.
 - For a test, `?test` exposes the game as `window.__hc.dreidel`. Set `rig = { face: "gimel", speed: 6 }` to choose the side and run the clock faster.
 
+## Demo mode
+
+- `/#demo` shows the site as a guest who just signed up, with a made-up family: the arrival, the thank-you, then the party. Jesse uses it to see
+  the whole guest view with no sign-up, also on a preview of a branch.
+- Nothing leaves the page: no sign-up, no Sheet call, no D1 write, and no interaction record. The real party shows around the demo family.
+- A calm "Demo" label shows in the top bar. A guest never sees it unless they open `/#demo`.
+- Details: `docs/form.md`, after the flow.
+
 ## Privacy
 
 - The party shows the household name only.

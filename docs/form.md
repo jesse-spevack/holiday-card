@@ -48,6 +48,13 @@ The hosts ("Jesse, Jess, Eddie & Audrey Spevack") ask one question at a time in 
 
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 
+To see the site as a guest who just signed up, open `/#demo` (`public/js/demo.js`). "The Demo Family" (two grown-ups, a kid, and a dog,
+with made-up lines) walks in, the hosts thank them, and the party goes on with "My family", the counter, the glint, the hosts' hints, and every extra.
+"Demo" shows at the left of the top bar. Every write stays in the page: `api.js` answers each POST with `demoWrite`, and only the reads
+(the party, the config, and Google Places) go out. "Change address" shows a made-up address and changes it in the page only.
+The demo family and its finds live in memory, never in `hc.families` or `hc.found`, so a reload of `/#demo` starts fresh,
+and the site with no `#demo` shows the browser's own state.
+
 "New look" in "My family" opens the look picker. A person sees every person look, from the oldest to the youngest, then the silly looks.
 A pet sees the dogs, then the cats, then the silly pets. Each person look in `looks.json` has an `age`: `older`, `adult`, `teen`, `kid`, or `baby`.
 

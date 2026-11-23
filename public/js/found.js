@@ -1,9 +1,10 @@
 // The hidden extras that this browser found, and the record of each interaction with them.
 // The registry (registry.js) calls mark(name) on each interaction with an extra, not only the first.
 // mark tells the Worker (POST /api/interaction), and the hosts stop a hint after the guest finds its extra.
-// The found list stays in local storage for the next visit.
+// The found list stays in local storage for the next visit, except in demo mode (demo.js).
 
 import { api } from "./api.js";
+import { DEMO } from "./demo.js";
 
 const KEY = "hc.found";
 
@@ -30,12 +31,15 @@ export function createFound({ family }) {
     track(egg);
     if (seen.has(egg)) return;
     seen.add(egg);
+    if (DEMO) return;
     try { localStorage.setItem(KEY, JSON.stringify([...seen])); } catch {}
   }
 
   return { seen, tracking, mark, has: (egg) => seen.has(egg) };
 }
 
+// Demo mode starts with nothing found and keeps its finds in memory, so the browser's own list stays as it was.
 function load() {
+  if (DEMO) return [];
   try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
 }
