@@ -61,6 +61,7 @@ describe("the hosts speak on their own", { concurrency: true }, () => {
     const sprite = await hc.sprite({ host: true, name: first.host });
     assert.equal(sprite.bubble, first.text, "the line shows in a bubble over the host");
     assert.equal(sprite.bubbleClipped, false);
+    await animationsDone(page);
     await page.screenshot({ path: `${OUT}/idle-hint.png` });
 
     // a tap on the wall starts the wait again
