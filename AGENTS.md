@@ -23,7 +23,8 @@ One Cloudflare Worker serves the static files in `public/` and the API. `wrangle
 | File | Owns |
 |---|---|
 | `src/worker.ts` | The router and the handlers for each route |
-| `src/http.ts` | `HttpError`, JSON replies, field checks, rate limits, and `callService` (one timeout and error shape for every outside service) |
+| `src/http.ts` | `HttpError`, JSON replies, field checks, rate limits, and `callService` (one timeout and error shape for every outside service, and a log line for each failed call) |
+| `src/log.ts` | The error log: one JSON line in Workers Logs and one D1 `errors` row for each failed request and each page report, the browser class (`uaClass`), and the 30-day limit |
 | `src/household.ts` | `POST /api/household`: one OpenRouter call that turns "who lives at your house" into members |
 | `src/places.ts` | `GET /api/places` and `GET /api/place`: Google Places address suggestions and details, US only |
 | `src/address.ts` | The mailing address in a request body, with the US-only check from `public/js/us.js` |
@@ -43,6 +44,7 @@ No build step. The browser loads ES modules as they are.
 | `public/app.js` | The form steps, the party loop, "My family" (the panel that edits each person), and the wiring of all modules. It names no hidden extra |
 | `public/js/marker.js` | The gold arrow over the person that "My family" picks. A scene layer that follows the sprite, and the zoomed camera with it |
 | `public/js/api.js` | Every call to the Worker |
+| `public/js/report.js` | The page's error reports (`POST /api/log`): each failure that a guest sees, an error that nothing caught, and a call that never reaches the Worker. Demo mode sends none |
 | `public/js/us.js` | The US-only rule for a mailing address, and the host lines for it. The Worker and the scripts import it too |
 | `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter and the twinkle (`drawTwinkle`); the page colors |
 | `public/js/masks.js`, `public/js/words.js` | Shared helpers for the extras: room-sized masks and the sky behind the window glass; the words that show on the room for a moment |
@@ -95,7 +97,7 @@ Python scripts with Pillow, and one Node script, run from the repo root. The doc
 
 ### Other
 
-- `migrations/`: the D1 schema. The tables are `families`, `members`, `party_version`, `interactions`, and `invites`.
+- `migrations/`: the D1 schema. The tables are `families`, `members`, `party_version`, `interactions`, `invites`, and `errors`.
 - `apps-script/`: the Apps Script that adds, reads, and changes rows in the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
 - `test/api.test.ts`: Worker tests in the Workers runtime, with fake outbound calls in `test/outbound.ts`.
   `test/extras.test.ts` checks that `EGGS` holds the name of each extra in `public/js/extras/index.js`, and no other name.
@@ -106,7 +108,7 @@ Python scripts with Pillow, and one Node script, run from the repo root. The doc
   `harness.mjs` holds the server, the fake API, the test looks, and the helpers. Each `*.test.mjs` file covers one feature.
   The tests read and drive the page's state only through `window.__hc`. After a change inside a page module, change `public/js/test-api.js`
   or the `test` of the extra, not the tests. A few checks also import the pure functions in `extras/pets.js`, `extras/hanukkah.js`, and `sound.js`.
-- `scripts/`: `preview.sh`, `deploy.sh`, the deploy hook `no-direct-deploy.mjs`, `interactions.sh`,
+- `scripts/`: `preview.sh`, `deploy.sh`, the deploy hook `no-direct-deploy.mjs`, `interactions.sh`, `errors.sh`,
   `sheet-dupes.mjs` with its pure rules in `dupes.ts`, and `invite.mjs` with its pure rules in `invites.ts`.
   Node runs each `.ts` file as it is, with no build step.
 
@@ -123,6 +125,7 @@ pnpm typecheck
 pnpm og            # make the link preview again from the page, see art/scripts/og.mjs
 pnpm preview        # upload this branch as a preview and print its URL
 pnpm interactions   # read only: the hidden extras that each family played with, from the production D1. Add --local for pnpm dev
+pnpm errors         # read only: the last 50 errors, newest first, from the production D1. Add a number for more, or --local for pnpm dev
 pnpm sheet:dupes    # read only: the guests with the same mailing address in the contact Sheet. Add --apply to delete the extra rows
 pnpm invite friends.csv   # a custom link for each friend in the CSV. With no file, it asks in prompts. Only Jesse runs it
 pnpm invite --list  # read only: each invite's envelope name and status, with no addresses
@@ -254,6 +257,11 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
 - D1 holds the party: families, members, looks, and chat bubbles. The party API never returns an address or the household text.
 - D1 also holds `interactions`: for each family and egg, a count, the first time, and the last time. It holds no IP and no user agent.
   The party API never returns it, and it has no `party_version` trigger, so a tap does not make each page fetch the party again. `pnpm interactions` reads it.
+- D1 also holds `errors`: one row for each failed API request (source `worker`) and each failure that the page reports (source `page`).
+  A row holds the route or step, the error code, the status, a short detail, the browser class, the country, the family id, and the version.
+  It never holds an address, a name, the household text, a bubble, a token, or an IP. Keep it so: log codes, field names, and booleans only.
+  `POST /api/log` keeps only its allowed fields, and a test proves that a submit with an address leaves no trace of it.
+  `src/log.ts` deletes rows older than 30 days and keeps at most 5000. `pnpm errors` reads it. Workers Logs has the same lines.
 - KV (`ALBUM`) holds the photo album: web copies of the photos and the page list.
 - Photos and captions NEVER go in git. The repo is public, and the original photos hold GPS data.
   The originals and `captions.json` stay in `~/Pictures/holiday-card-album/`. `python3 art/scripts/album.py` strips the metadata and uploads them.
@@ -273,7 +281,8 @@ Never write a secret value in a file in this repo. Names only.
 | `OPENROUTER_MODEL`, `SHEET_URL` | Vars in `wrangler.jsonc` | Public values |
 | `DB` | D1 binding | Database `holiday-card` |
 | `ALBUM` | KV binding | Namespace `holiday-card-album` |
-| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT`, `ADDRESS_LIMIT`, `INVITE_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
+| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT`, `ADDRESS_LIMIT`, `INVITE_LIMIT`, `LOG_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
+| `CF_VERSION_METADATA` | Version metadata binding | `wrangler.jsonc`. The error log writes the first 8 characters of the version id |
 | `PIXELLAB_KEY` | Env var for the art scripts | 1Password vault `keys`, item `CozyChat`, field `PIXEL_LAB_KEY`. `pixellab.py` reads it with `op read` when the env var is not set |
 | Retro Diffusion key | No script uses it now | 1Password vault `keys`, item `CozyChat`, field `RETRO_DIFFUSION_KEY` |
 
