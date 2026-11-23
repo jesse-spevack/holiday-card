@@ -250,6 +250,8 @@ describe("submit", () => {
     expect(await response.json()).toEqual({ id: expect.any(String), token: expect.any(String) });
     expect(services.calls).toHaveLength(0);
     expect((await getParty()).families).toHaveLength(0);
+    const row = await env.DB.prepare("SELECT code, status FROM errors WHERE code = 'submit_trap'").first();
+    expect(row).toEqual({ code: "submit_trap", status: 201 });
   });
 
   it("signs up an old cached page that still sends a Turnstile token", async () => {
