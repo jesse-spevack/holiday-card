@@ -2,7 +2,8 @@
 // Finds the guests who are in the contact Sheet more than once, and on request deletes the extra rows.
 //   pnpm sheet:dupes            read only: print each group of rows with the same mailing address
 //   pnpm sheet:dupes --apply    also delete the extra rows, after a CSV backup outside the repo
-// Two rows are duplicates when they have the same address key or the same family id (scripts/dupes.ts). The newest row stays.
+// Two rows are duplicates when they have the same address key or the same family id (scripts/dupes.ts).
+// A confirmed row wins over an invited row. Then the newest row stays.
 // It also prints, but never deletes, one name at two or more addresses.
 // It gets a token as Jesse with gcloud and the service account in apps-script/README.md ("Maintain the Sheet").
 import { execFileSync } from "node:child_process";
@@ -48,14 +49,14 @@ async function call(path, init = {}) {
 
 // UNFORMATTED_VALUE gives added_at as a serial number, so the dates compare as numbers.
 async function readRows() {
-  const range = encodeURIComponent(`${TAB}!A:J`);
+  const range = encodeURIComponent(`${TAB}!A:K`);
   const body = await call(`/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`);
   return body.values ?? [];
 }
 
 const address = (c) => [c.street, c.unit, c.city, [c.state, c.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 const line = (label, c) =>
-  `  ${label.padEnd(6)} row ${String(c.row).padEnd(4)} ${serialToText(c.addedAt).slice(0, 16).padEnd(16)}  ${c.name} / ${c.household} / ${address(c)}`;
+  `  ${label.padEnd(6)} row ${String(c.row).padEnd(4)} ${serialToText(c.addedAt).slice(0, 16).padEnd(16)}  ${(c.status || "confirmed").padEnd(9)}  ${c.name} / ${c.household} / ${address(c)}`;
 
 const values = await readRows();
 const contacts = parseValues(values);
@@ -65,7 +66,7 @@ const remove = groups.flatMap((g) => g.remove).sort((a, b) => a.row - b.row);
 console.log(`${contacts.length} contacts in the ${TAB} tab. Times are in the time zone of the Sheet.\n`);
 
 if (groups.length) {
-  console.log("Same mailing address or same family. The newest row stays:");
+  console.log("Same mailing address or same family. A confirmed row wins over an invited row, then the newest row stays:");
   for (const g of groups) {
     console.log(`\n${g.key}`);
     for (const c of [g.keep, ...g.remove].sort((a, b) => a.row - b.row)) console.log(line(c === g.keep ? "keep" : "delete", c));

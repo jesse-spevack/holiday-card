@@ -6,7 +6,7 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
 
 ## Guest flow
 
-1. The guest opens one shared link. There is no passcode and no per-person link.
+1. The guest opens one shared link. There is no passcode. Jesse can also make a custom link for a friend (see "Invite links").
 2. The hosts ask one question at a time (see `docs/form.md`):
    - The name for the envelope, for example "The Garcia Family"
    - "Who lives at your house?" as free text, for example "Sofia, Dan, Mia, and Biscuit the corgi"
@@ -30,6 +30,17 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
 - The address lives only in the contact Sheet. The Worker reads and changes the Sheet row of the family (`family_id`) and keeps no copy.
 - Only US addresses: sign-up and a change both refuse an address outside the US with a host line.
 - Details and copy: "My address" in `docs/form.md`.
+
+## Invite links
+
+- Jesse has the address of some friends already. `pnpm invite` makes one link for each friend and adds the friend's Sheet row at once,
+  with status `invited`, so the card goes out even if the friend never opens the link.
+- The friend opens the link and sees "Is this where we should send your card?" with the envelope name and the address.
+  "Yes, that's us" goes to "Who lives at your house?", then the friend joins the party. "Fix it" goes through the normal steps with the data filled in.
+- The confirm changes the same Sheet row to `confirmed`. It adds no second row.
+- After the confirm, the link opens the party as that family in any browser, for example on a phone and then on a laptop.
+- A link that does not work shows the normal form, and the hosts say "We couldn't open that invitation, but we'd still love to send you a card!"
+- D1 keeps no address for an invite. Details: "Invite links" in `docs/form.md`.
 
 ## Photo album (a hidden extra)
 

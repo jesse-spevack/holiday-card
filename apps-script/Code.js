@@ -1,14 +1,18 @@
 const SHEET_ID = "1ArtjsZk8Gk1BMnC-1-LvWeRMQG1qYKZ1r1sUtqnx0OU";
 const TAB = "Contacts";
 const FIELDS = ["name", "household", "street", "unit", "city", "state", "zip"];
-const HEADERS = ["added_at", ...FIELDS, "family_id", "updated_at"];
+const HEADERS = ["added_at", ...FIELDS, "family_id", "updated_at", "status"];
 const FAMILY_COL = HEADERS.indexOf("family_id") + 1;
 const UPDATED_COL = HEADERS.indexOf("updated_at") + 1;
+// "invited": Jesse made a link for a friend (pnpm invite), and the friend has not confirmed the address yet.
+// "confirmed": the guest gave or confirmed the address.
+const STATUSES = ["invited", "confirmed"];
 
 // One POST with the shared secret and an action:
 //   "add" (also no action, as the first Worker sends): add a row.
 //   "read": the newest row of a family_id, or null.
-//   "update": change the newest row of a family_id. With no row for it, add a row.
+//   "update": change the address of the newest row of a family_id. With no row for it, add a row.
+//   "confirm": as "update", but also who lives there, and the status becomes "confirmed". A friend confirms an invite with it.
 function doPost(e) {
   let body;
   try {
@@ -23,22 +27,24 @@ function doPost(e) {
     if (!body.family_id) return reply({ error: "missing_fields" });
     return reply({ ok: true, contact: readContact(String(body.family_id)) });
   }
-  if (action !== "add" && action !== "update") return reply({ error: "bad_action" });
+  if (!["add", "update", "confirm"].includes(action)) return reply({ error: "bad_action" });
   if (!body.name || !body.household || !body.street) return reply({ error: "missing_fields" });
-  if (action === "update" && !body.family_id) return reply({ error: "missing_fields" });
+  if (action !== "add" && !body.family_id) return reply({ error: "missing_fields" });
+  const status = action === "add" && STATUSES.includes(body.status) ? body.status : "confirmed";
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const tab = contactsTab();
-    const row = action === "update" ? familyRow(tab, String(body.family_id)) : 0;
+    const row = action === "add" ? 0 : familyRow(tab, String(body.family_id));
     if (row) {
-      // The added_at, name, and family_id cells stay as they were.
-      tab.getRange(row, 3, 1, FIELDS.length - 1).setValues([FIELDS.slice(1).map((f) => text(body[f]))]);
-      tab.getRange(row, UPDATED_COL).setValue(new Date());
+      // The added_at and family_id cells stay as they were. An update keeps the name too, because Jesse can fix it by hand.
+      const from = action === "confirm" ? 0 : 1;
+      tab.getRange(row, 2 + from, 1, FIELDS.length - from).setValues([FIELDS.slice(from).map((f) => text(body[f]))]);
+      tab.getRange(row, UPDATED_COL, 1, 2).setValues([[new Date(), status]]);
       return reply({ ok: true, row: "updated" });
     }
-    tab.appendRow([new Date(), ...FIELDS.map((f) => text(body[f])), text(body.family_id), ""]);
+    tab.appendRow([new Date(), ...FIELDS.map((f) => text(body[f])), text(body.family_id), "", status]);
     return reply({ ok: true, row: "added" });
   } finally {
     lock.releaseLock();

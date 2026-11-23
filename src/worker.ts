@@ -3,9 +3,10 @@ import { albumList, albumPhoto } from "./album";
 import { HttpError, field, json, rateLimit, readJson } from "./http";
 import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./household";
 import { readEgg, recordInteraction } from "./interactions";
+import { findInvite, openInvite, viewInvite } from "./invites";
 import { lookUpAddress, suggestAddresses } from "./places";
-import { BUBBLE_MAX, addFamily, checkToken, partyVersion, readParty, renameFamily, updateMember, type Member } from "./party";
-import { addContact, readContact, updateContact } from "./sheet";
+import { BUBBLE_MAX, addFamily, checkToken, partyVersion, readParty, renameFamily, updateMember, type Member, type NewFamily } from "./party";
+import { addContact, confirmContact, readContact, updateContact, type Contact } from "./sheet";
 import { verifyTurnstile } from "./turnstile";
 
 const LOOK_ID = /^[a-z0-9-]{1,40}$/;
@@ -40,6 +41,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       return sprite(request, env);
     case "POST /api/interaction":
       return interaction(request, env);
+    case "POST /api/invite":
+      return invite(request, env);
     case "POST /api/address/read":
       return addressRead(request, env);
     case "POST /api/address/change":
@@ -86,12 +89,38 @@ async function submit(request: Request, env: Env): Promise<Response> {
   const contact = { name: householdNote, household: envelope, ...readAddress(body.address) };
   const members = readMembers(body.members);
 
+  const inviteToken = field(body, "invite", { max: 100, required: false });
+
   await verifyTurnstile(env, field(body, "turnstileToken", { max: 4096 }), request.headers.get("CF-Connecting-IP"));
+  const family = { envelope, householdNote, members };
+  if (inviteToken) return json(await confirmInvite(env, inviteToken, contact, family), 201);
+
   // The address is the point, so the Sheet goes first, with the family id that D1 gets next. If D1 fails after it,
   // the guest sees an error and a retry adds a second Sheet row. `pnpm sheet:dupes` finds it.
   const id = crypto.randomUUID();
   await addContact(env, id, contact);
-  return json(await addFamily(env.DB, id, envelope, householdNote, members), 201);
+  return json(await addFamily(env.DB, { id, ...family }), 201);
+}
+
+// A friend confirms an invite. The invited Sheet row changes in place and becomes "confirmed", with no second row.
+// The family takes the invite id and the invite token, so the link opens the party as this family in any browser.
+async function confirmInvite(env: Env, token: string, contact: Contact, family: Omit<NewFamily, "id">) {
+  const { id } = await openInvite(env.DB, token);
+  await confirmContact(env, id, contact);
+  try {
+    return await addFamily(env.DB, { id, ...family }, { token });
+  } catch (err) {
+    // Two browsers confirm at the same time: the second family insert fails on the id. That browser opens the party.
+    if ((await findInvite(env.DB, token)).confirmed_at) throw new HttpError(409, "invite_used");
+    throw err;
+  }
+}
+
+// What an invite link shows: the data to confirm, or the family after the friend confirms.
+async function invite(request: Request, env: Env): Promise<Response> {
+  await rateLimit(env.INVITE_LIMIT, request);
+  const body = await readJson(request);
+  return json(await viewInvite(env, field(body, "token", { max: 100 })));
 }
 
 // The address on file for this browser's family, from the Sheet. Only the family's own token reads it.

@@ -71,6 +71,11 @@ if (new URLSearchParams(location.search).has("new")) {
   history.replaceState(history.state, "", location.pathname + (rest.length ? `?${rest.join("&")}` : "") + location.hash);
 }
 
+// A custom link for a friend (pnpm invite): "/#invite=<token>". The token stays after "#", so no server log sees it.
+// The page drops it from the address bar once the friend joins, or when the link does not work.
+const INVITE = /^#invite=([\w-]{22,100})$/.exec(location.hash)?.[1] || "";
+const dropInviteHash = () => history.replaceState(history.state, "", location.pathname + location.search);
+
 const newSession = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 const state = {
   step: 1,
@@ -86,9 +91,15 @@ const state = {
   looks: {},
   mine: loadMine(),
   // "new" for a sign-up. "change" while a guest changes the address of a family in this browser (changing).
-  mode: "new",
+  // "invite" while a friend confirms the address on an invite link (invite holds its token).
+  mode: INVITE ? "invite" : "new",
   changing: null,
   onFile: null,
+  invite: INVITE,
+  // The friend said "Yes, that's us" to the address on the invite, so the address steps are done.
+  inviteOk: false,
+  // The invite link did not work. The first question says so, kindly.
+  inviteBad: false,
 };
 
 // ---------- saved families (this browser's own) ----------
@@ -199,33 +210,44 @@ function go(step) {
   scene.closePop();
   ({
     1: stepEnvelope, 2: stepHousehold, 3: stepAddress, unit: stepUnit, 4: stepConfirm, done: stepDone,
-    which: stepWhich, onfile: stepOnFile, saved: stepSaved,
+    which: stepWhich, onfile: stepOnFile, saved: stepSaved, opening: stepOpening, invite: stepInvite,
   }[step])();
 }
 const changing = () => state.mode === "change";
+const inviting = () => state.mode === "invite";
 
 function stepEnvelope() {
   const next = () => {
     const v = $("f-envelope").value.trim();
     if (!v) return showError("We need something here.");
     state.envelope = v;
+    state.inviteBad = false;
     sound.candle();
     go(changing() ? 3 : 2);
   };
-  frame(changing() ? "Whose name goes on the envelope?" : "We're sending holiday cards! Whose name goes on the envelope?",
+  const ask = state.inviteBad
+    ? "We couldn't open that invitation, but we'd still love to send you a card! Whose name goes on the envelope?"
+    : changing() || inviting() ? "Whose name goes on the envelope?" : "We're sending holiday cards! Whose name goes on the envelope?";
+  frame(ask,
     answer({ id: "f-envelope", label: "Name on the envelope", value: state.envelope, placeholder: "The Garcia Family", onEnter: next }),
     h("p", { class: "hint" }, "Write it how you'd like it on the envelope."),
     errorLine(),
     h("div", { class: "spacer" }),
-    h("div", { class: "actions" }, changing() && btn("Back", () => go("onfile"), "btn ghost"), h("span", { class: "end" }, btn("Next ▸", next))));
+    h("div", { class: "actions" },
+      changing() && btn("Back", () => go("onfile"), "btn ghost"),
+      inviting() && btn("Back", () => go("invite"), "btn ghost"),
+      h("span", { class: "end" }, btn("Next ▸", next))));
 }
 
+// A friend who said "Yes, that's us" to the invite has no address steps left, so this step sends the sign-up.
 function stepHousehold() {
+  const last = inviting() && state.inviteOk;
   const next = () => {
     const v = $("f-household").value.trim();
     if (!v) return showError("We need something here.");
     state.household = v;
     readHousehold();
+    if (last) return send();
     sound.candle();
     go(3);
   };
@@ -234,7 +256,8 @@ function stepHousehold() {
     h("p", { class: "hint" }, "Pets count. I guess."),
     errorLine(),
     h("div", { class: "spacer" }),
-    h("div", { class: "actions" }, btn("Back", () => go(1), "btn ghost"), h("span", { class: "end" }, btn("Next ▸", next))));
+    h("div", { class: "actions" }, btn("Back", () => go(last ? "invite" : 1), "btn ghost"),
+      h("span", { class: "end" }, last ? btn("Join the party ▸", next, "btn", { id: "send" }) : btn("Next ▸", next))));
 }
 
 // The LLM reads the household while the guest types the address.
@@ -320,7 +343,7 @@ function stepAddress() {
     list, manual, errorLine(), h("div", { class: "spacer" }), credit,
     h("div", { class: "actions" }, btn("Back", () => go(changing() ? 1 : 2), "btn ghost"),
       // A guest who changes only the envelope name keeps the address that they have.
-      changing() && state.address && h("span", { class: "end" }, btn("Same address ▸", () => { sound.select(); go("unit"); }, "btn ghost"))));
+      (changing() || inviting()) && state.address && h("span", { class: "end" }, btn("Same address ▸", () => { sound.select(); go("unit"); }, "btn ghost"))));
   if (state.addressQuery) search();
 }
 
@@ -370,16 +393,29 @@ async function send() {
       scene.focus(center.x, center.y - 12, 1);
     }
     const address = { ...state.address, unit: state.unit };
-    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, turnstileToken: turnstileToken() });
+    const invite = state.invite ? { invite: state.invite } : {};
+    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, turnstileToken: turnstileToken(), ...invite });
     const saved = { id, token, name: state.envelope, members, bubbles: [] };
     state.mine.push(saved);
     saveMine();
+    if (state.invite) {
+      dropInviteHash();
+      Object.assign(state, { invite: "", mode: "new" });
+    }
     scene.renameFamily("pending", { id, name: saved.name, mine: true });
     resetTurnstile();
     go("done");
   } catch (err) {
     resetTurnstile();
+    // The friend confirmed in another browser a moment ago. The link now opens the party as that family.
+    if (err?.message === "invite_used") return location.reload();
     button.disabled = false;
+    if (err?.message === "bad_invite") {
+      // The invite is gone. The guest can still sign up: the next tap sends the form with no invite.
+      dropInviteHash();
+      state.invite = "";
+      return showError("That invitation does not work anymore, but you can still sign up. Tap the button again.");
+    }
     showError(failLine(err));
   }
 }
@@ -434,7 +470,49 @@ function clearForm() {
   Object.assign(state, {
     envelope: "", household: "", householdAsked: "", members: null, membersPromise: null,
     addressQuery: "", address: null, unit: "", session: newSession(), mode: "new", changing: null, onFile: null,
+    invite: "", inviteOk: false, inviteBad: false,
   });
+}
+
+// ---------- an invite link ----------
+// Jesse made the link with the friend's address (pnpm invite). A new link asks the friend to confirm the address.
+// A used link opens the party as the family in any browser: the link token is the family's token.
+// A link that does not work gives the normal form with a kind line.
+async function openInviteLink() {
+  let view = null;
+  try {
+    view = await api.invite(state.invite);
+  } catch {}
+  if (view?.invite) {
+    const { envelope, household, address } = view.invite;
+    Object.assign(state, { envelope, household: household || "", address: onFileAddress(address), unit: address.unit });
+    return go("invite");
+  }
+  const token = state.invite;
+  dropInviteHash();
+  Object.assign(state, { invite: "", mode: "new" });
+  if (view?.family) {
+    const f = view.family;
+    state.mine = [...state.mine.filter((m) => m.id !== f.id), { id: f.id, token, name: f.name, members: f.members, bubbles: f.bubbles }];
+    saveMine();
+    return;
+  }
+  state.inviteBad = true;
+  if (!state.mine.length) go(1);
+}
+
+function stepOpening() {
+  frame("Let me find your invitation...");
+}
+
+function stepInvite() {
+  frame("Is this where we should send your card?",
+    h("p", { class: "address" }, addressLines()),
+    errorLine(),
+    h("div", { class: "spacer" }),
+    h("div", { class: "actions" },
+      btn("Fix it", () => { state.inviteOk = false; sound.select(); go(1); }, "btn ghost"),
+      h("span", { class: "end" }, btn("Yes, that's us ▸", () => { state.inviteOk = true; sound.candle(); go(2); }))));
 }
 
 // ---------- change my address ----------
@@ -742,7 +820,9 @@ async function start() {
   api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
   // A new guest gets the first question at once. So the dialog has its real height before the room shows,
   // and the room does not jump when the question appears.
-  if (!state.mine.length) go(1);
+  const invited = state.invite ? openInviteLink() : null;
+  if (invited) go("opening");
+  else if (!state.mine.length) go(1);
   const [looks] = await Promise.all([
     fetch("/assets/looks.json").then((r) => r.json()).catch(() => ({})),
     scene.load("/assets/room.png"),
@@ -757,13 +837,16 @@ async function start() {
     scene.addHost(host, img);
   }
 
+  // A used invite link adds its family to this browser before the party shows.
+  await invited;
   for (const f of state.mine) await addFamily(f, { walkIn: false, mine: true });
   await loadParty(true);
   // A hidden tab does not ask for the party. The next check after the guest comes back does.
   setInterval(() => { if (!document.hidden) loadParty(false); }, POLL_MS);
   setInterval(cycleBubbles, 3500);
 
-  if (state.mine.length) {
+  // A friend on a new invite link confirms first, also in a browser with a family.
+  if (state.mine.length && !inviting()) {
     const last = scene.familySprites(state.mine.at(-1).id);
     if (last.length) scene.focus(last[0].x, last[0].y - 12, 1);
     go("done");

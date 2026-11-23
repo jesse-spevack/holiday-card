@@ -32,6 +32,12 @@ export async function updateContact(env: Env, familyId: string, contact: Contact
   await callSheet(env, { action: "update", family_id: familyId, ...contact });
 }
 
+// A friend confirms the address of an invite. The invited row changes in place, also who lives there, and its status
+// becomes "confirmed". With no row for the family, the Apps Script adds one.
+export async function confirmContact(env: Env, familyId: string, contact: Contact): Promise<void> {
+  await callSheet(env, { action: "confirm", family_id: familyId, ...contact });
+}
+
 async function callSheet(env: Env, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const reply = await callService(
     "sheet_failed",

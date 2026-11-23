@@ -50,12 +50,14 @@ export function fakeSheet(rows: SheetRow[] = []) {
     const id = String(body.family_id ?? "");
     if (action === "read") return Response.json({ ok: true, contact: newest(id) ? pick(newest(id)!) : null });
     if (!body.name || !body.household || !body.street) return Response.json({ error: "missing_fields" });
-    const row = action === "update" ? newest(id) : undefined;
+    if (!["add", "update", "confirm"].includes(action)) return Response.json({ error: "bad_action" });
+    const row = action === "add" ? undefined : newest(id);
     if (row) {
-      Object.assign(row, pick(body), { name: row.name, updated_at: "now" });
+      Object.assign(row, pick(body), { name: action === "confirm" ? String(body.name) : row.name, updated_at: "now", status: "confirmed" });
       return Response.json({ ok: true, row: "updated" });
     }
-    rows.push({ ...pick(body), family_id: id, updated_at: "" });
+    const status = action === "add" && body.status === "invited" ? "invited" : "confirmed";
+    rows.push({ ...pick(body), family_id: id, updated_at: "", status });
     return Response.json({ ok: true, row: "added" });
   };
   return { rows, handler };

@@ -14,7 +14,8 @@
     "interactions": "scripts/interactions.sh",
     "sheet:dupes": "node scripts/sheet-dupes.mjs",
     "types": "wrangler types",
-    "postinstall": "pnpm types"
+    "postinstall": "pnpm types",
+    "invite": "node scripts/invite.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.6.0",
