@@ -187,7 +187,9 @@ The rules:
 - The glint draws on the room from the start, also on the form (`glint.js`). After the thank-you, a host speaks on their own after 20 quiet scene seconds (`idle.js`).
   A test that moves the stopped clock far sees these lines. Read them with `hc.idle()`, and wait for a line of an extra, not for any bubble.
 - A bubble lasts on the wall clock. When a test moves the stopped clock far, an old bubble stays and can block a new host line.
-- Before a PR that adds or changes an e2e test, run `E2E_SLOW=6 pnpm e2e` too.
+- Before a PR that adds or changes an e2e test, run each test file that the change touches with `E2E_SLOW=6`,
+  for example `E2E_SLOW=6 node --test test/e2e/glint.test.mjs`.
+  Run `E2E_SLOW=6 pnpm e2e` on all files only after a change to the scene clock, `scene.js`, `test-api.js`, or `harness.mjs`.
 
 ## Check a branch: preview
 
@@ -290,6 +292,9 @@ Sections, in this order:
 4. **Decisions**: bullets, the one that most needs review first. Each bullet says the decision, the alternative, and why.
 5. **Screenshots**: for a UI change, a Before and After table at 1440 and 400 wide. Say which commit and which server each side came from.
 6. **AGENTS**: what a future agent needs: the test that proves it, traps, the risk, and the tests that catch a regression.
+
+A small change uses a short body: **Summary** and **AGENTS** only, and one After screenshot at 400 wide for a UI change.
+A small change is copy, a time, a size, or a color in one feature, with no new module and no new test file.
 
 ### Screenshots in a PR
 
