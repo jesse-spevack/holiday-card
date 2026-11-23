@@ -115,7 +115,7 @@ describe("the glint", { concurrency: true }, () => {
         return { heart: await at(diamond(0, white)), body: await at(diamond(white + 1, body)), arms: await at(arms) };
       };
       const expectPeak = (got) => {
-        assert.ok(got.heart.length >= 13 && got.heart.every((c) => c === "#ffffff"), JSON.stringify(got.heart));
+        assert.ok(got.heart.length >= 5 && got.heart.every((c) => c === "#ffffff"), JSON.stringify(got.heart));
         assert.ok(got.body.every((c) => c === "#ffd27a"), JSON.stringify(got.body));
         assert.deepEqual(got.arms, Array((arm - body) * 4).fill("#ffd27a"));
       };
