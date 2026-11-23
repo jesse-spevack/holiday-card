@@ -13,7 +13,7 @@ import { PALETTE } from "./palette.js";
 // peak: the full size of a glint (FRAMES), in room pixels. A still glint (reduced motion) keeps it.
 export const GLINT = {
   every: 3.5, seconds: 1.8,
-  peak: { arm: 8, body: 3, white: 2 },
+  peak: { arm: 5, body: 2, white: 1 },
   still: { every: 8, seconds: 2.5 },
   // The room's sparkle: each twinkle starts this long after the one before it, and shows for `seconds`.
   burst: { gap: 0.05, seconds: 1.2 },
@@ -26,9 +26,9 @@ const WHITE = "#ffffff";
 // white: the white diamond at the heart. At its full size, the glint breathes in once, as a star twinkles.
 const PEAK = GLINT.peak;
 const FRAMES = [
-  [0.04, 0, 0, 0], [0.08, 1, 0, 0], [0.12, 2, 1, 1], [0.17, 4, 2, 1], [0.23, 6, 2, 2],
+  [0.04, 0, 0, 0], [0.1, 1, 0, 0], [0.17, 2, 1, 0], [0.25, 4, 1, 1],
   [0.4, PEAK.arm, PEAK.body, PEAK.white], [0.5, PEAK.arm - 1, PEAK.body, PEAK.white], [0.67, PEAK.arm, PEAK.body, PEAK.white],
-  [0.74, 6, 2, 2], [0.8, 4, 2, 1], [0.86, 2, 1, 1], [0.93, 1, 0, 0], [1, 0, 0, 0],
+  [0.75, 4, 1, 1], [0.83, 2, 1, 0], [0.9, 1, 0, 0], [1, 0, 0, 0],
 ];
 // The pixels of a glint around its heart: [[dx, dy, color]]. The dark edge goes round each lit pixel, outside it.
 const shapes = new Map();

@@ -186,7 +186,7 @@ Nothing on screen points to these.
     A tap or a key starts the wait again. An open album, dreidel game, look picker, or sprite editor, or a hidden tab, stops the wait.
     After the guest finds every extra, a host says a thank-you line about every 75 seconds. A new bubble never covers another bubble.
   - The glint (`public/js/glint.js`) starts as soon as the room shows. Every 3.5 seconds, a gold star shows for 1.8 seconds on the tap area
-    of an extra that the guest has not found. It grows from a white dot to a star 17 room pixels wide, with a white heart,
+    of an extra that the guest has not found. It grows from a white dot to a star 11 room pixels wide, with a white heart,
     holds and breathes once, and shrinks again. The extras take turns in the order of their list.
     The cars, the pets, and the silly looks have no tap area, so they get no glint.
     The star has a dark edge, so it shows on the light wall and in the dark room. It draws on the room only, never on the dialog.
