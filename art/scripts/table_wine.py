@@ -3,7 +3,7 @@
 Usage (from the repo root): python3 art/scripts/table_wine.py
 Paints a bottle and two tall glasses, seen from the side, on public/assets/room.png.
 Each prop sits on bare table top, so a second run gives the same image.
-Run art/scripts/og.py after a change, so the link preview shows it.
+Run pnpm og after a change, so the link preview shows it.
 """
 import os
 from PIL import Image

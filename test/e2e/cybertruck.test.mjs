@@ -130,6 +130,23 @@ describe("the Cybertruck", { concurrency: true }, () => {
     assert.deepEqual(await interactions(page, calls), [{ id: GARCIA.id, token: GARCIA.token, egg: "cybertruck" }]);
   });
 
+  test("with reduced motion, the parked truck stays clear of the menorah candles", async () => {
+    const { page, hc } = await env.open({ mine: [GARCIA], reducedMotion: "reduce", wait: "eggs" });
+    await tuckNow(page);
+    await hc.pause();
+    const { TRUCK } = await hc.constants();
+    const xs = (await hc.eggs()).candles.map((c) => c.x);
+    // Facing left (-1) and facing right (1), the truck parks in an outer pane. No part of it is next to a candle or its glow.
+    for (const dir of [-1, 1]) {
+      await hc.sendCybertruck(dir);
+      await advanceUntil(page, (hc) => hc.eggs().truck !== null);
+      const x0 = (await hc.eggs()).truck;
+      const x1 = x0 + TRUCK.w - 1;
+      assert.ok(x1 < Math.min(...xs) - 1 || x0 > Math.max(...xs) + 1, `facing ${dir}, the parked truck (${x0} to ${x1}) is clear of the candles (${xs})`);
+      await advanceUntil(page, (hc) => hc.eggs().truck === null);
+    }
+  });
+
   test("Audrey calls out the Waymo once it shows in the window", async () => {
     const { page, hc } = await env.open({ viewport: { width: 390, height: 844 }, wait: "eggs" });
     await hc.sendWaymo();

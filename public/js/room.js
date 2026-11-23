@@ -1,5 +1,5 @@
 // Every place in public/assets/room.png that the code uses, in room pixels (x right, y down from the top-left corner).
-// The art scripts use some of the same numbers: art/scripts/book.py (BOOK) and art/scripts/og.py (the host spots).
+// The art scripts use some of the same numbers: art/scripts/book.py (BOOK).
 // When the room art changes, check these numbers first.
 
 export const ROOM_W = 256;
