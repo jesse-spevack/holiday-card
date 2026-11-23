@@ -27,6 +27,7 @@ function contact(fields: Partial<Contact>): Contact {
     zip: "60201",
     familyId: "",
     updatedAt: null,
+    status: "",
     ...fields,
   };
 }
@@ -212,6 +213,20 @@ describe("the duplicate groups", () => {
     expect(findDuplicates([changed, later]).groups[0].keep).toBe(changed);
   });
 
+  it("keeps a confirmed row over a newer invited row at the same address", () => {
+    const signedUp = contact({ addedAt: 46000, status: "confirmed" });
+    const invited = contact({ addedAt: 46003, status: "invited", familyId: "inv1" });
+    const old = contact({ addedAt: 45000 });
+    expect(findDuplicates([signedUp, invited]).groups[0]).toMatchObject({ keep: signedUp, remove: [invited] });
+    expect(findDuplicates([invited, old]).groups[0].keep).toBe(old);
+  });
+
+  it("keeps the newest of two invited rows", () => {
+    const a = contact({ addedAt: 46000, status: "invited" });
+    const b = contact({ addedAt: 46001, status: "invited" });
+    expect(findDuplicates([a, b]).groups[0].keep).toBe(b);
+  });
+
   it("does not join two rows with no family id", () => {
     const report = findDuplicates([contact({ name: "A" }), contact({ name: "B", street: "9 Elm St" })]);
     expect(report.groups).toEqual([]);
@@ -263,12 +278,12 @@ describe("the rows from the Sheets API", () => {
 
   it("reads the family id and the change date when the header has them", () => {
     const rows = parseValues([
-      [...header, "family_id", "updated_at"],
-      [46348.5, "Ada", "The Lovelaces", "1428 Maple Ave", "", "Evanston", "IL", "60201", "'f-1", 46349.25],
+      [...header, "family_id", "updated_at", "status"],
+      [46348.5, "Ada", "The Lovelaces", "1428 Maple Ave", "", "Evanston", "IL", "60201", "'f-1", 46349.25, "invited"],
       [46350, "Cy", "Cy", "2 Oak St", "", "Evanston", "IL", "60201"],
     ]);
-    expect(rows[0]).toMatchObject({ familyId: "f-1", updatedAt: 46349.25 });
-    expect(rows[1]).toMatchObject({ familyId: "", updatedAt: null });
+    expect(rows[0]).toMatchObject({ familyId: "f-1", updatedAt: 46349.25, status: "invited" });
+    expect(rows[1]).toMatchObject({ familyId: "", updatedAt: null, status: "" });
   });
 
   it("reads a header with the family id but no change date yet", () => {
@@ -299,8 +314,8 @@ describe("the backup", () => {
 
   it("writes one CSV line for each row, with quotes where a cell needs them", () => {
     const csv = toCsv([
-      { row: 4, addedAt: 46348.5, name: 'Ada "A" L', household: "Ada, Bo", street: "1 Elm St", unit: "", city: "X", state: "IL", zip: "02139", familyId: "f-1", updatedAt: null },
+      { row: 4, addedAt: 46348.5, name: 'Ada "A" L', household: "Ada, Bo", street: "1 Elm St", unit: "", city: "X", state: "IL", zip: "02139", familyId: "f-1", updatedAt: null, status: "invited" },
     ]);
-    expect(csv).toBe('row,added_at,name,household,street,unit,city,state,zip,family_id,updated_at\n4,2026-11-22 12:00:00,"Ada ""A"" L","Ada, Bo",1 Elm St,,X,IL,02139,f-1,\n');
+    expect(csv).toBe('row,added_at,name,household,street,unit,city,state,zip,family_id,updated_at,status\n4,2026-11-22 12:00:00,"Ada ""A"" L","Ada, Bo",1 Elm St,,X,IL,02139,f-1,,invited\n');
   });
 });

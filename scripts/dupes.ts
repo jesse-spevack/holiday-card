@@ -1,7 +1,7 @@
 // The pure rules of `pnpm sheet:dupes`: the address key, the duplicate groups, the kept row, and the delete requests.
 // It has no I/O, so test/sheet-dupes.test.ts tests it. scripts/sheet-dupes.mjs reads and changes the Sheet.
 
-export const HEADERS = ["added_at", "name", "household", "street", "unit", "city", "state", "zip", "family_id", "updated_at"] as const;
+export const HEADERS = ["added_at", "name", "household", "street", "unit", "city", "state", "zip", "family_id", "updated_at", "status"] as const;
 // The Sheet had only these columns before family ids. The script still reads a Sheet with only these.
 const FIRST_HEADERS = 8;
 
@@ -17,6 +17,7 @@ export type Contact = {
   zip: string;
   familyId: string; // The family at the party. Empty for a row from before family ids.
   updatedAt: number | null; // A Sheets serial date, when the guest last changed the address. Null when never.
+  status: string; // "invited" for a link that its friend has not confirmed (pnpm invite). "confirmed" or empty for the rest.
 };
 
 export type Group = {
@@ -145,11 +146,15 @@ export function nameKey(name: string): string {
   return clean(name);
 }
 
-// The newest row stays: a guest who signs up again likely gave new data. A row changed by its guest is as new as the change.
+// A row that its guest gave or confirmed wins over an invited row: the guest checked it, and Jesse only typed it.
+// Then the newest row stays: a guest who signs up again likely gave new data. A row changed by its guest is as new as the change.
 // A row with no date is the oldest. For two equal dates, the row nearer the bottom is newer, because the Sheet adds rows at the bottom.
 export function newest(rows: Contact[]): Contact {
+  const confirmed = (c: Contact) => (c.status === "invited" ? 0 : 1);
   const time = (c: Contact) => Math.max(c.addedAt ?? -Infinity, c.updatedAt ?? -Infinity);
-  return rows.reduce((best, c) => (time(c) > time(best) || (time(c) === time(best) && c.row > best.row) ? c : best));
+  const later = (c: Contact, best: Contact) =>
+    confirmed(c) !== confirmed(best) ? confirmed(c) > confirmed(best) : time(c) > time(best) || (time(c) === time(best) && c.row > best.row);
+  return rows.reduce((best, c) => (later(c, best) ? c : best));
 }
 
 function bucket(rows: Contact[], key: (c: Contact) => string): Map<string, Contact[]> {
@@ -245,7 +250,7 @@ export function parseValues(values: unknown[][]): Contact[] {
   const contacts: Contact[] = [];
   rest.forEach((cells, i) => {
     if (!cells.some((v) => cellText(v))) return;
-    const [added, name, household, street, unit, city, state, zip, familyId, updated] = HEADERS.map((_, k) => cells[k]);
+    const [added, name, household, street, unit, city, state, zip, familyId, updated, status] = HEADERS.map((_, k) => cells[k]);
     contacts.push({
       row: i + 2,
       addedAt: typeof added === "number" ? added : null,
@@ -258,6 +263,7 @@ export function parseValues(values: unknown[][]): Contact[] {
       zip: cellText(zip),
       familyId: cellText(familyId),
       updatedAt: typeof updated === "number" ? updated : null,
+      status: cellText(status),
     });
   });
   return contacts;
@@ -268,7 +274,7 @@ export function toCsv(contacts: Contact[]): string {
   const quote = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   const lines = [["row", ...HEADERS].join(",")];
   for (const c of contacts) {
-    const cells = [String(c.row), serialToText(c.addedAt), c.name, c.household, c.street, c.unit, c.city, c.state, c.zip, c.familyId, serialToText(c.updatedAt)];
+    const cells = [String(c.row), serialToText(c.addedAt), c.name, c.household, c.street, c.unit, c.city, c.state, c.zip, c.familyId, serialToText(c.updatedAt), c.status];
     lines.push(cells.map(quote).join(","));
   }
   return lines.join("\n") + "\n";

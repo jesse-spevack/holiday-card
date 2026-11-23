@@ -19,6 +19,7 @@ export const api = {
   submit: (entry) => postJson("/api/submit", entry),
   sprite: (update) => postJson("/api/sprite", update),
   interaction: (update) => postJson("/api/interaction", update),
+  invite: (token) => postJson("/api/invite", { token }),
   addressRead: (family) => postJson("/api/address/read", family),
   addressChange: (change) => postJson("/api/address/change", change),
   party: () => call("/api/party"),

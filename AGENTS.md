@@ -31,6 +31,7 @@ One Cloudflare Worker serves the static files in `public/` and the API. `wrangle
 | `src/sheet.ts` | The Apps Script calls: add a Sheet row, and read or change the row of a family (`family_id`) |
 | `src/party.ts` | D1: adds a family, reads the party, changes a sprite, the token check, the party version |
 | `src/interactions.ts` | `POST /api/interaction`: the allow-list of egg names (`EGGS`), and the count for each family and egg |
+| `src/invites.ts` | `POST /api/invite`, and the invite on `POST /api/submit`: a custom link for a friend (`pnpm invite`) |
 | `src/album.ts` | `GET /album/list` and `GET /album/<hash>.jpg` from KV |
 
 ### Front end (`public/`)
@@ -93,18 +94,20 @@ Python scripts with Pillow, and one Node script, run from the repo root. The doc
 
 ### Other
 
-- `migrations/`: the D1 schema. The tables are `families`, `members`, `party_version`, and `interactions`.
+- `migrations/`: the D1 schema. The tables are `families`, `members`, `party_version`, `interactions`, and `invites`.
 - `apps-script/`: the Apps Script that adds, reads, and changes rows in the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
 - `test/api.test.ts`: Worker tests in the Workers runtime, with fake outbound calls in `test/outbound.ts`.
   `test/extras.test.ts` checks that `EGGS` holds the name of each extra in `public/js/extras/index.js`, and no other name.
   `test/sheet-dupes.test.ts` checks the address rules of `pnpm sheet:dupes` (`scripts/dupes.ts`) with made-up rows.
+  `test/invites.test.ts` checks the pure rules of `pnpm invite` (`scripts/invites.ts`) with made-up friends.
   `test/apps-script.test.mjs` runs `apps-script/Code.js` in Node against a fake Sheet. `pnpm test` runs it after Vitest.
 - `test/e2e/`: the page in Google Chrome against a fake API. It needs no Cloudflare.
   `harness.mjs` holds the server, the fake API, the test looks, and the helpers. Each `*.test.mjs` file covers one feature.
   The tests read and drive the page's state only through `window.__hc`. After a change inside a page module, change `public/js/test-api.js`
   or the `test` of the extra, not the tests. A few checks also import the pure functions in `extras/pets.js`, `extras/hanukkah.js`, and `sound.js`.
 - `scripts/`: `preview.sh`, `deploy.sh`, the deploy hook `no-direct-deploy.mjs`, `interactions.sh`,
-  and `sheet-dupes.mjs` with its pure rules in `dupes.ts`. Node runs `dupes.ts` as it is, with no build step.
+  `sheet-dupes.mjs` with its pure rules in `dupes.ts`, and `invite.mjs` with its pure rules in `invites.ts`.
+  Node runs each `.ts` file as it is, with no build step.
 
 ## Commands
 
@@ -120,6 +123,8 @@ pnpm og            # make the link preview again from the page, see art/scripts/
 pnpm preview        # upload this branch as a preview and print its URL
 pnpm interactions   # read only: the hidden extras that each family played with, from the production D1. Add --local for pnpm dev
 pnpm sheet:dupes    # read only: the guests with the same mailing address in the contact Sheet. Add --apply to delete the extra rows
+pnpm invite friends.csv   # a custom link for each friend in the CSV. With no file, it asks in prompts. Only Jesse runs it
+pnpm invite --list  # read only: each invite's envelope name and status, with no addresses
 pnpm run deploy     # main only. See "Deploy".
 ```
 
@@ -233,11 +238,16 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
 
 - The Google Sheet holds only the contact list: name, household, and mailing address. Party data never goes to the Sheet.
   Each row also holds the `family_id` of its family in D1, and `updated_at` when the guest last changed the address ("My address").
+  `status` is `invited` for a row from `pnpm invite` that its friend has not confirmed, and `confirmed` for the rest.
   The address lives only in the Sheet. The Worker reads it from the Sheet for "My address" and never stores it.
   We mail cards inside the US only. `public/js/us.js` holds the rule, and the page, the Worker, and the scripts use it.
   Each household must show once, because Jesse sends the Sheet to the card printer. `pnpm sheet:dupes` finds the duplicates.
   Only Jesse runs `--apply`. It writes a CSV backup of the deleted rows to `~/Documents/holiday-card/backups/`, outside the repo.
   Never write a test row to the real Sheet. The tests use made-up rows.
+- An invite link (`pnpm invite`) adds the friend's Sheet row at once, with status `invited`. D1 `invites` holds the invite id
+  (also the `family_id` of the row, and of the family after the confirm), the hash of the link token, the envelope name, and the family link.
+  It holds no address. The link token is also the family's token, so anyone with the link opens the party as that family and can read its address.
+  `pnpm invite` writes D1 with `wrangler d1 execute --remote --file` and the Sheet with the service account, both as Jesse. Never run it from an agent.
 - D1 holds the party: families, members, looks, and chat bubbles. The party API never returns an address or the household text.
 - D1 also holds `interactions`: for each family and egg, a count, the first time, and the last time. It holds no IP and no user agent.
   The party API never returns it, and it has no `party_version` trigger, so a tap does not make each page fetch the party again. `pnpm interactions` reads it.
@@ -261,7 +271,7 @@ Never write a secret value in a file in this repo. Names only.
 | `OPENROUTER_MODEL`, `SHEET_URL`, `TURNSTILE_SITE_KEY` | Vars in `wrangler.jsonc` | Public values |
 | `DB` | D1 binding | Database `holiday-card` |
 | `ALBUM` | KV binding | Namespace `holiday-card-album` |
-| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT`, `ADDRESS_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
+| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT`, `ADDRESS_LIMIT`, `INVITE_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
 | `PIXELLAB_KEY` | Env var for the art scripts | 1Password vault `keys`, item `CozyChat`, field `PIXEL_LAB_KEY`. `pixellab.py` reads it with `op read` when the env var is not set |
 | Retro Diffusion key | No script uses it now | 1Password vault `keys`, item `CozyChat`, field `RETRO_DIFFUSION_KEY` |
 
