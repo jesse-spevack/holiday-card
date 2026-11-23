@@ -3,6 +3,7 @@ import { albumList, albumPhoto } from "./album";
 import { HttpError, field, json, rateLimit, readJson } from "./http";
 import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./household";
 import { readEgg, recordInteraction } from "./interactions";
+import { isFamilyId, logError, noteFamily } from "./log";
 import { findInvite, openInvite, viewInvite } from "./invites";
 import { lookUpAddress, suggestAddresses } from "./places";
 import { BUBBLE_MAX, addFamily, checkToken, partyVersion, readParty, renameFamily, updateMember, type Member, type NewFamily } from "./party";
@@ -11,17 +12,32 @@ import { addContact, confirmContact, readContact, updateContact, type Contact } 
 const LOOK_ID = /^[a-z0-9-]{1,40}$/;
 const PARTY_CACHE_SECONDS = 60;
 
+const LOG_ROUTE = "POST /api/log";
+const LOG_BODY_MAX = 2048;
+const WORD = /^[\w:./-]{1,40}$/;
+
 export default {
   async fetch(request, env, ctx): Promise<Response> {
     try {
       return await route(request, env, ctx);
     } catch (err) {
-      if (err instanceof HttpError) return json({ error: err.code }, err.status);
-      console.error("unhandled", err instanceof Error ? err.stack : String(err));
-      return json({ error: "server_error" }, 500);
+      const http = err instanceof HttpError ? err : null;
+      const status = http?.status ?? 500;
+      const code = http?.code ?? "server_error";
+      // A 5xx that is not ours (a bug, a D1 error) logs its message and stack.
+      const detail = http ? http.detail : err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+      const name = routeName(request);
+      // A failed page report goes to Workers Logs only, so a flood of bad reports cannot fill the table.
+      await logError(env, request, { source: "worker", route: name, code, status, detail }, { store: name !== LOG_ROUTE });
+      return json({ error: code }, status);
     }
   },
 } satisfies ExportedHandler<Env>;
+
+// The method and path of a request. The path never holds guest data: the search text of /api/places is in the query.
+function routeName(request: Request): string {
+  return `${request.method} ${new URL(request.url).pathname}`;
+}
 
 async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
@@ -46,6 +62,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       return addressChange(request, env);
     case "GET /api/party":
       return party(request, env, ctx);
+    case LOG_ROUTE:
+      return pageLog(request, env);
     default:
       if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/album/")) {
         return url.pathname === "/album/list" ? albumList(env) : albumPhoto(env, url.pathname);
@@ -94,19 +112,21 @@ async function submit(request: Request, env: Env): Promise<Response> {
   const inviteToken = field(body, "invite", { max: 100, required: false });
 
   const family = { envelope, householdNote, members };
-  if (inviteToken) return json(await confirmInvite(env, inviteToken, contact, family), 201);
+  if (inviteToken) return json(await confirmInvite(env, request, inviteToken, contact, family), 201);
 
   // The address is the point, so the Sheet goes first, with the family id that D1 gets next. If D1 fails after it,
   // the guest sees an error and a retry adds a second Sheet row. `pnpm sheet:dupes` finds it.
   const id = crypto.randomUUID();
+  noteFamily(request, id);
   await addContact(env, id, contact);
   return json(await addFamily(env.DB, { id, ...family }), 201);
 }
 
 // A friend confirms an invite. The invited Sheet row changes in place and becomes "confirmed", with no second row.
 // The family takes the invite id and the invite token, so the link opens the party as this family in any browser.
-async function confirmInvite(env: Env, token: string, contact: Contact, family: Omit<NewFamily, "id">) {
+async function confirmInvite(env: Env, request: Request, token: string, contact: Contact, family: Omit<NewFamily, "id">) {
   const { id } = await openInvite(env.DB, token);
+  noteFamily(request, id);
   await confirmContact(env, id, contact);
   try {
     return await addFamily(env.DB, { id, ...family }, { token });
@@ -130,6 +150,7 @@ async function addressRead(request: Request, env: Env): Promise<Response> {
   await rateLimit(env.ADDRESS_LIMIT, request);
   const body = await readJson(request);
   const id = field(body, "id", { max: 64 });
+  noteFamily(request, id);
   const family = await checkToken(env.DB, id, field(body, "token", { max: 100 }));
   const contact = await readContact(env, id);
   if (!contact) return json({ envelope: family.envelope, address: null });
@@ -144,6 +165,7 @@ async function addressChange(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
   const id = field(body, "id", { max: 64 });
   const token = field(body, "token", { max: 100 });
+  noteFamily(request, id);
   const envelope = field(body, "envelope", { max: 120 });
   const address = readAddress(body.address);
   const family = await checkToken(env.DB, id, token);
@@ -170,6 +192,7 @@ async function sprite(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
   const id = field(body, "id", { max: 64 });
   const token = field(body, "token", { max: 100 });
+  noteFamily(request, id);
   const index = body.index;
   if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= MAX_MEMBERS) throw new HttpError(400, "bad_index");
 
@@ -190,6 +213,7 @@ async function interaction(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
   const id = field(body, "id", { max: 64 });
   const token = field(body, "token", { max: 100 });
+  noteFamily(request, id);
   const egg = readEgg(body);
   await recordInteraction(env.DB, id, token, egg);
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
@@ -212,4 +236,23 @@ async function party(request: Request, env: Env, ctx: ExecutionContext): Promise
 // The edge keeps a copy, but the browser must not, because the page polls for new families.
 function partyResponse(body: string): Response {
   return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+}
+
+// The page reports a failure that the guest saw (public/js/report.js). Only the fields below are kept, each one short:
+// codes, a flag, and the widget state. The body is never stored as it came, so an address cannot slip in.
+async function pageLog(request: Request, env: Env): Promise<Response> {
+  await rateLimit(env.LOG_LIMIT, request);
+  const body = await readJson(request, LOG_BODY_MAX);
+  const word = (v: unknown) => (typeof v === "string" && WORD.test(v) ? v : "");
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max) : "");
+  const detail = JSON.stringify({ where: text(body.where, 80), online: body.online === true ? true : body.online === false ? false : undefined });
+  await logError(env, request, {
+    source: "page",
+    route: word(body.step) || "unknown",
+    code: text(body.code, 120) || "unknown",
+    status: typeof body.status === "number" && Number.isInteger(body.status) ? body.status : null,
+    detail,
+    familyId: isFamilyId(body.family) ? body.family : null,
+  });
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }

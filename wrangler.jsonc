@@ -21,6 +21,8 @@
     }
   ],
   // The photo album: web copies of the photos and the page list. Photos never go in git (see AGENTS.md).
+  // The id of the deployed version, for the error log (src/log.ts) and the page (GET /api/config).
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "kv_namespaces": [{ "binding": "ALBUM", "id": "56e7151849254668a1dbbf8b84291659" }],
   "ratelimits": [
     { "name": "PLACES_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
@@ -32,7 +34,9 @@
     // Each address read or change calls the Apps Script, so a guest gets a few a minute.
     { "name": "ADDRESS_LIMIT", "namespace_id": "1006", "simple": { "limit": 10, "period": 60 } },
     // An invite link reads the Sheet once when it opens. A friend opens it a few times at most.
-    { "name": "INVITE_LIMIT", "namespace_id": "1007", "simple": { "limit": 10, "period": 60 } }
+    { "name": "INVITE_LIMIT", "namespace_id": "1007", "simple": { "limit": 10, "period": 60 } },
+    // The page reports its own errors (POST /api/log). It sends at most a few for each failure.
+    { "name": "LOG_LIMIT", "namespace_id": "1008", "simple": { "limit": 20, "period": 60 } }
   ],
   // Listed here so `wrangler types` does not depend on a local .dev.vars file.
   "secrets": { "required": ["OPENROUTER_API_KEY", "GOOGLE_PLACES_KEY", "SHEET_SECRET"] },

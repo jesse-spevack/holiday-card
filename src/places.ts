@@ -69,5 +69,5 @@ function toAddress(components: Component[], formatted: string): Address {
 function placesData(reply: ServiceReply): object {
   if (reply.ok && reply.data && typeof reply.data === "object") return reply.data;
   console.error("places_failed", reply.status, reply.text.slice(0, 300));
-  throw new HttpError(reply.status === 429 ? 429 : 502, "places_failed");
+  throw new HttpError(reply.status === 429 ? 429 : 502, "places_failed", `places ${reply.status}`);
 }

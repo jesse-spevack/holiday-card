@@ -74,6 +74,7 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 | `POST /api/address/read` | `{ "id", "token" }` | `{ "envelope", "address": { "street", "unit", "city", "state", "zip" } }`, or `"address": null` with no Sheet row |
 | `POST /api/address/change` | `{ "id", "token", "envelope", "address": { "street", "unit", "city", "state", "zip" } }` | `{ "ok": true, "name" }` |
 | `GET /api/party` | | `{ "families": [{ "id", "name", "members": [{"type","look"}], "bubbles": ["..."] }] }` |
+| `POST /api/log` | `{ "step", "code", "where"?, "online"?, "family"? }` (at most 2 KB; other fields are dropped) | `204` with no body. A row in the D1 `errors` table (`pnpm errors`) |
 | `GET /album/list` | | The album pages and captions, from KV |
 | `GET /album/<hash>.jpg` | | One album photo, from KV |
 
@@ -100,6 +101,10 @@ When a call fails, the page shows the host line for its error code (`FAIL_LINES`
 A code with no line gets "Something went wrong. Try again? (code)", so a guest's screenshot names the cause.
 A call that never reaches the Worker gets the code `network`. If the household read fails at the send, the page asks again,
 and if it fails again, the page guesses one adult for each name in the text. The household never blocks the sign-up.
+
+Each failure goes to the error log, so `pnpm errors` shows its cause. The Worker writes a row for each request that fails.
+The page sends `POST /api/log` (`public/js/report.js`) for each failure that the guest sees, an error that nothing caught,
+and a call that never reaches the Worker. The page sends the same step and code at most once in 30 seconds, and 20 reports at most.
 
 We mail cards inside the US only (`public/js/us.js`). An address outside the US fails with `422` and one of these codes:
 

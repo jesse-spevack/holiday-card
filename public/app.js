@@ -14,6 +14,7 @@ import { Counter, DONE_LINE } from "./js/counter.js";
 import { US_LINES, usAddressProblem } from "./js/us.js";
 import { Marker } from "./js/marker.js";
 import { DEMO, demoFamily } from "./js/demo.js";
+import { report, reportFamily, reportUncaught } from "./js/report.js";
 
 const $ = (id) => document.getElementById(id);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -193,6 +194,11 @@ function showError(text) {
   if (el) el.textContent = text;
   sound.oops();
 }
+// A failed call that the guest sees: the host line for its code, and a report to the error log.
+function fail(step, err) {
+  report(step, err);
+  showError(failLine(err));
+}
 // The host line for each error code of a failed call. A code that is not here gets the retry line with its code,
 // so a guest's screenshot tells us what failed.
 const FAIL_LINES = {
@@ -281,7 +287,10 @@ function readHousehold() {
     return state.members;
   });
   state.membersPromise = read;
-  read.catch(() => { if (state.membersPromise === read) state.membersPromise = null; });
+  read.catch((err) => {
+    report("household", err);
+    if (state.membersPromise === read) state.membersPromise = null;
+  });
   return read;
 }
 
@@ -335,7 +344,8 @@ function stepAddress() {
       let suggestions = [];
       try {
         ({ suggestions } = await api.places(q, state.session));
-      } catch {
+      } catch (err) {
+        report("places", err);
         suggestions = [];
       }
       // The guest can leave the step while Google answers, so a late answer has no list to fill.
@@ -361,7 +371,7 @@ function stepAddress() {
       state.address = address;
       go("unit");
     } catch (err) {
-      showError(failLine(err));
+      fail("place", err);
     }
   };
   frame("Where should we mail your card?",
@@ -443,9 +453,10 @@ async function send() {
       // The invite is gone. The guest can still sign up: the next tap sends the form with no invite.
       dropInviteHash();
       state.invite = "";
+      report("submit", err);
       return showError("That invitation does not work anymore, but you can still sign up. Tap the button again.");
     }
-    showError(failLine(err));
+    fail("submit", err);
   }
 }
 
@@ -628,7 +639,7 @@ function saveLine(saved, sprite, value) {
   saveMine();
   scene.say(sprite, text, 6);
   lineShown(sprite);
-  api.sprite({ id: saved.id, token: saved.token, index: sprite.index, bubble: text }).catch(() => sound.oops());
+  api.sprite({ id: saved.id, token: saved.token, index: sprite.index, bubble: text }).catch((err) => { report("sprite", err); sound.oops(); });
   sound.candle();
   Object.assign(panel, { index: null, thanks: true });
   go("family");
@@ -645,7 +656,7 @@ function newLook(saved, sprite, returnFocus) {
     sound.pop();
     sprite.popAt = scene.time;
     scene.updateOverlay();
-    api.sprite({ id: saved.id, token: saved.token, index: sprite.index, look: look.id }).catch(() => sound.oops());
+    api.sprite({ id: saved.id, token: saved.token, index: sprite.index, look: look.id }).catch((err) => { report("sprite", err); sound.oops(); });
     // The card shows the new look. The line that the guest typed stays, and the focus goes back to "New look".
     if (state.step === "family" && panel.saved === saved && panel.index === sprite.index) {
       const value = $("f-line")?.value;
@@ -697,7 +708,8 @@ async function stepOnFile() {
     let found;
     try {
       found = await api.addressRead({ id: family.id, token: family.token });
-    } catch {
+    } catch (err) {
+      report("address_read", err);
       if (left()) return;
       frame("We can't reach our address book right now.",
         h("p", { class: "hint" }, "Your card is safe. Try again in a minute?"),
@@ -750,7 +762,7 @@ async function saveAddress() {
     go("saved");
   } catch (err) {
     button.disabled = false;
-    showError(failLine(err));
+    fail("address_change", err);
   }
 }
 
@@ -926,6 +938,8 @@ async function demoArrives() {
 
 // ---------- start ----------
 async function start() {
+  reportUncaught();
+  reportFamily(() => state.mine.at(-1)?.id);
   const soundBtn = $("sound");
   const syncSound = () => {
     soundBtn.setAttribute("aria-pressed", String(sound.on));
