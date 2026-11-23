@@ -930,7 +930,8 @@ async function start() {
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
-  api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
+  // Demo mode signs nobody up, so it needs no Turnstile. On a preview, the widget would only show an error.
+  if (!DEMO) api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
   // A new guest gets the first question at once. So the dialog has its real height before the room shows,
   // and the room does not jump when the question appears.
   const invited = state.invite ? openInviteLink() : null;
