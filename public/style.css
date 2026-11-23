@@ -158,9 +158,11 @@ button, input { font: inherit; }
 .pop .row { display: flex; gap: 8px; }
 .pop button { flex: 1; }
 
+/* The top margin keeps a band of night between the room and the dialog on a short phone, so the counter in the
+   corner of the room does not touch the dialog. */
 .dialog {
   flex: none;
-  margin: 0 12px 16px;
+  margin: 8px 12px 16px;
   min-height: 260px;
   max-height: 55dvh;
   overflow-y: auto;
@@ -176,7 +178,7 @@ button, input { font: inherit; }
 .dialog.small { min-height: 0; }
 /* After the thank-you, the dialog slides down out of view and the room takes its space. */
 #app.tucked .dialog {
-  min-height: 0; margin-bottom: 0; padding: 0; border-width: 0;
+  min-height: 0; margin-top: 0; margin-bottom: 0; padding: 0; border-width: 0;
   overflow: hidden; opacity: 0; visibility: hidden;
   transition: height 350ms ease, margin 350ms ease, padding 350ms ease, border-width 350ms ease,
     opacity 250ms ease, visibility 0s linear 350ms;

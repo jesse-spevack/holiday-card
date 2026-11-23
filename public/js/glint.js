@@ -1,25 +1,59 @@
-// The glint: every few seconds, a small gold twinkle shows on one tap area of a hidden extra that the guest has not found.
-// It goes round the extras in the order of their list, one twinkle at a time. An extra with no tap area (a car, the pets,
+// The glint: a gold sparkle on one tap area of a hidden extra that the guest has not found. It shows every few seconds.
+// It goes round the extras in the order of their list, one sparkle at a time. An extra with no tap area (a car, the pets,
 // the silly looks) gets no glint, and an extra stops its glint once this browser finds it.
-// The glint runs on the scene clock, only after the thank-you tucks away (start and stop). The scene draws it as a layer,
-// over the lamp's dark blue, so it shows in a dark room too.
+// The glint runs on the scene clock from the moment the room shows, for every visitor, also while the form shows (start and stop).
+// The scene draws it as a layer, over the lamp's dark blue, so it shows in a dark room too. It draws on the room only,
+// never on the dialog.
 // burst() is the room's sparkle when the guest finds the last extra (counter.js).
 
-import { drawTwinkle } from "./pixels.js";
 import { PALETTE } from "./palette.js";
 
 // The times, in scene seconds. every: from one glint to the next. seconds: how long a glint shows.
 // With reduced motion, the glint is a still sparkle that shows longer and less often.
+// peak: the full size of a glint (FRAMES), in room pixels. A still glint (reduced motion) keeps it.
 export const GLINT = {
-  every: 4, seconds: 0.9,
-  still: { every: 8, seconds: 1.6 },
+  every: 3.5, seconds: 1.8,
+  peak: { arm: 8, body: 3, white: 2 },
+  still: { every: 8, seconds: 2.5 },
   // The room's sparkle: each twinkle starts this long after the one before it, and shows for `seconds`.
-  burst: { gap: 0.05, seconds: 0.9 },
+  burst: { gap: 0.05, seconds: 1.2 },
 };
 // The soft dark edge of a glint, in the brown of the corners of a tap (scene.js).
-const OUTLINE = "rgba(42, 24, 19, 0.8)";
-// The length of the gold arms as a glint grows and shrinks: [until, arm], with `until` a share of its time.
-const ARMS = [[0.12, 0], [0.27, 1], [0.4, 2], [0.6, 3], [0.73, 2], [0.88, 1], [1, 0]];
+const OUTLINE = "rgba(42, 24, 19, 0.85)";
+const WHITE = "#ffffff";
+// The shape of a glint as it grows, holds, and shrinks: [until, arm, body, white], with `until` a share of its time.
+// arm: the reach of the four gold arms in room pixels. body: the gold diamond at the heart, so the arms grow thick there.
+// white: the white diamond at the heart. At its full size, the glint breathes in once, as a star twinkles.
+const PEAK = GLINT.peak;
+const FRAMES = [
+  [0.04, 0, 0, 0], [0.08, 1, 0, 0], [0.12, 2, 1, 1], [0.17, 4, 2, 1], [0.23, 6, 2, 2],
+  [0.4, PEAK.arm, PEAK.body, PEAK.white], [0.5, PEAK.arm - 1, PEAK.body, PEAK.white], [0.67, PEAK.arm, PEAK.body, PEAK.white],
+  [0.74, 6, 2, 2], [0.8, 4, 2, 1], [0.86, 2, 1, 1], [0.93, 1, 0, 0], [1, 0, 0, 0],
+];
+// The pixels of a glint around its heart: [[dx, dy, color]]. The dark edge goes round each lit pixel, outside it.
+const shapes = new Map();
+function shape({ arm, body, white }) {
+  const key = `${arm}/${body}/${white}`;
+  if (shapes.has(key)) return shapes.get(key);
+  const lit = new Map();
+  for (let dy = -arm; dy <= arm; dy++) {
+    for (let dx = -arm; dx <= arm; dx++) {
+      const d = Math.abs(dx) + Math.abs(dy);
+      if (d > body && dx && dy) continue;
+      lit.set(`${dx},${dy}`, [dx, dy, d <= white ? WHITE : PALETTE.gold]);
+    }
+  }
+  const edge = new Map();
+  for (const [dx, dy] of lit.values()) {
+    for (const [ex, ey] of [[dx + 1, dy], [dx - 1, dy], [dx, dy + 1], [dx, dy - 1]]) {
+      const k = `${ex},${ey}`;
+      if (!lit.has(k)) edge.set(k, [ex, ey, OUTLINE]);
+    }
+  }
+  const pixels = [...edge.values(), ...lit.values()];
+  shapes.set(key, pixels);
+  return pixels;
+}
 
 // The point of a tap area where its glint shows: right of the middle and near the top, where a light would catch it.
 export function glintPoint({ x, y, w, h }) {
@@ -89,18 +123,22 @@ export class Glint {
 
   drawFront(g) {
     const time = this.scene.time;
-    if (this.shown) this.draw(g, this.shown, (time - this.shown.t0) / this.times.seconds, { outline: OUTLINE });
+    if (this.shown) this.draw(g, this.shown, (time - this.shown.t0) / this.times.seconds);
     for (const t of this.twinkles) {
       const k = (time - t.t0) / GLINT.burst.seconds;
-      if (k >= 0) this.draw(g, t, k, { outline: OUTLINE });
+      if (k >= 0) this.draw(g, t, k);
     }
   }
 
-  // A dot, then a gold cross that grows and shrinks, then a dot again. k goes from 0 to 1. With reduced motion, the cross holds still.
-  draw(g, { x, y }, k, options) {
-    const arm = this.reducedMotion ? 3 : ARMS.find(([until]) => k < until)?.[1] ?? 0;
-    // A grown glint has a bigger white heart, so it shows on the gold presents and the lamp light.
-    drawTwinkle(g, x, y, arm, { gold: PALETTE.gold, core: arm >= 2 ? 1 : 0, ...options });
+  // A white dot grows into a gold star with a white heart, holds, and shrinks to a dot again. k goes from 0 to 1.
+  // With reduced motion, the star holds its full size.
+  draw(g, { x, y }, k) {
+    const frame = FRAMES.find(([until]) => k < until) ?? FRAMES.at(-1);
+    const size = this.reducedMotion ? PEAK : { arm: frame[1], body: frame[2], white: frame[3] };
+    for (const [dx, dy, color] of shape(size)) {
+      g.fillStyle = color;
+      g.fillRect(x + dx, y + dy, 1, 1);
+    }
   }
 
   // The state of the glint, for the tests.
