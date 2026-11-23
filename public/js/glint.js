@@ -90,9 +90,17 @@ export class Glint {
   }
 
   // The next extra after the last one in the list, and the next of its tap areas.
+  // A spot with a cue (the window while a car drives past) glints only while its cue is true, and then before the others.
   pick() {
-    const all = this.targets().filter((t) => t.spots.length);
+    const all = this.targets()
+      .map((t) => ({ ...t, spots: t.spots.filter((s) => s.cue?.() ?? true) }))
+      .filter((t) => t.spots.length);
     if (!all.length) return null;
+    const cued = all.find((t) => t.spots.some((s) => s.cue));
+    if (cued) {
+      const spot = cued.spots.find((s) => s.cue);
+      return { egg: cued.name, id: spot.id, cue: spot.cue, ...glintPoint(spot) };
+    }
     const after = all.findIndex((t) => t.name === this.lastEgg);
     const target = all[(after + 1) % all.length];
     const turn = this.turns.get(target.name) ?? 0;
@@ -115,6 +123,8 @@ export class Glint {
     if (this.shown && time - this.shown.t0 >= this.times.seconds) this.shown = null;
     // A glint stops at once when the guest finds its extra.
     if (this.shown && !this.targets().some((t) => t.name === this.shown.egg)) this.shown = null;
+    // A glint with a cue stops at once when its cue ends (the car leaves the window).
+    if (this.shown?.cue && !this.shown.cue()) this.shown = null;
     if (!this.on || this.shown || time < this.next) return;
     this.next = time + this.times.every;
     const p = this.pick();

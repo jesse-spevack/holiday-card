@@ -189,6 +189,7 @@ Nothing on screen points to these.
     of an extra that the guest has not found. It grows from a white dot to a star 11 room pixels wide, with a white heart,
     holds and breathes once, and shrinks again. The extras take turns in the order of their list.
     The cars, the pets, and the silly looks have no tap area, so they get no glint.
+    The window glints only while a car drives past. Then it glints before the other extras, and the glint stops when the car goes.
     The star has a dark edge, so it shows on the light wall and in the dark room. It draws on the room only, never on the dialog.
     With reduced motion, it is a still star for 2.5 seconds every 8 seconds.
   - The counter (`public/js/counter.js`) starts as soon as the room shows. It sits in the bottom right corner of the room,
