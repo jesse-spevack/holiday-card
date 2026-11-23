@@ -19,6 +19,9 @@ describe("the form", { concurrency: true }, () => {
     await page.waitForFunction(() => window.__hc.loaded().room);
     await assertWholeRoom(page, "phone, step 1");
     assert.ok(await page.getByRole("button", { name: "Add another address" }).isHidden());
+    // The glint and the counter help a first-time visitor from the start. The hosts do not speak on their own over the form.
+    await page.waitForFunction(() => window.__hc.glint().on && window.__hc.counter().shown);
+    assert.equal((await hc.idle()).on, false);
     // password managers stay out of the dialog
     assert.equal(await page.getByLabel("Name on the envelope").getAttribute("data-1p-ignore"), "");
     assert.equal(await page.getByLabel("Name on the envelope").getAttribute("autocomplete"), "off");
@@ -66,7 +69,10 @@ describe("the form", { concurrency: true }, () => {
     assert.ok(await page.locator("#dialog").isVisible());
     // while the dialog shows, the greeting stays away
     assert.equal((await nightState(page)).greeting, false);
+    assert.equal((await hc.idle()).on, false, "no host line of their own over the thank-you");
     await assertTucks(page);
+    // After the sign-up and the thank-you, the hosts speak on their own.
+    assert.equal((await hc.idle()).on, true);
     await assertWholeRoom(page, "phone, thank-you hidden");
     // a tall phone fills the bands: a night sky with a snowy roof above the room, and the greeting below it
     await page.locator(".night-greeting").waitFor();

@@ -2,7 +2,8 @@
 // The total counts only the hidden extras that fit this guest now (`fits` of each extra). A car counts once the guest sees it.
 // A tap on the counter makes a host say a hint (idle.js). When the guest finds the last extra, the room sparkles (glint.js),
 // a short tune plays, Jess cheers, and the counter shows its done state.
-// The counter shows only after the thank-you tucks away, so only a guest with a family in this browser sees it.
+// The counter shows as soon as the room shows, for every visitor, also while the form shows. It counts the extras that this
+// browser found (found.js), so it needs no family.
 
 import { h } from "./dom.js";
 

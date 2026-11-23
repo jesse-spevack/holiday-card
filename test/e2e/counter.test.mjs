@@ -1,5 +1,5 @@
-// The counter: a small label in the corner of the room, for example "3 of 12 surprises". It shows after the thank-you, to a
-// guest with a family in this browser. The total counts only the extras that fit the guest. A tap on it gives a hint, and the
+// The counter: a small label in the corner of the room, for example "3 of 12 surprises". It shows as soon as the room shows,
+// for every visitor, also on the form. The total counts only the extras that fit the guest. A tap on it gives a hint, and the
 // last find makes the room sparkle and the counter show its done state.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,11 +17,65 @@ const SIZES = [
 
 const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-test("a new guest sees no counter during the form", async () => {
-  const { page, hc } = await env.open({ wait: "eggs" });
+// On the form, the counter sits in the corner of the room and clear of the dialog, on a small phone, a phone, a tall phone, and a desktop.
+describe("the counter on the form", { concurrency: true }, () => {
+  for (const { name, viewport, touch } of [...SIZES, { name: "tall-phone", viewport: { width: 400, height: 932 }, touch: true }]) {
+    test(`a first-time visitor sees the counter on the form, clear of the dialog, on ${name}`, async () => {
+      const { page, hc } = await env.open({ viewport, hasTouch: touch, party: NO_PET, wait: "eggs" });
+      await page.locator("#f-envelope").waitFor();
+      await hc.pause();
+      await animationsDone(page);
+      const c = await hc.counter();
+      assert.ok(c.shown);
+      // With no family and no pet at the party, the silly looks and the pets do not fit: 11 of the 13 extras.
+      assert.equal(c.text, "0 of 11 surprises");
+      const [room, stage, dialog] = await page.evaluate(() => ["world", "stage", "dialog"].map((id) => document.getElementById(id).getBoundingClientRect().toJSON()));
+      for (const r of [room, stage]) assert.ok(c.box.left >= r.left && c.box.right <= r.right && c.box.top >= r.top && c.box.bottom <= r.bottom, `inside: ${JSON.stringify({ box: c.box, r })}`);
+      assert.ok(room.right - c.box.right < 12 && room.bottom - c.box.bottom < 12, `in the corner: ${JSON.stringify({ box: c.box, room })}`);
+      // clear of the dialog, with a gap of at least 4 pixels
+      const near = { left: dialog.left - 4, top: dialog.top - 4, right: dialog.right + 4, bottom: dialog.bottom + 4 };
+      assert.ok(!overlap(c.box, near), `clear of the dialog: ${JSON.stringify({ box: c.box, dialog })}`);
+      assert.equal(await page.evaluate(() => { const el = document.querySelector(".counter"); return el.scrollWidth <= el.clientWidth; }), true);
+      await page.screenshot({ path: `${OUT}/counter-form-${name}.png` });
+    });
+  }
+});
+
+// With no family, a find counts, a tap on the counter gives a hint, and the last find makes the room sparkle. No host speaks on their own.
+test("a first-time visitor on the form counts finds, gets a hint on a tap, and gets the cheer at the last find", async () => {
+  const { page, hc, calls } = await env.open({ viewport: { width: 400, height: 844 }, hasTouch: true, party: NO_PET, wait: "eggs" });
   await page.locator("#f-envelope").waitFor();
-  assert.equal((await hc.counter()).shown, false);
-  assert.equal(await page.locator(".counter").isVisible(), false);
+  await hc.pause();
+  await hc.stillHosts();
+  await hc.spySounds(["select", "fanfare"]);
+  const start = await hc.counter();
+  assert.equal(start.found, 0);
+  // a tap on the fire
+  const fire = await hc.spotCenter("fire");
+  await tapRoom(page, fire.x, fire.y);
+  await page.waitForFunction(() => window.__hc.counter().found === 1);
+  assert.equal((await hc.counter()).text, `1 of ${start.total} surprises`);
+  // A tap on the counter: a host says a hint, since the guest asked.
+  const box = (await hc.counter()).box;
+  await page.touchscreen.tap((box.left + box.right) / 2, (box.top + box.bottom) / 2);
+  await page.waitForFunction(() => window.__hc.idle().said.length === 1);
+  assert.ok((await hc.idle()).said[0].hint);
+  // the last find
+  await hc.found(...(await hc.counter()).missing.filter((n) => n !== "presents"));
+  const presents = await hc.spotCenter("presents");
+  await tapRoom(page, presents.x, presents.y);
+  await page.waitForFunction(() => window.__hc.counter().celebrations === 1);
+  assert.equal((await hc.counter()).text, `All ${start.total} found!`);
+  assert.ok((await hc.sounds()).includes("fanfare"));
+  assert.equal((await hc.sprite({ host: true, name: "Jess" })).bubble, "You found every surprise!");
+  await hc.advance(0.6);
+  assert.ok((await hc.glint()).twinkles >= 10);
+  // No family, so no call goes to the Worker, and the form still waits.
+  assert.equal(await hc.interactionsSent(), 0);
+  assert.deepEqual(calls.filter((c) => c.path === "/api/interaction"), []);
+  assert.ok(await page.locator("#f-envelope").isVisible());
+  // The hosts never speak on their own while the form shows.
+  assert.equal((await hc.idle()).on, false);
 });
 
 describe("the counter", { concurrency: true }, () => {
@@ -29,8 +83,8 @@ describe("the counter", { concurrency: true }, () => {
     test(`the counter sits in the corner, clear of the tap areas and the hosts, on ${name}`, async () => {
       const { page, hc } = await env.open({ viewport, hasTouch: touch, party: NO_PET, mine: [GARCIA], wait: "eggs" });
       await waitForFamilies(page, { other1: 2, fam12345: 2 });
-      // not during the thank-you
-      assert.equal((await hc.counter()).shown, false);
+      // during the thank-you too
+      assert.ok((await hc.counter()).shown);
       await tuckNow(page);
       await hc.pause();
       const c = await hc.counter();

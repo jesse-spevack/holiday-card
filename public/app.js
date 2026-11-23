@@ -29,8 +29,10 @@ const dialog = $("dialog");
 const found = createFound({ family: () => state.mine.at(-1) });
 const extras = setupExtras({ scene, sound, reducedMotion, found: found.mark, mine: () => state.mine });
 const night = new Night({ stage: $("stage"), reducedMotion, clock: scene });
-// The help to find the hidden extras. It starts after the thank-you tucks away (tuck): the glint on an extra that the guest
-// has not found, the hosts' own lines while the guest does nothing, and the counter in the corner of the room.
+// The help to find the hidden extras. The glint on an extra that the guest has not found, and the counter in the corner
+// of the room, start as soon as the room shows (start), for every visitor, also while the form shows. A found extra stays
+// in this browser (found.js), so they need no family. The hosts' own lines wait until the thank-you tucks away (tuck),
+// so no host bubble talks over the form.
 const unfound = () => extras.fitting().filter((e) => !found.has(e.name));
 const hidden = (egg) => !found.has(egg) && extras.fits(egg);
 const glint = new Glint({ scene, reducedMotion, targets: unfound });
@@ -392,11 +394,8 @@ function tuck(away) {
   }
   app.classList.toggle("tucked", away);
   night.showGreeting(away);
-  // Only a guest with a family in this browser gets the help, since a found extra is recorded for a family.
-  const help = away && state.mine.length > 0;
-  glint[help ? "start" : "stop"]();
-  idle[help ? "start" : "stop"]();
-  counter.show(help);
+  // The hosts speak on their own only to a guest with a family in this browser, after the thank-you.
+  idle[away && state.mine.length > 0 ? "start" : "stop"]();
   if (away && hadFocus) again.focus();
 }
 
@@ -617,6 +616,9 @@ async function start() {
     scene.load("/assets/room.png"),
   ]);
   state.looks = looks;
+  // The room shows now. The glint and the counter help every visitor find the hidden extras.
+  glint.start();
+  counter.show(true);
 
   for (const host of HOSTS) {
     const img = await image(`/assets/hosts/${host.id}.png`);

@@ -39,7 +39,16 @@ function quietly(page, seconds, { untilLine = false } = {}) {
     return untilLine ? null : hc.time() - t0;
   }, { seconds, untilLine });
 }
-const nextLine = async (page, max) => assert.notEqual(await quietly(page, max, { untilLine: true }), null, `a host line within ${max} scene seconds`);
+// A miss reports the state of the hosts' lines and the bubbles that show, so a rare miss on a slow machine can be read.
+async function nextLine(page, max) {
+  if ((await quietly(page, max, { untilLine: true })) !== null) return;
+  const state = await page.evaluate(() => ({
+    idle: window.__hc.idle(),
+    bubbles: window.__hc.sprites().filter((s) => s.bubble !== null).map((s) => [s.name ?? s.familyId, s.bubble]),
+    hidden: document.hidden,
+  }));
+  assert.fail(`a host line within ${max} scene seconds: ${JSON.stringify(state)}`);
+}
 
 // The lines that the hosts said on their own.
 const said = async (hc) => (await hc.idle()).said;
@@ -141,6 +150,16 @@ describe("the hosts speak on their own", { concurrency: true }, () => {
     assert.equal(boxes.length, 2);
     const [a, b] = boxes;
     assert.ok(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top, `the bubbles overlap: ${JSON.stringify(boxes)}`);
+  });
+
+  test("no host speaks on their own to a first-time visitor on the form", async () => {
+    const { page, hc } = await env.open({ viewport: { width: 400, height: 844 }, hasTouch: true, party: PARTY, wait: "eggs" });
+    await page.locator("#f-envelope").waitFor();
+    await hc.pause();
+    const { IDLE } = await hc.constants();
+    await quietly(page, IDLE.every * 3);
+    assert.equal((await hc.idle()).on, false);
+    assert.deepEqual(await said(hc), []);
   });
 
   test("after the guest finds every extra, the hosts speak much less often, with the thanks only", async () => {
