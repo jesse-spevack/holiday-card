@@ -13,7 +13,6 @@ export default defineConfig(async () => {
             OPENROUTER_API_KEY: "test-openrouter",
             GOOGLE_PLACES_KEY: "test-places",
             SHEET_SECRET: "test-secret",
-            TURNSTILE_SECRET: "test-turnstile",
           },
         },
       }),

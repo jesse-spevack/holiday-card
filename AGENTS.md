@@ -27,7 +27,6 @@ One Cloudflare Worker serves the static files in `public/` and the API. `wrangle
 | `src/household.ts` | `POST /api/household`: one OpenRouter call that turns "who lives at your house" into members |
 | `src/places.ts` | `GET /api/places` and `GET /api/place`: Google Places address suggestions and details, US only |
 | `src/address.ts` | The mailing address in a request body, with the US-only check from `public/js/us.js` |
-| `src/turnstile.ts` | The Turnstile check on `POST /api/submit` |
 | `src/sheet.ts` | The Apps Script calls: add a Sheet row, and read or change the row of a family (`family_id`) |
 | `src/party.ts` | D1: adds a family, reads the party, changes a sprite, the token check, the party version |
 | `src/interactions.ts` | `POST /api/interaction`: the allow-list of egg names (`EGGS`), and the count for each family and egg |
@@ -132,7 +131,7 @@ pnpm run deploy     # main only. See "Deploy".
 
 `pnpm deploy` without `run` is a pnpm command, not our script. It does not deploy the site. Always type `pnpm run deploy`.
 
-For `pnpm dev`, copy `.dev.vars.example` to `.dev.vars` and fill in the secrets. The Turnstile values in the example are Cloudflare's test values, which always pass.
+For `pnpm dev`, copy `.dev.vars.example` to `.dev.vars` and fill in the secrets.
 To make the local D1 tables, run `pnpm exec wrangler d1 migrations apply holiday-card --local`.
 
 ## Add a hidden extra
@@ -209,15 +208,14 @@ The URL is `https://<branch>-holiday-card.jspevack.workers.dev`, with each run o
 What a preview is:
 
 - A preview uses the production D1, KV, secrets, and Sheet. It is not a sandbox. A change that a preview makes is a change to real data.
-- A sign-up does not work on a preview. The Turnstile widget accepts only `hi.verynormal.dev`, so the widget shows an error on a `workers.dev` URL.
-- Do not try to make sign-up work on a preview. A sign-up that works on a preview writes a real row to the Sheet and a real family to the party.
+- Never sign up on a preview. The sign-up works there, and it writes a real row to the Sheet and a real family to the party.
 - The room, the party, the album, and the hidden extras work on a preview.
 - `#demo` works on a preview too: `https://<branch>-holiday-card.jspevack.workers.dev/#demo` shows the branch as a guest who just signed up,
   with a made-up family, "My family", and every extra. No write leaves the page, so Jesse can check a branch on his phone with no real data.
 - A preview is public. Anyone with the URL can open it.
 - A branch with a new migration cannot get its schema on a preview. Never apply a migration to the production D1 from a branch.
 
-To check sign-up, use `pnpm dev` with the test keys, or `pnpm e2e`.
+To check sign-up, use `pnpm dev` or `pnpm e2e`.
 
 ## Deploy
 
@@ -270,10 +268,9 @@ Never write a secret value in a file in this repo. Names only.
 | Name | Kind | Where the value lives |
 |---|---|---|
 | `OPENROUTER_API_KEY` | Worker secret | 1Password vault `keys`, item `Holiday card`, field `credential` |
-| `TURNSTILE_SECRET` | Worker secret | 1Password vault `keys`, item `Holiday card`, field `TURNSTILE_SECRET` |
 | `GOOGLE_PLACES_KEY` | Worker secret | Google Cloud project `very-normal`, API key `holiday-card-places` |
 | `SHEET_SECRET` | Worker secret | Also `SHARED_SECRET` in `apps-script/Secret.js`, which git ignores. `clasp pull` gets it back. |
-| `OPENROUTER_MODEL`, `SHEET_URL`, `TURNSTILE_SITE_KEY` | Vars in `wrangler.jsonc` | Public values |
+| `OPENROUTER_MODEL`, `SHEET_URL` | Vars in `wrangler.jsonc` | Public values |
 | `DB` | D1 binding | Database `holiday-card` |
 | `ALBUM` | KV binding | Namespace `holiday-card-album` |
 | `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT`, `ADDRESS_LIMIT`, `INVITE_LIMIT` | Rate limit bindings | `wrangler.jsonc` |

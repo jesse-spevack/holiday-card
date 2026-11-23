@@ -119,103 +119,6 @@ function saveMine() {
 }
 const mineById = (id) => state.mine.find((f) => f.id === id);
 
-// ---------- Turnstile: Cloudflare's check that a real browser sends the address ----------
-// The check renders at page load, out of sight ("interaction-only"), and gets a token in the background.
-// The send waits for that token, because an empty or used token makes the Worker refuse the sign-up.
-// turnstileState: "off" (no site key), "loading", "missing" (the script did not load), "waiting", "interactive"
-// (the check wants a tap), "token", "expired", "timeout", "error", or "unsupported".
-const TURNSTILE_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-const SCRIPT_WAIT_MS = 8000;
-const TOKEN_WAIT_MS = 15000;
-const TAP_WAIT_MS = 60000;
-let turnstileWidget = null;
-let turnstileKey = "";
-let turnstileState = "off";
-
-function renderTurnstile(siteKey) {
-  if (!siteKey) return;
-  turnstileKey = siteKey;
-  turnstileState = "loading";
-  if (mountTurnstile()) return;
-  // An async script runs before the load event, so a script that is not there at load did not load.
-  const missing = () => { if (!mountTurnstile()) turnstileState = "missing"; };
-  if (document.readyState === "complete") missing();
-  else window.addEventListener("load", missing, { once: true });
-}
-
-function mountTurnstile() {
-  if (turnstileWidget !== null) return true;
-  if (!window.turnstile) return false;
-  try {
-    turnstileWidget = window.turnstile.render("#turnstile", {
-      sitekey: turnstileKey,
-      appearance: "interaction-only",
-      callback: () => { turnstileState = "token"; },
-      "expired-callback": () => { turnstileState = "expired"; },
-      "timeout-callback": () => { turnstileState = "timeout"; },
-      "error-callback": () => { turnstileState = "error"; },
-      "unsupported-callback": () => { turnstileState = "unsupported"; },
-      "before-interactive-callback": () => { turnstileState = "interactive"; },
-    });
-  } catch {
-    return false;
-  }
-  turnstileState = "waiting";
-  return true;
-}
-
-// The script failed or came late: add it again once more, and render the check when it loads.
-function loadTurnstile() {
-  if (window.turnstile) return Promise.resolve(mountTurnstile());
-  return new Promise((resolve) => {
-    const script = h("script", { src: TURNSTILE_SRC, async: true });
-    const done = () => { clearTimeout(timer); resolve(mountTurnstile()); };
-    const timer = setTimeout(done, SCRIPT_WAIT_MS);
-    script.addEventListener("load", done);
-    script.addEventListener("error", done);
-    document.head.append(script);
-  });
-}
-
-function turnstileToken() {
-  if (turnstileWidget === null || !window.turnstile) return "";
-  return window.turnstile.getResponse(turnstileWidget) || "";
-}
-
-function resetTurnstile() {
-  if (turnstileWidget === null) return;
-  turnstileState = "waiting";
-  window.turnstile?.reset(turnstileWidget);
-}
-
-// The token for a send, or "" when the check has no token. With no site key (the tests), there is no check.
-// onTap runs once when the check wants a tap. The guest then gets more time.
-async function waitForToken(onTap) {
-  if (!turnstileKey) return "";
-  if (turnstileWidget === null) await loadTurnstile();
-  const start = performance.now();
-  let tapped = false;
-  for (;;) {
-    const token = turnstileToken();
-    if (token) return token;
-    if (turnstileWidget === null || turnstileState === "unsupported") return "";
-    if (turnstileState === "interactive" && !tapped) {
-      tapped = true;
-      onTap();
-    }
-    if (performance.now() - start > (tapped ? TAP_WAIT_MS : TOKEN_WAIT_MS)) return "";
-    await new Promise((r) => setTimeout(r, 200));
-  }
-}
-
-// The host line when the check gives no token.
-function noTokenLine() {
-  if (turnstileWidget === null) return "Our robot check didn't load. Turn off a content blocker, or open this page in another browser?";
-  if (turnstileState === "unsupported") return "This browser can't run our robot check. Can you open this page in another browser?";
-  if (turnstileState === "interactive") return "Tap the box below so we know you're not a robot. Then tap the button again.";
-  return "Our robot check didn't finish. Wait a moment and tap the button again?";
-}
-
 // ---------- host speech, typed out ----------
 let typing = null;
 function typeOut(el, text) {
@@ -294,9 +197,6 @@ function showError(text) {
 // so a guest's screenshot tells us what failed.
 const FAIL_LINES = {
   ...US_LINES,
-  missing_turnstileToken: "Our robot check didn't finish. Wait a moment and tap the button again?",
-  turnstile_failed: "Our robot check didn't pass. Wait a moment and tap the button again?",
-  turnstile_unavailable: "Our robot check is down for a moment. Try again in a minute?",
   slow_down: "That's a lot of tries! Wait a minute and try again?",
   sheet_failed: "We can't reach our address book right now. Try again in a minute?",
   household_failed: "We couldn't read who lives at your house. Tap the button again?",
@@ -383,6 +283,23 @@ function readHousehold() {
   state.membersPromise = read;
   read.catch(() => { if (state.membersPromise === read) state.membersPromise = null; });
   return read;
+}
+
+// The bot trap in index.html. A person leaves it empty, so the page sends it only when something filled it.
+function honeypot() {
+  const value = $("hc-extra")?.value.trim();
+  return value ? { extra: value.slice(0, 100) } : {};
+}
+
+// The address is the point, so a household read that fails at the send never blocks the sign-up.
+// The page guesses instead: one adult for each name in the text, split on commas, "and", "&", and "+".
+const GUESS_MAX = 12;
+async function guessHousehold() {
+  const names = state.household.split(/,|&|\+|\band\b/i).map((n) => n.trim()).filter(Boolean);
+  const count = Math.min(Math.max(names.length, 1), GUESS_MAX);
+  state.members = assignLooks(Array.from({ length: count }, () => ({ type: "adult" })));
+  await showPending(state.members);
+  return state.members;
 }
 
 let searchTimer = null;
@@ -496,17 +413,9 @@ async function send() {
   button.disabled = true;
   $("error").textContent = "";
   try {
-    const members = state.members || (await readHousehold());
-    const turnstileToken = await waitForToken(() => {
-      showError(noTokenLine());
-      $("turnstile").scrollIntoView({ block: "center", behavior: "smooth" });
-    });
-    // The guest can tap "Fix it" while the page waits. The send then stops, so an old address does not go.
+    const members = state.members || (await readHousehold().catch(guessHousehold));
+    // The guest can tap "Fix it" while the page waits for the household. The send then stops, so an old address does not go.
     if (!button.isConnected) return;
-    if (turnstileKey && !turnstileToken) {
-      button.disabled = false;
-      return showError(noTokenLine());
-    }
     const family = scene.families.get("pending");
     if (!family.entered) {
       family.entered = true;
@@ -516,7 +425,7 @@ async function send() {
     }
     const address = { ...state.address, unit: state.unit };
     const invite = state.invite ? { invite: state.invite } : {};
-    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, turnstileToken, ...invite });
+    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, ...invite, ...honeypot() });
     const saved = { id, token, name: state.envelope, members, bubbles: [] };
     state.mine.push(saved);
     saveMine();
@@ -525,10 +434,8 @@ async function send() {
       Object.assign(state, { invite: "", mode: "new" });
     }
     scene.renameFamily("pending", { id, name: saved.name, mine: true });
-    resetTurnstile();
     go("done");
   } catch (err) {
-    resetTurnstile();
     // The friend confirmed in another browser a moment ago. The link now opens the party as that family.
     if (err?.message === "invite_used") return location.reload();
     button.disabled = false;
@@ -1031,8 +938,6 @@ async function start() {
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
-  // Demo mode signs nobody up, so it needs no Turnstile. On a preview, the widget would only show an error.
-  if (!DEMO) api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
   // A new guest gets the first question at once. So the dialog has its real height before the room shows,
   // and the room does not jump when the question appears.
   const invited = state.invite ? openInviteLink() : null;

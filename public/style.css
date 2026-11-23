@@ -171,7 +171,6 @@ button, input { font: inherit; }
   transition: height 350ms ease, margin 350ms ease, padding 350ms ease, border-width 350ms ease,
     opacity 250ms ease, visibility 0s linear 350ms;
 }
-#app.tucked .turnstile { display: none; }
 @keyframes fade-in { from { opacity: 0; } }
 .speaker { font-size: 14px; font-weight: 600; letter-spacing: 0.04em; color: var(--gold); }
 .say { margin: 0; font-size: 21px; line-height: 1.35; min-height: 1.35em; }
@@ -266,8 +265,8 @@ button, input { font: inherit; }
 .fam-line.empty { color: var(--muted); opacity: 0.75; }
 .fam-switch { margin-top: -4px; }
 
-.turnstile { display: flex; justify-content: center; }
-.turnstile:not(:empty) { padding: 8px 0 12px; }
+/* The bot trap in index.html: off screen, out of the tab order, and out of the accessibility tree. */
+.trap { position: fixed; left: -10000px; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 /* Wide screens: the room fills the left side at full height, and the hosts talk in a column on the right. */
 @media (min-width: 900px) {
@@ -279,8 +278,8 @@ button, input { font: inherit; }
     max-width: none;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 420px;
-    grid-template-rows: 56px minmax(0, 1fr) auto;
-    grid-template-areas: "bar bar" "stage dialog" "stage turnstile";
+    grid-template-rows: 56px minmax(0, 1fr) 24px;
+    grid-template-areas: "bar bar" "stage dialog" "stage .";
     transition: grid-template-columns 350ms ease;
   }
   /* A tucked dialog gives its column to the room, so the room grows and sits in the middle. */
@@ -293,7 +292,6 @@ button, input { font: inherit; }
   .fam-grid { --fig: 82px; }
   .fam-card { --s: 2; }
   .fam-card.pet { --s: 3; }
-  .turnstile { grid-area: turnstile; padding-bottom: 24px; }
 }
 
 /* With reduced motion, nothing slides. This rule comes after the wide-screen rules, so it also stops the column slide there. */

@@ -1,8 +1,8 @@
-// The send of the sign-up when something fails: the household read, the Turnstile check, or the submit call.
+// The send of the sign-up when something fails: the household read or the submit call.
 // Each failure gets its own host line, and the guest can always send again.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, said, OUT } from "./harness.mjs";
+import { e2e, said, OUT, waitForFamilies } from "./harness.mjs";
 
 const env = await e2e();
 
@@ -10,37 +10,11 @@ const SEND = /Yes, send it/;
 const json = (data, status = 200) => (r) => r.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
 const submits = (calls) => calls.filter((c) => c.path === "/api/submit");
 
-// A fake Turnstile script. window.__ts.mode picks what the check does after it renders:
-// "tap" wants a tap, and "none" does nothing. The test gives the token with window.__ts.token.
-const fakeTurnstile = `window.turnstile = {
-  render(sel, opts) {
-    const ts = window.__ts;
-    ts.renders++;
-    if (ts.mode === "tap") setTimeout(() => opts["before-interactive-callback"](), 100);
-    return "w1";
-  },
-  getResponse() { return window.__ts.token; },
-  reset() { window.__ts.token = ""; },
-};`;
-
-// A page with the Turnstile check on. script: false makes the script fail to load, as a content blocker does.
-function openWithTurnstile(mode, { script = true, routes = [], ...options } = {}) {
-  return env.open({
-    ...options,
-    init: [`window.__ts = { mode: ${JSON.stringify(mode)}, token: "", renders: 0 };`],
-    routes: [
-      ["**/api/config", json({ turnstileSiteKey: "test-key" })],
-      ["https://challenges.cloudflare.com/**", (r) => (script ? r.fulfill({ contentType: "text/javascript", body: fakeTurnstile }) : r.abort())],
-      ...routes,
-    ],
-  });
-}
-
-async function toConfirm(page) {
+async function toConfirm(page, household = "Ann and Bo") {
   await said(page, "Whose name goes on the envelope?");
   await page.getByLabel("Name on the envelope").fill("The Test Family");
   await page.getByRole("button", { name: "Next" }).click();
-  await page.getByLabel("Who lives at your house").fill("Ann and Bo");
+  await page.getByLabel("Who lives at your house").fill(household);
   await page.getByLabel("Who lives at your house").press("Enter");
   await said(page, "Where should we mail your card?");
   await page.getByLabel("Street address").fill("1428 Maple");
@@ -71,60 +45,45 @@ describe("the send", { concurrency: true }, () => {
     assert.equal(submits(calls).length, 2);
   });
 
-  test("a household read that fails at the send gets its own line", async () => {
+  test("a household read that always fails does not block the sign-up: the page guesses one adult for each name", async () => {
     const { page, calls } = await env.open({ routes: [["**/api/household", json({ error: "household_failed" }, 502)]] });
-    await toConfirm(page);
+    await toConfirm(page, "Ann, Bo and Cy & Dee + Ed");
     await page.getByRole("button", { name: SEND }).click();
-    await alert(page, "We couldn't read who lives at your house.");
-    assert.equal(submits(calls).length, 0);
+    // The fake API fails the first submit. The guess goes with it, and the family walks in.
+    await alert(page, "Something went wrong. Try again? (server)");
+    const [first] = submits(calls);
+    assert.deepEqual(first.body.members.map((m) => m.type), ["adult", "adult", "adult", "adult", "adult"]);
+    await waitForFamilies(page, { pending: 5 });
     await sendEnabled(page);
-  });
-
-  test("a tap before the check has its token waits for the token", async () => {
-    const { page, calls } = await openWithTurnstile("none");
-    await toConfirm(page);
-    // The check has no token yet, for example on a slow phone. The send waits and sends nothing.
     await page.getByRole("button", { name: SEND }).click();
-    await page.waitForFunction(() => document.getElementById("send").disabled);
-    assert.equal(submits(calls).length, 0);
-    await page.evaluate(() => { window.__ts.token = "fake-token"; });
-    await alert(page, "Something went wrong");
-    assert.deepEqual(submits(calls).map((c) => c.body.turnstileToken), ["fake-token"]);
-
-    // The page resets the check after a failure. A quick second tap waits for the new token, and sends no empty token.
-    await sendEnabled(page);
-    assert.equal(await page.evaluate(() => window.__ts.token), "");
-    await page.getByRole("button", { name: SEND }).click();
-    await page.evaluate(() => { window.__ts.token = "fake-token-2"; });
     await said(page, "Thank you.");
-    assert.deepEqual(submits(calls).map((c) => c.body.turnstileToken), ["fake-token", "fake-token-2"]);
+    await waitForFamilies(page, { fam12345: 5 });
   });
 
-  test("a check that wants a tap asks the guest to tap it", async () => {
-    const { page, calls } = await openWithTurnstile("tap");
+  test("the send carries no bot trap and no check token, and a filled trap goes with the send", async () => {
+    const { page, calls } = await env.open({ viewport: { width: 400, height: 860 } });
     await toConfirm(page);
+    // The trap is out of sight and out of the tab order.
+    const trap = page.locator("#hc-extra");
+    assert.equal(await trap.getAttribute("tabindex"), "-1");
+    const box = await trap.boundingBox();
+    assert.ok(box.x + box.width <= 0, "the trap is off screen");
     await page.getByRole("button", { name: SEND }).click();
-    await alert(page, "Tap the box below so we know you're not a robot.");
-    // The guest taps the check box, and the token arrives. The send that waits goes on.
-    await page.evaluate(() => { window.__ts.token = "tapped-token"; });
-    await page.waitForFunction(() => document.querySelector("#error")?.textContent.includes("Something went wrong") || document.querySelector("#say")?.textContent.includes("Thank you"));
-    assert.deepEqual(submits(calls).map((c) => c.body.turnstileToken), ["tapped-token"]);
-  });
+    await alert(page, "Something went wrong. Try again? (server)");
+    await page.screenshot({ path: `${OUT}/submit-fail-400.png` });
+    const [first] = submits(calls);
+    assert.deepEqual(Object.keys(first.body).sort(), ["address", "envelope", "household", "members"]);
 
-  test("a check that cannot load says so, and sends nothing", async () => {
-    const { page, calls } = await openWithTurnstile("none", { script: false, viewport: { width: 400, height: 860 } });
-    await toConfirm(page);
-    await page.getByRole("button", { name: SEND }).click();
-    await alert(page, "Our robot check didn't load.");
-    await page.screenshot({ path: `${OUT}/submit-no-check-400.png` });
-    assert.equal(submits(calls).length, 0);
+    // A bot that fills every field fills the trap too.
+    await page.evaluate(() => { document.getElementById("hc-extra").value = "https://spam.example"; });
     await sendEnabled(page);
+    await page.getByRole("button", { name: SEND }).click();
+    await said(page, "Thank you.");
+    assert.equal(submits(calls)[1].body.extra, "https://spam.example");
   });
 
   test("each submit failure code gets its own line", async () => {
     const replies = [
-      [json({ error: "missing_turnstileToken" }, 400), "Our robot check didn't finish."],
-      [json({ error: "turnstile_failed" }, 403), "Our robot check didn't pass."],
       [json({ error: "slow_down" }, 429), "That's a lot of tries!"],
       [json({ error: "sheet_failed" }, 502), "We can't reach our address book right now."],
       [(r) => r.abort(), "We can't reach our server."],

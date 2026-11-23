@@ -1,7 +1,7 @@
 import { SELF, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sha256, type PartyFamily } from "../src/party";
-import { OPENROUTER, PLACES, SHEET, TURNSTILE, fakeSheet, llmReply, stubOutbound } from "./outbound";
+import { OPENROUTER, PLACES, SHEET, fakeSheet, llmReply, stubOutbound } from "./outbound";
 
 const SUBMISSION = {
   envelope: "The Garcia Family",
@@ -13,7 +13,6 @@ const SUBMISSION = {
     { type: "dog", look: "dog-06" },
   ],
   address: { street: "1428 Maple Ave", unit: "Apt 2B", city: "Evanston", state: "IL", zip: "02139", formatted: "1428 Maple Ave, Evanston, IL 60201, USA" },
-  turnstileToken: "token",
 };
 
 let ipCounter = 0;
@@ -39,7 +38,6 @@ async function getParty() {
 
 function savingServices() {
   return stubOutbound({
-    [TURNSTILE]: () => Response.json({ success: true }),
     [SHEET]: () => Response.json({ ok: true }),
   });
 }
@@ -59,14 +57,9 @@ afterEach(() => {
 });
 
 describe("routes", () => {
-  it("gives the page the Turnstile site key", async () => {
-    const response = await request("/api/config");
-
-    expect(await response.json()).toEqual({ turnstileSiteKey: env.TURNSTILE_SITE_KEY });
-  });
-
   it.each([
     ["GET", "/api/nope"],
+    ["GET", "/api/config"],
     ["GET", "/api/submit"],
     ["POST", "/api/party"],
     ["POST", "/album/list"],
@@ -211,10 +204,7 @@ describe("submit", () => {
   });
 
   it("does not add the family when the Sheet write fails", async () => {
-    stubOutbound({
-      [TURNSTILE]: () => Response.json({ success: true }),
-      [SHEET]: () => Response.json({ error: "forbidden" }),
-    });
+    stubOutbound({ [SHEET]: () => Response.json({ error: "forbidden" }) });
 
     const response = await post("/api/submit", SUBMISSION);
 
@@ -226,7 +216,7 @@ describe("submit", () => {
     ["is unreachable", () => Promise.reject(new TypeError("network down"))],
     ["replies with an HTML error page", () => new Response("<html>Script error</html>", { status: 200 })],
   ])("does not add the family when the Sheet %s", async (_, sheet) => {
-    stubOutbound({ [TURNSTILE]: () => Response.json({ success: true }), [SHEET]: sheet });
+    stubOutbound({ [SHEET]: sheet });
 
     const response = await post("/api/submit", SUBMISSION);
 
@@ -250,23 +240,25 @@ describe("submit", () => {
     expect((await getParty()).families).toHaveLength(0);
   });
 
-  it("fails with 502 and writes nothing when Turnstile cannot answer", async () => {
-    const services = stubOutbound({ [TURNSTILE]: () => new Response("bad gateway", { status: 502 }) });
+  it("answers a filled bot trap with a fake 201 and writes nothing", async () => {
+    const services = stubOutbound({});
 
-    const response = await post("/api/submit", SUBMISSION);
+    const response = await post("/api/submit", { ...SUBMISSION, extra: "https://spam.example" });
 
-    expect(response.status).toBe(502);
-    expect(await response.json()).toEqual({ error: "turnstile_unavailable" });
-    expect(services.to(SHEET)).toHaveLength(0);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ id: expect.any(String), token: expect.any(String) });
+    expect(services.calls).toHaveLength(0);
+    expect((await getParty()).families).toHaveLength(0);
   });
 
-  it("rejects a failed Turnstile check before it writes anything", async () => {
-    const services = stubOutbound({ [TURNSTILE]: () => Response.json({ success: false }) });
+  it("signs up an old cached page that still sends a Turnstile token", async () => {
+    const services = savingServices();
 
-    const response = await post("/api/submit", SUBMISSION);
+    const response = await post("/api/submit", { ...SUBMISSION, turnstileToken: "old-token" });
 
-    expect(response.status).toBe(403);
-    expect(services.to(SHEET)).toHaveLength(0);
+    expect(response.status).toBe(201);
+    expect(services.to(SHEET)).toHaveLength(1);
+    expect((await getParty()).families).toHaveLength(1);
   });
 
   it("drops a look id that is not a plain id", async () => {
@@ -283,7 +275,6 @@ describe("submit", () => {
     [{ household: "" }, "missing_household"],
     [{ address: { street: "" } }, "missing_street"],
     [{ members: [] }, "missing_members"],
-    [{ turnstileToken: "" }, "missing_turnstileToken"],
   ])("rejects %o with %s and calls no service", async (change, code) => {
     const services = stubOutbound({});
 
@@ -535,7 +526,7 @@ describe("address", () => {
 
   // A family signs up with the fake Sheet, so its row holds the family id.
   async function signUp(sheet = fakeSheet()) {
-    stubOutbound({ [TURNSTILE]: () => Response.json({ success: true }), [SHEET]: sheet.handler });
+    stubOutbound({ [SHEET]: sheet.handler });
     const family = (await (await post("/api/submit", SUBMISSION)).json()) as { id: string; token: string };
     vi.restoreAllMocks();
     return { ...family, sheet };
@@ -656,7 +647,7 @@ describe("invite", () => {
     post("/api/submit", { ...SUBMISSION, envelope: FRIEND.household, address: { ...FRIEND, name: undefined, household: undefined }, invite: TOKEN, ...change }, ip);
 
   function services(sheet: ReturnType<typeof fakeSheet>) {
-    return stubOutbound({ [TURNSTILE]: () => Response.json({ success: true }), [SHEET]: sheet.handler });
+    return stubOutbound({ [SHEET]: sheet.handler });
   }
 
   it("keeps no address in D1", async () => {
