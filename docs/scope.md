@@ -17,19 +17,23 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
 5. The party: every family that has joined mills around the living room. Jesse, Jess, and their kids are always there as hosts.
    The hosts walk around too. Jesse and Jess go between the table, the rug, the fireplace, and the guests.
    Audrey and Eddie walk together. Each host goes back home now and then. With reduced motion, the hosts stay at home.
-6. Surprise: tapping your own sprite lets you change its look or give it a chat bubble (about 40 characters, no filter).
+6. Surprise: "My family" in the top bar, or a tap on your own sprite, lets you change a look or give a person a chat bubble
+   (about 40 characters, no filter). In a crowd, a card for each person makes the pick easy, and a gold arrow shows the person in the room.
    The browser remembers which sprites are yours.
    Each guest's line shows once in a visit, after the thank-you tucks away. The lines take turns, one at a time, and a bubble never covers another bubble.
    After a line shows once, it does not show again on its own, so the room stays clear. A tap on a guest shows their line again.
    A new or changed line (from the party poll, another tab, or the editor) shows once. The record stays in memory, so a reload shows each line once again.
 
-## My address
+## My family
 
-- After the thank-you, "My address" in the top bar shows the address on file for the family in this browser, and lets the guest change it.
+- After the thank-you, "My family" in the top bar opens a panel under the room with a card for each person of the family in this browser.
+- A pick puts a gold arrow over that person in the room, and edits their line and look. A tap on your own sprite opens the same panel.
+- One browser holds one family. A browser that holds two or more from before shows the last one, with a link to switch.
+- "Change address" in the panel shows the address on file for the family, and lets the guest change it.
 - The guest can also change the envelope name. The new name shows at the party too.
 - The address lives only in the contact Sheet. The Worker reads and changes the Sheet row of the family (`family_id`) and keeps no copy.
 - Only US addresses: sign-up and a change both refuse an address outside the US with a host line.
-- Details and copy: "My address" in `docs/form.md`.
+- Details and copy: "My family" and "Change address" in `docs/form.md`.
 
 ## Invite links
 
@@ -183,7 +187,7 @@ Nothing on screen points to these.
   - The thank-you says "Tap around the room. We hid some surprises."
   - The hosts speak on their own (`public/js/idle.js`). This starts only after the thank-you tucks away, for a guest with a family
     in this browser, so no host bubble talks over the form. After about 20 quiet seconds, a host says a hint at an extra that the guest has not found.
-    A tap or a key starts the wait again. An open album, dreidel game, look picker, or sprite editor, or a hidden tab, stops the wait.
+    A tap or a key starts the wait again. An open album, dreidel game, look picker, or dialog ("My family"), or a hidden tab, stops the wait.
     After the guest finds every extra, a host says a thank-you line about every 75 seconds. A new bubble never covers another bubble.
   - The glint (`public/js/glint.js`) starts as soon as the room shows. Every 3.5 seconds, a gold star shows for 1.8 seconds on the tap area
     of an extra that the guest has not found. It grows from a white dot to a star 11 room pixels wide, with a white heart,

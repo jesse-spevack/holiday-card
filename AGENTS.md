@@ -41,7 +41,8 @@ No build step. The browser loads ES modules as they are.
 | File | Owns |
 |---|---|
 | `public/index.html`, `public/style.css` | Markup and the main styles |
-| `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules. It names no hidden extra |
+| `public/app.js` | The form steps, the party loop, "My family" (the panel that edits each person), and the wiring of all modules. It names no hidden extra |
+| `public/js/marker.js` | The gold arrow over the person that "My family" picks. A scene layer that follows the sprite, and the zoomed camera with it |
 | `public/js/api.js` | Every call to the Worker |
 | `public/js/us.js` | The US-only rule for a mailing address, and the host lines for it. The Worker and the scripts import it too |
 | `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter and the twinkle (`drawTwinkle`); the page colors |
@@ -237,9 +238,10 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
 ## Data rules
 
 - The Google Sheet holds only the contact list: name, household, and mailing address. Party data never goes to the Sheet.
-  Each row also holds the `family_id` of its family in D1, and `updated_at` when the guest last changed the address ("My address").
+  Each row also holds the `family_id` of its family in D1, and `updated_at` when the guest last changed the address ("Change address" in "My family").
   `status` is `invited` for a row from `pnpm invite` that its friend has not confirmed, and `confirmed` for the rest.
-  The address lives only in the Sheet. The Worker reads it from the Sheet for "My address" and never stores it.
+  The address lives only in the Sheet. The Worker reads it from the Sheet for "Change address" and never stores it.
+- A browser holds one family (`hc.families` in local storage). A browser with two or more from before keeps them. "My family" shows the last one.
   We mail cards inside the US only. `public/js/us.js` holds the rule, and the page, the Worker, and the scripts use it.
   Each household must show once, because Jesse sends the Sheet to the card printer. `pnpm sheet:dupes` finds the duplicates.
   Only Jesse runs `--apply`. It writes a CSV backup of the deleted rows to `~/Documents/holiday-card/backups/`, outside the repo.
