@@ -1,6 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PartyFamily } from "../src/party";
+import { sha256, type PartyFamily } from "../src/party";
 import { OPENROUTER, PLACES, SHEET, TURNSTILE, fakeSheet, llmReply, stubOutbound } from "./outbound";
 
 const SUBMISSION = {
@@ -51,7 +51,7 @@ async function submitFamily() {
 }
 
 beforeEach(async () => {
-  await env.DB.batch([env.DB.prepare("DELETE FROM interactions"), env.DB.prepare("DELETE FROM members"), env.DB.prepare("DELETE FROM families")]);
+  await env.DB.batch([env.DB.prepare("DELETE FROM invites"), env.DB.prepare("DELETE FROM interactions"), env.DB.prepare("DELETE FROM members"), env.DB.prepare("DELETE FROM families")]);
 });
 
 afterEach(() => {
@@ -590,7 +590,7 @@ describe("address", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, name: "The Garcia-Lee Family" });
     expect(sheet.rows).toEqual([
-      { ...NEW, name: SUBMISSION.household, household: "The Garcia-Lee Family", family_id: id, updated_at: "now" },
+      { ...NEW, name: SUBMISSION.household, household: "The Garcia-Lee Family", family_id: id, updated_at: "now", status: "confirmed" },
     ]);
     expect((await getParty()).families.map((f) => f.name)).toEqual(["The Garcia-Lee Family"]);
     const text = JSON.stringify(await getParty());
@@ -604,7 +604,7 @@ describe("address", () => {
 
     await post("/api/address/change", { id, token, envelope: "The Garcia Family", address: NEW });
 
-    expect(sheet.rows).toEqual([{ ...NEW, name: SUBMISSION.household, household: "The Garcia Family", family_id: id, updated_at: "" }]);
+    expect(sheet.rows).toEqual([{ ...NEW, name: SUBMISSION.household, household: "The Garcia Family", family_id: id, updated_at: "", status: "confirmed" }]);
   });
 
   it("refuses an address outside the US and calls no service", async () => {
@@ -636,6 +636,160 @@ describe("address", () => {
     for (let i = 0; i < 11; i++) statuses.push((await post("/api/address/read", { id, token }, "10.9.9.7")).status);
 
     expect(statuses.slice(0, 10)).toEqual(Array(10).fill(200));
+    expect(statuses[10]).toBe(429);
+  });
+});
+
+describe("invite", () => {
+  const TOKEN = "invite-token-0123456789abcdefghijkl";
+  const FRIEND = { name: "Ada and Bo", household: "The Lovelaces", street: "77 Fifth Ave", unit: "Apt 3", city: "New York", state: "NY", zip: "10003" };
+
+  // What pnpm invite makes: an invite in D1 with no address, and an invited row in the Sheet with the invite id.
+  async function makeInvite(token = TOKEN) {
+    const id = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO invites (id, token_hash, envelope) VALUES (?, ?, ?)").bind(id, await sha256(token), FRIEND.household).run();
+    const sheet = fakeSheet([{ ...FRIEND, family_id: id, updated_at: "", status: "invited" }]);
+    return { id, sheet };
+  }
+
+  const confirm = (change: Record<string, unknown> = {}, ip?: string) =>
+    post("/api/submit", { ...SUBMISSION, envelope: FRIEND.household, address: { ...FRIEND, name: undefined, household: undefined }, invite: TOKEN, ...change }, ip);
+
+  function services(sheet: ReturnType<typeof fakeSheet>) {
+    return stubOutbound({ [TURNSTILE]: () => Response.json({ success: true }), [SHEET]: sheet.handler });
+  }
+
+  it("keeps no address in D1", async () => {
+    const columns = (await env.DB.prepare("SELECT name FROM pragma_table_info('invites')").all<{ name: string }>()).results.map((c) => c.name);
+
+    expect(columns).toEqual(["id", "token_hash", "envelope", "family_id", "created_at", "confirmed_at"]);
+  });
+
+  it("gives a new link the envelope name, who lives there, and the address from the Sheet row", async () => {
+    const { sheet } = await makeInvite();
+    services(sheet);
+
+    const response = await post("/api/invite", { token: TOKEN });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      invite: { envelope: "The Lovelaces", household: "Ada and Bo", address: { street: "77 Fifth Ave", unit: "Apt 3", city: "New York", state: "NY", zip: "10003" } },
+    });
+  });
+
+  it.each([["not-a-real-token-but-long-enough-0000"], ["short"], ["../../etc/passwd"]])("answers 404 for an unknown or bad token %s, and calls no service", async (token) => {
+    await makeInvite();
+    const calls = stubOutbound({});
+
+    const response = await post("/api/invite", { token });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "bad_invite" });
+    expect(calls.calls).toHaveLength(0);
+  });
+
+  it("answers 404 when the Sheet row is gone", async () => {
+    await makeInvite();
+    services(fakeSheet());
+
+    expect((await post("/api/invite", { token: TOKEN })).status).toBe(404);
+  });
+
+  it("confirms in place: one Sheet row, now confirmed, and the family joins the party with the invite id", async () => {
+    const { id, sheet } = await makeInvite();
+    services(sheet);
+
+    const response = await confirm();
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ id, token: TOKEN });
+    expect(sheet.rows).toEqual([{ ...FRIEND, name: SUBMISSION.household, family_id: id, updated_at: "now", status: "confirmed" }]);
+    expect((await getParty()).families.map((f) => [f.id, f.name])).toEqual([[id, "The Lovelaces"]]);
+    const row = await env.DB.prepare("SELECT family_id, confirmed_at FROM invites WHERE id = ?").bind(id).first<{ family_id: string; confirmed_at: string }>();
+    expect(row?.family_id).toBe(id);
+    expect(row?.confirmed_at).toBeTruthy();
+  });
+
+  it("takes a fixed address and envelope name on the confirm", async () => {
+    const { id, sheet } = await makeInvite();
+    services(sheet);
+
+    await confirm({ envelope: "Ada & Bo", address: { street: "9 Elm St", unit: "", city: "Denver", state: "CO", zip: "80203" } });
+
+    expect(sheet.rows).toEqual([
+      { name: SUBMISSION.household, household: "Ada & Bo", street: "9 Elm St", unit: "", city: "Denver", state: "CO", zip: "80203", family_id: id, updated_at: "now", status: "confirmed" },
+    ]);
+  });
+
+  it("opens the party as the family after the confirm, in any browser, with the link token as the family token", async () => {
+    const { id, sheet } = await makeInvite();
+    services(sheet);
+    await confirm();
+
+    const view = (await (await post("/api/invite", { token: TOKEN })).json()) as { family: PartyFamily };
+
+    expect(view).toEqual({ family: { id, name: "The Lovelaces", members: SUBMISSION.members, bubbles: ["", "", "", ""] } });
+    expect(JSON.stringify(view)).not.toMatch(/Fifth|10003|Ada and Bo/);
+    expect((await post("/api/sprite", { id, token: TOKEN, index: 0, bubble: "Hi!" })).status).toBe(200);
+    expect(await (await post("/api/address/read", { id, token: TOKEN })).json()).toMatchObject({ address: { street: "77 Fifth Ave" } });
+  });
+
+  it("lets the friend change the address later, as any guest", async () => {
+    const { id, sheet } = await makeInvite();
+    services(sheet);
+    await confirm();
+
+    const response = await post("/api/address/change", { id, token: TOKEN, envelope: "The Lovelaces", address: { street: "9 Elm St", unit: "", city: "Denver", state: "CO", zip: "80203" } });
+
+    expect(response.status).toBe(200);
+    expect(sheet.rows).toHaveLength(1);
+    expect(sheet.rows[0]).toMatchObject({ street: "9 Elm St", status: "confirmed" });
+  });
+
+  it("refuses a second confirm with 409 and changes nothing", async () => {
+    const { sheet } = await makeInvite();
+    services(sheet);
+    await confirm();
+    const before = JSON.stringify(sheet.rows);
+
+    const response = await confirm({ envelope: "Someone Else" });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "invite_used" });
+    expect(JSON.stringify(sheet.rows)).toBe(before);
+    expect((await getParty()).families).toHaveLength(1);
+  });
+
+  it("refuses a confirm with an unknown token and writes nothing", async () => {
+    const { sheet } = await makeInvite();
+    services(sheet);
+
+    const response = await confirm({ invite: "not-a-real-token-but-long-enough-0000" });
+
+    expect(response.status).toBe(404);
+    expect(sheet.rows[0].status).toBe("invited");
+    expect((await getParty()).families).toHaveLength(0);
+  });
+
+  it("refuses a confirm outside the US before any service", async () => {
+    await makeInvite();
+    const calls = stubOutbound({});
+
+    const response = await confirm({ address: { street: "55 King St W", city: "Toronto", state: "ON", zip: "M5K 1A1" } });
+
+    expect(response.status).toBe(422);
+    expect(calls.calls).toHaveLength(0);
+  });
+
+  it("slows down one IP that opens too many links", async () => {
+    const { sheet } = await makeInvite();
+    services(sheet);
+
+    const statuses = [];
+    for (let i = 0; i < 11; i++) statuses.push((await post("/api/invite", { token: "nope-nope-nope-nope-nope-nope" }, "10.9.9.6")).status);
+
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(404));
     expect(statuses[10]).toBe(429);
   });
 });

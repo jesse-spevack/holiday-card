@@ -14,10 +14,13 @@ export async function partyVersion(db: D1Database): Promise<number> {
   return row?.version ?? 0;
 }
 
+export type NewFamily = { id: string; envelope: string; householdNote: string; members: Member[] };
+
 // The columns follow the Sheet: `household` holds the envelope name, and `family_text` holds the guest's note.
 // The caller picks the id first, because the Sheet row gets it before the family goes in D1.
-export async function addFamily(db: D1Database, id: string, envelope: string, householdNote: string, members: Member[]) {
-  const token = randomToken();
+// A family from an invite gets the invite token (`invite`), and the invite links to it in the same batch.
+export async function addFamily(db: D1Database, { id, envelope, householdNote, members }: NewFamily, invite?: { token: string }) {
+  const token = invite?.token ?? randomToken();
   await db.batch([
     db.prepare("INSERT INTO families (id, household, family_text, token_hash) VALUES (?, ?, ?, ?)")
       .bind(id, envelope, householdNote, await sha256(token)),
@@ -25,8 +28,26 @@ export async function addFamily(db: D1Database, id: string, envelope: string, ho
       db.prepare("INSERT INTO members (id, family_id, position, kind, look) VALUES (?, ?, ?, ?, ?)")
         .bind(crypto.randomUUID(), id, position, m.type, m.look),
     ),
+    ...(invite ? [db.prepare("UPDATE invites SET family_id = ?, confirmed_at = datetime('now') WHERE id = ?").bind(id, id)] : []),
   ]);
   return { id, token };
+}
+
+// One family as the party shows it, also a hidden one, or null.
+export async function readFamily(db: D1Database, familyId: string): Promise<PartyFamily | null> {
+  const [families, members] = await db.batch([
+    db.prepare("SELECT id, household FROM families WHERE id = ?").bind(familyId),
+    db.prepare("SELECT family_id, kind, look, bubble, bubble_hidden FROM members WHERE family_id = ? ORDER BY position").bind(familyId),
+  ]);
+  const [f] = families.results as FamilyRow[];
+  if (!f) return null;
+  const rows = members.results as MemberRow[];
+  return {
+    id: f.id,
+    name: f.household,
+    members: rows.map((m) => ({ type: m.kind, look: m.look })),
+    bubbles: rows.map((m) => (m.bubble_hidden ? "" : m.bubble)),
+  };
 }
 
 export async function readParty(db: D1Database): Promise<PartyFamily[]> {
@@ -91,12 +112,12 @@ export async function renameFamily(db: D1Database, familyId: string, envelope: s
   await db.prepare("UPDATE families SET household = ? WHERE id = ? AND household <> ?").bind(envelope, familyId, envelope).run();
 }
 
-function randomToken(): string {
+export function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function sha256(text: string): Promise<string> {
+export async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

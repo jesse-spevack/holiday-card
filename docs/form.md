@@ -27,6 +27,14 @@ The hosts ("Jesse, Jess, Eddie & Audrey Spevack") ask one question at a time in 
    Step 3 offers "Same address" to keep the address and change only the envelope name. "Yes, save it" calls `POST /api/address/change`.
    A browser with two or more families first picks one ("Which address?"). A family with no row in the Sheet tells the address again.
 
+7. **Invite link** (`/#invite=<token>`, from `pnpm invite`): the page calls `POST /api/invite` first and says "Let me find your invitation...".
+   - A new link: "Is this where we should send your card?" with the envelope name and the address from the Sheet.
+     "Yes, that's us" goes to step 2 with who lives there filled in, and its button "Join the party" sends the sign-up with the invite token.
+     "Fix it" goes to step 1, then 2, 3, 3b, and 4, with the invite data filled in. Step 3 offers "Same address".
+   - A used link: the page saves the family in this browser with the link token as its token, and shows the party as a return visit.
+   - A bad link: step 1 with a kind line. The page drops the token from the address bar.
+   - After a sign-up from the link, the page drops the token from the address bar. A browser with a family still confirms a new link first.
+
 To see the site as a new guest, open `/?new`. It clears `hc.families` in this browser, keeps the sound setting, and starts at step 1.
 
 After that, a tap on one of your own sprites opens a small editor. "Say something" sets a speech bubble.
@@ -46,6 +54,7 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 | `POST /api/submit` | see below | `201 { "id", "token" }` |
 | `POST /api/sprite` | `{ "id", "token", "index", "look"?, "bubble"? }` (bubble at most 40 characters) | `{ "ok": true }` |
 | `POST /api/interaction` | `{ "id", "token", "egg" }` (egg from `EGGS` in `src/interactions.ts`) | `204` with no body |
+| `POST /api/invite` | `{ "token" }` | A new link: `{ "invite": { "envelope", "household", "address": { "street", "unit", "city", "state", "zip" } } }`. A used link: `{ "family": { "id", "name", "members", "bubbles" } }`. Else `404 bad_invite` |
 | `POST /api/address/read` | `{ "id", "token" }` | `{ "envelope", "address": { "street", "unit", "city", "state", "zip" } }`, or `"address": null` with no Sheet row |
 | `POST /api/address/change` | `{ "id", "token", "envelope", "address": { "street", "unit", "city", "state", "zip" } }` | `{ "ok": true, "name" }` |
 | `GET /api/party` | | `{ "families": [{ "id", "name", "members": [{"type","look"}], "bubbles": ["..."] }] }` |
@@ -65,6 +74,8 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 ```
 
 A typed address with no match sends `street` as typed, with empty `city`, `state` and `zip`.
+A friend on an invite link also sends `"invite": "<token>"`. Then the Worker changes the invited Sheet row in place (`confirm`),
+the family takes the invite id, and its token is the link token. A used invite fails with `409 invite_used`, and the page opens the party.
 The Worker picks the family id, checks Turnstile, then writes the contact with the family id to the Sheet, then writes the family to D1.
 
 We mail cards inside the US only (`public/js/us.js`). An address outside the US fails with `422` and one of these codes:
@@ -79,7 +90,8 @@ The change writes the Sheet row first. A new envelope name then also changes the
 
 ## Where the data goes
 
-- **Sheet** (contact list only), tab `Contacts`: `added_at, name, household, street, unit, city, state, zip, family_id, updated_at`.
+- **Sheet** (contact list only), tab `Contacts`: `added_at, name, household, street, unit, city, state, zip, family_id, updated_at, status`.
+- **D1 `invites`**: the invite id, the hash of the link token, the envelope name, the family after the confirm, and the times. No address.
   `household` holds the envelope name. `name` holds who lives there, as the guest wrote it.
 - **D1** (the party): `families` (envelope name, household text, edit token hash, `hidden`) and `members`
   (type, look id, bubble, `bubble_hidden`). The party never returns addresses or the household text.
@@ -116,6 +128,16 @@ Hints under the answer line:
 | Sheet down | We can't reach our address book right now. (hint: Your card is safe. Try again in a minute?) | Close / Try again |
 | Confirm | We'll mail your card to: *[full address]*. Look right? | Fix it / Yes, save it ▸ |
 | Saved | Got it. Thank you for telling us! (hint: We'll mail your card to your new address.) | (tucks away after 4 seconds) |
+
+### Invite links
+
+| Step | Host says | Buttons |
+|---|---|---|
+| Loading | Let me find your invitation... | |
+| Confirm | Is this where we should send your card? *[full address]* | Fix it / Yes, that's us ▸ |
+| Who lives there (after "Yes") | Who lives at your house? | Back / Join the party ▸ |
+| Bad link | We couldn't open that invitation, but we'd still love to send you a card! Whose name goes on the envelope? | Next ▸ |
+| Invite gone at the send | That invitation does not work anymore, but you can still sign up. Tap the button again. | |
 
 ### After confirm
 

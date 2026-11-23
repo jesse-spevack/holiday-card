@@ -59,6 +59,14 @@ export const HOSTS_BY_NAME = [{ id: "jessica", name: "Jess" }, { id: "jesse", na
 // The address on file for GARCIA, as POST /api/address/read returns it. Made-up data.
 export const ON_FILE = { envelope: "The Garcia Family", address: { street: "1428 Maple Ave", unit: "Apt 2B", city: "Evanston", state: "IL", zip: "60201" } };
 
+// Invite links (pnpm invite) that the fake API knows. Made-up data.
+export const INVITE = {
+  NEW: "new-invite-token-00000000000000000000000",
+  USED: "used-invite-token-0000000000000000000000",
+  data: { envelope: "The Lovelaces", household: "Ada and Bo", address: { street: "77 Fifth Ave", unit: "Apt 3", city: "New York", state: "NY", zip: "10003" } },
+  family: { id: "fam-love", name: "The Lovelaces", members: [{ type: "adult", look: "t-mom" }, { type: "adult", look: "t-dad" }], bubbles: ["Hello!", ""] },
+};
+
 // A fake Worker API. Each page gets its own, with its own list of calls.
 // The first submit fails, so the form shows its retry.
 // onFile: the reply of /api/address/read (null for "no row"), or a function of the family id.
@@ -84,7 +92,13 @@ function fakeApi({ party = PARTY, calls, onFile = ON_FILE }) {
         return reply({ address: { street: "1428 Maple Ave", city: "Evanston", state: "IL", zip: "60201", formatted: "1428 Maple Ave, Evanston, IL 60201, USA" } });
       case "/api/submit":
         if (failSubmitOnce) { failSubmitOnce = false; return reply({ error: "server" }, 500); }
+        if (body.invite === INVITE.NEW) return reply({ id: INVITE.family.id, token: INVITE.NEW });
+        if (body.invite) return reply({ error: "bad_invite" }, 404);
         return reply({ id: "fam12345", token: "tok" });
+      case "/api/invite":
+        if (body.token === INVITE.NEW) return reply({ invite: INVITE.data });
+        if (body.token === INVITE.USED) return reply({ family: INVITE.family });
+        return reply({ error: "bad_invite" }, 404);
       case "/api/party":
         return reply(party);
       case "/api/sprite":
