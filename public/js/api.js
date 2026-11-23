@@ -4,10 +4,13 @@ import { DEMO, demoWrite } from "./demo.js";
 
 async function call(path, options = {}) {
   if (DEMO && options.method && options.method !== "GET") return demoWrite(path, JSON.parse(options.body || "{}"));
-  const res = await fetch(path, {
-    ...options,
-    headers: options.body ? { "content-type": "application/json" } : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(path, { ...options, headers: options.body ? { "content-type": "application/json" } : undefined });
+  } catch {
+    // The call did not reach the Worker: no connection, or a content blocker.
+    throw new Error("network");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;

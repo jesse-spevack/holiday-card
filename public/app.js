@@ -120,15 +120,61 @@ function saveMine() {
 const mineById = (id) => state.mine.find((f) => f.id === id);
 
 // ---------- Turnstile: Cloudflare's check that a real browser sends the address ----------
+// The check renders at page load, out of sight ("interaction-only"), and gets a token in the background.
+// The send waits for that token, because an empty or used token makes the Worker refuse the sign-up.
+// turnstileState: "off" (no site key), "loading", "missing" (the script did not load), "waiting", "interactive"
+// (the check wants a tap), "token", "expired", "timeout", "error", or "unsupported".
+const TURNSTILE_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+const SCRIPT_WAIT_MS = 8000;
+const TOKEN_WAIT_MS = 15000;
+const TAP_WAIT_MS = 60000;
 let turnstileWidget = null;
+let turnstileKey = "";
+let turnstileState = "off";
 
 function renderTurnstile(siteKey) {
   if (!siteKey) return;
-  const render = () => {
-    turnstileWidget = window.turnstile.render("#turnstile", { sitekey: siteKey, appearance: "interaction-only" });
-  };
-  if (window.turnstile) render();
-  else window.addEventListener("load", () => window.turnstile && render(), { once: true });
+  turnstileKey = siteKey;
+  turnstileState = "loading";
+  if (mountTurnstile()) return;
+  // An async script runs before the load event, so a script that is not there at load did not load.
+  const missing = () => { if (!mountTurnstile()) turnstileState = "missing"; };
+  if (document.readyState === "complete") missing();
+  else window.addEventListener("load", missing, { once: true });
+}
+
+function mountTurnstile() {
+  if (turnstileWidget !== null) return true;
+  if (!window.turnstile) return false;
+  try {
+    turnstileWidget = window.turnstile.render("#turnstile", {
+      sitekey: turnstileKey,
+      appearance: "interaction-only",
+      callback: () => { turnstileState = "token"; },
+      "expired-callback": () => { turnstileState = "expired"; },
+      "timeout-callback": () => { turnstileState = "timeout"; },
+      "error-callback": () => { turnstileState = "error"; },
+      "unsupported-callback": () => { turnstileState = "unsupported"; },
+      "before-interactive-callback": () => { turnstileState = "interactive"; },
+    });
+  } catch {
+    return false;
+  }
+  turnstileState = "waiting";
+  return true;
+}
+
+// The script failed or came late: add it again once more, and render the check when it loads.
+function loadTurnstile() {
+  if (window.turnstile) return Promise.resolve(mountTurnstile());
+  return new Promise((resolve) => {
+    const script = h("script", { src: TURNSTILE_SRC, async: true });
+    const done = () => { clearTimeout(timer); resolve(mountTurnstile()); };
+    const timer = setTimeout(done, SCRIPT_WAIT_MS);
+    script.addEventListener("load", done);
+    script.addEventListener("error", done);
+    document.head.append(script);
+  });
 }
 
 function turnstileToken() {
@@ -137,7 +183,37 @@ function turnstileToken() {
 }
 
 function resetTurnstile() {
-  if (turnstileWidget !== null) window.turnstile?.reset(turnstileWidget);
+  if (turnstileWidget === null) return;
+  turnstileState = "waiting";
+  window.turnstile?.reset(turnstileWidget);
+}
+
+// The token for a send, or "" when the check has no token. With no site key (the tests), there is no check.
+// onTap runs once when the check wants a tap. The guest then gets more time.
+async function waitForToken(onTap) {
+  if (!turnstileKey) return "";
+  if (turnstileWidget === null) await loadTurnstile();
+  const start = performance.now();
+  let tapped = false;
+  for (;;) {
+    const token = turnstileToken();
+    if (token) return token;
+    if (turnstileWidget === null || turnstileState === "unsupported") return "";
+    if (turnstileState === "interactive" && !tapped) {
+      tapped = true;
+      onTap();
+    }
+    if (performance.now() - start > (tapped ? TAP_WAIT_MS : TOKEN_WAIT_MS)) return "";
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+// The host line when the check gives no token.
+function noTokenLine() {
+  if (turnstileWidget === null) return "Our robot check didn't load. Turn off a content blocker, or open this page in another browser?";
+  if (turnstileState === "unsupported") return "This browser can't run our robot check. Can you open this page in another browser?";
+  if (turnstileState === "interactive") return "Tap the box below so we know you're not a robot. Then tap the button again.";
+  return "Our robot check didn't finish. Wait a moment and tap the button again?";
 }
 
 // ---------- host speech, typed out ----------
@@ -214,8 +290,20 @@ function showError(text) {
   if (el) el.textContent = text;
   sound.oops();
 }
-// The host line for a failed call: the US-only lines for an address outside the US, else a retry.
-const failLine = (err) => US_LINES[err?.message] || "Something went wrong. Try again?";
+// The host line for each error code of a failed call. A code that is not here gets the retry line with its code,
+// so a guest's screenshot tells us what failed.
+const FAIL_LINES = {
+  ...US_LINES,
+  missing_turnstileToken: "Our robot check didn't finish. Wait a moment and tap the button again?",
+  turnstile_failed: "Our robot check didn't pass. Wait a moment and tap the button again?",
+  turnstile_unavailable: "Our robot check is down for a moment. Try again in a minute?",
+  slow_down: "That's a lot of tries! Wait a minute and try again?",
+  sheet_failed: "We can't reach our address book right now. Try again in a minute?",
+  household_failed: "We couldn't read who lives at your house. Tap the button again?",
+  places_failed: "We can't look up addresses right now. Try again in a minute?",
+  network: "We can't reach our server. Check your connection and try again?",
+};
+const failLine = (err) => FAIL_LINES[err?.message] || `Something went wrong. Try again? (${String(err?.message || "error").slice(0, 40)})`;
 
 // ---------- steps ----------
 function go(step) {
@@ -279,19 +367,22 @@ function stepHousehold() {
 }
 
 // The LLM reads the household while the guest types the address.
+// It returns the promise of the members. A failed read is not kept, so the next call asks again.
 function readHousehold() {
-  if (state.householdAsked === state.household && state.membersPromise) return;
+  if (state.householdAsked === state.household && state.membersPromise) return state.membersPromise;
   state.householdAsked = state.household;
   state.members = null;
   scene.removeFamily("pending");
   const asked = state.household;
-  state.membersPromise = api.household(asked).then(async ({ members }) => {
-    if (asked !== state.household) return state.membersPromise;
+  const read = api.household(asked).then(async ({ members }) => {
+    if (asked !== state.household) return readHousehold();
     state.members = assignLooks(members);
     await showPending(state.members);
     return state.members;
   });
-  state.membersPromise.catch(() => {});
+  state.membersPromise = read;
+  read.catch(() => { if (state.membersPromise === read) state.membersPromise = null; });
+  return read;
 }
 
 let searchTimer = null;
@@ -405,7 +496,17 @@ async function send() {
   button.disabled = true;
   $("error").textContent = "";
   try {
-    const members = state.members || (await state.membersPromise);
+    const members = state.members || (await readHousehold());
+    const turnstileToken = await waitForToken(() => {
+      showError(noTokenLine());
+      $("turnstile").scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    // The guest can tap "Fix it" while the page waits. The send then stops, so an old address does not go.
+    if (!button.isConnected) return;
+    if (turnstileKey && !turnstileToken) {
+      button.disabled = false;
+      return showError(noTokenLine());
+    }
     const family = scene.families.get("pending");
     if (!family.entered) {
       family.entered = true;
@@ -415,7 +516,7 @@ async function send() {
     }
     const address = { ...state.address, unit: state.unit };
     const invite = state.invite ? { invite: state.invite } : {};
-    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, turnstileToken: turnstileToken(), ...invite });
+    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, turnstileToken, ...invite });
     const saved = { id, token, name: state.envelope, members, bubbles: [] };
     state.mine.push(saved);
     saveMine();
