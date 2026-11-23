@@ -15,8 +15,8 @@ export async function partyVersion(db: D1Database): Promise<number> {
 }
 
 // The columns follow the Sheet: `household` holds the envelope name, and `family_text` holds the guest's note.
-export async function addFamily(db: D1Database, envelope: string, householdNote: string, members: Member[]) {
-  const id = crypto.randomUUID();
+// The caller picks the id first, because the Sheet row gets it before the family goes in D1.
+export async function addFamily(db: D1Database, id: string, envelope: string, householdNote: string, members: Member[]) {
   const token = randomToken();
   await db.batch([
     db.prepare("INSERT INTO families (id, household, family_text, token_hash) VALUES (?, ?, ?, ?)")
@@ -75,10 +75,20 @@ export async function updateMember(
 }
 
 // The family's own token proves the call comes from the browser that signed it up.
+// It returns the envelope name and the guest's note, for the Sheet. Neither goes back to the page.
 export async function checkToken(db: D1Database, familyId: string, token: string) {
-  const family = await db.prepare("SELECT token_hash FROM families WHERE id = ?").bind(familyId).first<{ token_hash: string }>();
+  const family = await db
+    .prepare("SELECT token_hash, household, family_text FROM families WHERE id = ?")
+    .bind(familyId)
+    .first<{ token_hash: string; household: string; family_text: string }>();
   if (!family) throw new HttpError(404, "not_found");
   if (family.token_hash !== (await sha256(token))) throw new HttpError(403, "forbidden");
+  return { envelope: family.household, note: family.family_text };
+}
+
+// A new envelope name is also the name at the party.
+export async function renameFamily(db: D1Database, familyId: string, envelope: string) {
+  await db.prepare("UPDATE families SET household = ? WHERE id = ? AND household <> ?").bind(envelope, familyId, envelope).run();
 }
 
 function randomToken(): string {

@@ -56,9 +56,13 @@ export const GARCIA = { id: "fam12345", token: "tok", name: "The Garcia Family",
 // The hosts by their sprite ids (hosts.js HOSTS) and names.
 export const HOSTS_BY_NAME = [{ id: "jessica", name: "Jess" }, { id: "jesse", name: "Jesse" }, { id: "daughter", name: "Audrey" }, { id: "son", name: "Eddie" }];
 
+// The address on file for GARCIA, as POST /api/address/read returns it. Made-up data.
+export const ON_FILE = { envelope: "The Garcia Family", address: { street: "1428 Maple Ave", unit: "Apt 2B", city: "Evanston", state: "IL", zip: "60201" } };
+
 // A fake Worker API. Each page gets its own, with its own list of calls.
 // The first submit fails, so the form shows its retry.
-function fakeApi({ party = PARTY, calls }) {
+// onFile: the reply of /api/address/read (null for "no row"), or a function of the family id.
+function fakeApi({ party = PARTY, calls, onFile = ON_FILE }) {
   let failSubmitOnce = true;
   return async (route) => {
     const url = new URL(route.request().url());
@@ -69,11 +73,14 @@ function fakeApi({ party = PARTY, calls }) {
       case "/api/household":
         return reply({ members: [{ type: "adult" }, { type: "adult" }, { type: "kid" }, { type: "dog" }] });
       case "/api/places":
+        // "Downing" gives a place outside the US, which /api/place refuses as the Worker does.
+        if (url.searchParams.get("q").toLowerCase().includes("downing")) return reply({ suggestions: [{ id: "p-uk", main: "10 Downing Street", secondary: "London, UK" }] });
         return reply({ suggestions: url.searchParams.get("q").includes("zzzz") ? [] : [
           { id: "p1", main: "1428 Maple Avenue", secondary: "Evanston, IL, USA" },
           { id: "p2", main: "1428 Maple Street", secondary: "Denver, CO, USA" },
         ] });
       case "/api/place":
+        if (url.searchParams.get("id") === "p-uk") return reply({ error: "not_us" }, 422);
         return reply({ address: { street: "1428 Maple Ave", city: "Evanston", state: "IL", zip: "60201", formatted: "1428 Maple Ave, Evanston, IL 60201, USA" } });
       case "/api/submit":
         if (failSubmitOnce) { failSubmitOnce = false; return reply({ error: "server" }, 500); }
@@ -84,6 +91,12 @@ function fakeApi({ party = PARTY, calls }) {
         return reply({ ok: true });
       case "/api/interaction":
         return route.fulfill({ status: 204 });
+      case "/api/address/read": {
+        const file = typeof onFile === "function" ? onFile(body.id) : onFile;
+        return reply(file ? file : { envelope: "", address: null });
+      }
+      case "/api/address/change":
+        return reply({ ok: true, name: body.envelope });
       case "/api/config":
         return reply({ turnstileSiteKey: "" });
     }
@@ -114,17 +127,17 @@ export const launch = () => chromium.launch({ channel: "chrome" });
 
 // Opens the page in a new browser context and waits for the test API. Each page error goes into `errors`.
 // options: Playwright context options (viewport, reducedMotion, hasTouch, ...), plus
-//   party: the /api/party reply, mine: families this browser signed up before,
+//   party: the /api/party reply, mine: families this browser signed up before, onFile: the address on file (see fakeApi),
 //   realLooks: use public/assets/looks.json, not the test looks, album: serve the fake album,
 //   query: more of the address after "?test", init: scripts to run before the page loads,
 //   wait: what to wait for: "api" (the default), "room" (the room and the four hosts), or "eggs" (the room, the book, and the extras).
-export async function openPage(browser, base, errors, { party, mine, realLooks = false, album = false, query = "", init = [], wait = "api", routes = [], ...context } = {}) {
+export async function openPage(browser, base, errors, { party, mine, onFile, realLooks = false, album = false, query = "", init = [], wait = "api", routes = [], ...context } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, ...context });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(String(e)));
   if (process.env.E2E_SLOW) await (await ctx.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.E2E_SLOW) });
   const calls = [];
-  await page.route("**/api/**", fakeApi({ party, calls }));
+  await page.route("**/api/**", fakeApi({ party, calls, onFile }));
   if (!realLooks) await page.route("**/assets/looks.json", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(LOOKS) }));
   const albumCalls = [];
   if (album) {

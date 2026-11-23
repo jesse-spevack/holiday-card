@@ -1,10 +1,11 @@
+import { readAddress } from "./address";
 import { albumList, albumPhoto } from "./album";
 import { HttpError, field, json, rateLimit, readJson } from "./http";
 import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./household";
 import { readEgg, recordInteraction } from "./interactions";
 import { lookUpAddress, suggestAddresses } from "./places";
-import { BUBBLE_MAX, addFamily, partyVersion, readParty, updateMember, type Member } from "./party";
-import { addContact } from "./sheet";
+import { BUBBLE_MAX, addFamily, checkToken, partyVersion, readParty, renameFamily, updateMember, type Member } from "./party";
+import { addContact, readContact, updateContact } from "./sheet";
 import { verifyTurnstile } from "./turnstile";
 
 const LOOK_ID = /^[a-z0-9-]{1,40}$/;
@@ -39,6 +40,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       return sprite(request, env);
     case "POST /api/interaction":
       return interaction(request, env);
+    case "POST /api/address/read":
+      return addressRead(request, env);
+    case "POST /api/address/change":
+      return addressChange(request, env);
     case "GET /api/party":
       return party(request, env, ctx);
     default:
@@ -77,24 +82,45 @@ async function submit(request: Request, env: Env): Promise<Response> {
   const body = await readJson(request);
   const envelope = field(body, "envelope", { max: 120 });
   const householdNote = field(body, "household", { max: 400 });
-  const address = (body.address && typeof body.address === "object" ? body.address : {}) as Record<string, unknown>;
-  const contact = {
-    // The Sheet's name column holds who lives there, and its household column holds the envelope name.
-    name: householdNote,
-    household: envelope,
-    street: field(address, "street", { max: 300 }),
-    unit: field(address, "unit", { max: 50, required: false }),
-    city: field(address, "city", { max: 100, required: false }),
-    state: field(address, "state", { max: 40, required: false }),
-    zip: field(address, "zip", { max: 20, required: false }),
-  };
+  // The Sheet's name column holds who lives there, and its household column holds the envelope name.
+  const contact = { name: householdNote, household: envelope, ...readAddress(body.address) };
   const members = readMembers(body.members);
 
   await verifyTurnstile(env, field(body, "turnstileToken", { max: 4096 }), request.headers.get("CF-Connecting-IP"));
-  // The address is the point, so the Sheet goes first. If D1 fails after it, the guest sees an error
-  // and a retry adds a second Sheet row. Jesse removes duplicates by hand.
-  await addContact(env, contact);
-  return json(await addFamily(env.DB, envelope, householdNote, members), 201);
+  // The address is the point, so the Sheet goes first, with the family id that D1 gets next. If D1 fails after it,
+  // the guest sees an error and a retry adds a second Sheet row. `pnpm sheet:dupes` finds it.
+  const id = crypto.randomUUID();
+  await addContact(env, id, contact);
+  return json(await addFamily(env.DB, id, envelope, householdNote, members), 201);
+}
+
+// The address on file for this browser's family, from the Sheet. Only the family's own token reads it.
+// `address` is null when the Sheet has no row with the family id, for example a sign-up from before the ids.
+async function addressRead(request: Request, env: Env): Promise<Response> {
+  await rateLimit(env.ADDRESS_LIMIT, request);
+  const body = await readJson(request);
+  const id = field(body, "id", { max: 64 });
+  const family = await checkToken(env.DB, id, field(body, "token", { max: 100 }));
+  const contact = await readContact(env, id);
+  if (!contact) return json({ envelope: family.envelope, address: null });
+  const { name: _note, household, ...address } = contact;
+  return json({ envelope: household || family.envelope, address });
+}
+
+// A new address, and maybe a new envelope name, for this browser's family. The Sheet row changes in place.
+// The Sheet goes first. A new envelope name then also changes the name at the party.
+async function addressChange(request: Request, env: Env): Promise<Response> {
+  await rateLimit(env.ADDRESS_LIMIT, request);
+  const body = await readJson(request);
+  const id = field(body, "id", { max: 64 });
+  const token = field(body, "token", { max: 100 });
+  const envelope = field(body, "envelope", { max: 120 });
+  const address = readAddress(body.address);
+  const family = await checkToken(env.DB, id, token);
+
+  await updateContact(env, id, { name: family.note, household: envelope, ...address });
+  await renameFamily(env.DB, id, envelope);
+  return json({ ok: true, name: envelope });
 }
 
 // The page sends what the household parser returned, so a bad member falls back instead of failing the submit.

@@ -25,9 +25,10 @@ One Cloudflare Worker serves the static files in `public/` and the API. `wrangle
 | `src/worker.ts` | The router and the handlers for each route |
 | `src/http.ts` | `HttpError`, JSON replies, field checks, rate limits, and `callService` (one timeout and error shape for every outside service) |
 | `src/household.ts` | `POST /api/household`: one OpenRouter call that turns "who lives at your house" into members |
-| `src/places.ts` | `GET /api/places` and `GET /api/place`: Google Places address suggestions and details |
+| `src/places.ts` | `GET /api/places` and `GET /api/place`: Google Places address suggestions and details, US only |
+| `src/address.ts` | The mailing address in a request body, with the US-only check from `public/js/us.js` |
 | `src/turnstile.ts` | The Turnstile check on `POST /api/submit` |
-| `src/sheet.ts` | Sends the contact to the Apps Script, which adds a Sheet row |
+| `src/sheet.ts` | The Apps Script calls: add a Sheet row, and read or change the row of a family (`family_id`) |
 | `src/party.ts` | D1: adds a family, reads the party, changes a sprite, the token check, the party version |
 | `src/interactions.ts` | `POST /api/interaction`: the allow-list of egg names (`EGGS`), and the count for each family and egg |
 | `src/album.ts` | `GET /album/list` and `GET /album/<hash>.jpg` from KV |
@@ -41,6 +42,7 @@ No build step. The browser loads ES modules as they are.
 | `public/index.html`, `public/style.css` | Markup and the main styles |
 | `public/app.js` | The form steps, the party loop, the sprite editor, and the wiring of all modules. It names no hidden extra |
 | `public/js/api.js` | Every call to the Worker |
+| `public/js/us.js` | The US-only rule for a mailing address, and the host lines for it. The Worker and the scripts import it too |
 | `public/js/dom.js`, `public/js/pixels.js`, `public/js/palette.js` | Shared helpers: `h()` for elements, `loadCss()`, the dialog plumbing; the text-grid pixel painter and the twinkle (`drawTwinkle`); the page colors |
 | `public/js/masks.js`, `public/js/words.js` | Shared helpers for the extras: room-sized masks and the sky behind the window glass; the words that show on the room for a moment |
 | `public/js/test-api.js` | The test API on `window.__hc`. `app.js` loads it only with `?test`. Each extra adds its own part (its `test`) |
@@ -92,10 +94,11 @@ Python scripts with Pillow, and one Node script, run from the repo root. The doc
 ### Other
 
 - `migrations/`: the D1 schema. The tables are `families`, `members`, `party_version`, and `interactions`.
-- `apps-script/`: the Apps Script that adds a row to the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
+- `apps-script/`: the Apps Script that adds, reads, and changes rows in the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
 - `test/api.test.ts`: Worker tests in the Workers runtime, with fake outbound calls in `test/outbound.ts`.
   `test/extras.test.ts` checks that `EGGS` holds the name of each extra in `public/js/extras/index.js`, and no other name.
   `test/sheet-dupes.test.ts` checks the address rules of `pnpm sheet:dupes` (`scripts/dupes.ts`) with made-up rows.
+  `test/apps-script.test.mjs` runs `apps-script/Code.js` in Node against a fake Sheet. `pnpm test` runs it after Vitest.
 - `test/e2e/`: the page in Google Chrome against a fake API. It needs no Cloudflare.
   `harness.mjs` holds the server, the fake API, the test looks, and the helpers. Each `*.test.mjs` file covers one feature.
   The tests read and drive the page's state only through `window.__hc`. After a change inside a page module, change `public/js/test-api.js`
@@ -229,6 +232,9 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
 ## Data rules
 
 - The Google Sheet holds only the contact list: name, household, and mailing address. Party data never goes to the Sheet.
+  Each row also holds the `family_id` of its family in D1, and `updated_at` when the guest last changed the address ("My address").
+  The address lives only in the Sheet. The Worker reads it from the Sheet for "My address" and never stores it.
+  We mail cards inside the US only. `public/js/us.js` holds the rule, and the page, the Worker, and the scripts use it.
   Each household must show once, because Jesse sends the Sheet to the card printer. `pnpm sheet:dupes` finds the duplicates.
   Only Jesse runs `--apply`. It writes a CSV backup of the deleted rows to `~/Documents/holiday-card/backups/`, outside the repo.
   Never write a test row to the real Sheet. The tests use made-up rows.
@@ -255,7 +261,7 @@ Never write a secret value in a file in this repo. Names only.
 | `OPENROUTER_MODEL`, `SHEET_URL`, `TURNSTILE_SITE_KEY` | Vars in `wrangler.jsonc` | Public values |
 | `DB` | D1 binding | Database `holiday-card` |
 | `ALBUM` | KV binding | Namespace `holiday-card-album` |
-| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
+| `PLACES_LIMIT`, `WRITE_LIMIT`, `HOUSEHOLD_LIMIT`, `SPRITE_LIMIT`, `INTERACTION_LIMIT`, `ADDRESS_LIMIT` | Rate limit bindings | `wrangler.jsonc` |
 | `PIXELLAB_KEY` | Env var for the art scripts | 1Password vault `keys`, item `CozyChat`, field `PIXEL_LAB_KEY`. `pixellab.py` reads it with `op read` when the env var is not set |
 | Retro Diffusion key | No script uses it now | 1Password vault `keys`, item `CozyChat`, field `RETRO_DIFFUSION_KEY` |
 

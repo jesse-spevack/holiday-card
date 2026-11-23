@@ -23,6 +23,14 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
    After a line shows once, it does not show again on its own, so the room stays clear. A tap on a guest shows their line again.
    A new or changed line (from the party poll, another tab, or the editor) shows once. The record stays in memory, so a reload shows each line once again.
 
+## My address
+
+- After the thank-you, "My address" in the top bar shows the address on file for the family in this browser, and lets the guest change it.
+- The guest can also change the envelope name. The new name shows at the party too.
+- The address lives only in the contact Sheet. The Worker reads and changes the Sheet row of the family (`family_id`) and keeps no copy.
+- Only US addresses: sign-up and a change both refuse an address outside the US with a host line.
+- Details and copy: "My address" in `docs/form.md`.
+
 ## Photo album (a hidden extra)
 
 - A small red book lies on the sofa. Nothing points to it. A tap opens it over the whole screen, with one photo from our year on each page.

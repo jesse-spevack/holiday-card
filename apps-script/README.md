@@ -7,10 +7,24 @@ The Apps Script on the "Holiday card addresses" Sheet. The Cloudflare function c
 
 ## Contract
 
-POST a JSON body with `secret`, `name`, `household`, `street`, `unit`, `city`, `state`, and `zip`.
-The script adds one row to the Contacts tab and returns `{"ok": true}`.
-It returns `{"error": "..."}` when the secret is wrong or a field is missing.
+The Contacts tab has the columns `added_at, name, household, street, unit, city, state, zip, family_id, updated_at`.
+`name` holds who lives there, and `household` holds the envelope name. `family_id` is the id of the family in D1.
 The Sheet holds only the contact list. The party data lives elsewhere.
+
+POST a JSON body with `secret` and an `action`:
+
+| `action` | Other fields | What the script does | Reply |
+|---|---|---|---|
+| `add`, or no action | `name`, `household`, `street`, `unit`, `city`, `state`, `zip`, `family_id` | Adds one row | `{"ok": true, "row": "added"}` |
+| `read` | `family_id` | Finds the newest row of the family | `{"ok": true, "contact": {name, household, street, ...}}`, or `"contact": null` |
+| `update` | the same fields as `add` | Changes `household` to `zip` and `updated_at` in the newest row of the family. With no row, it adds one | `{"ok": true, "row": "updated"}` or `"added"` |
+
+- A call with no action adds a row with no `family_id`. The first Worker sent this, so an older Worker still works with this script.
+- The newest row of a family is the lowest one, because rows go on at the bottom.
+- `update` keeps `added_at`, `name`, and `family_id` as they were.
+- The script returns `{"error": "..."}` when the secret is wrong, a field is missing, or the action is unknown.
+- Each write waits for the script lock. A tab with the 8 older columns gets the header cells of the newer columns on its first call.
+- `test/apps-script.test.mjs` runs the script against a fake Sheet. It never calls Google.
 
 ## Deploy
 
@@ -22,6 +36,9 @@ clasp deploy -i AKfycbweRjFcUK4fq9j8vZ5HBGFMBd1duKAya3Tq7nhEC8xm6dRWGRPnzKP-Dpyc
 ```
 
 Deploy with `-i` to keep the same web app URL.
+
+`clasp push` changes only the script's HEAD. The live web app runs the deployed version until `clasp deploy -i`.
+Deploy a new script before the Worker that uses it, and keep each script change able to serve the Worker that is live now.
 
 ## Maintain the Sheet
 
@@ -47,10 +64,12 @@ pnpm sheet:dupes --apply    # also delete the extra rows
 
 The script gets the token above with `gcloud`, so run it as Jesse.
 
-- Two rows are duplicates when their address keys are equal. `scripts/dupes.ts` makes the key, and its comments give the rules.
+- Two rows are duplicates when their address keys are equal, or when they have the same `family_id`.
+  A family that changed its address can have rows at two addresses. Rows that share an address or a family go in one group.
+  `scripts/dupes.ts` makes the key, and its comments give the rules.
   In short: case, spaces, punctuation, and accents do not count. Street words and directions use the USPS short forms.
   "Apt", "Unit", "Suite", and "#" are the same. A ZIP+4 counts as its first five digits.
-- The newest row in a group stays (the latest `added_at`). The script prints a note when the names or the household names in a group differ.
+- The newest row in a group stays: the latest `added_at`, or `updated_at` for a row that its guest changed. The script prints a note when the names or the household names in a group differ.
 - The script also prints one name at two or more addresses: a guest who moved, or a typo. It never deletes these rows. Fix them by hand.
 - `--apply` first writes the rows to delete to a CSV in `~/Documents/holiday-card/backups/`, and prints the path.
   Then it reads the Sheet again, and stops if a row to delete changed. Then it deletes all the rows in one `batchUpdate`, from the bottom row up.

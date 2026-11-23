@@ -19,6 +19,8 @@ export const api = {
   submit: (entry) => postJson("/api/submit", entry),
   sprite: (update) => postJson("/api/sprite", update),
   interaction: (update) => postJson("/api/interaction", update),
+  addressRead: (family) => postJson("/api/address/read", family),
+  addressChange: (change) => postJson("/api/address/change", change),
   party: () => call("/api/party"),
   config: () => call("/api/config"),
 };

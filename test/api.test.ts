@@ -1,7 +1,7 @@
 import { SELF, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PartyFamily } from "../src/party";
-import { OPENROUTER, PLACES, SHEET, TURNSTILE, llmReply, stubOutbound } from "./outbound";
+import { OPENROUTER, PLACES, SHEET, TURNSTILE, fakeSheet, llmReply, stubOutbound } from "./outbound";
 
 const SUBMISSION = {
   envelope: "The Garcia Family",
@@ -144,6 +144,8 @@ describe("submit", () => {
     expect(token).toMatch(/^[\w-]{40,}$/);
     expect(JSON.parse(services.to(SHEET)[0].body)).toEqual({
       secret: "test-secret",
+      action: "add",
+      family_id: id,
       name: "Sofia, Dan, Mia, and Biscuit the corgi",
       household: "The Garcia Family",
       street: "1428 Maple Ave",
@@ -173,6 +175,31 @@ describe("submit", () => {
 
     expect(response.status).toBe(201);
     expect(JSON.parse(services.to(SHEET)[0].body)).toMatchObject({ street: "Box 12, Rural Route 3, Ely MN", city: "", state: "", zip: "" });
+  });
+
+  it.each([
+    [{ street: "55 King St W", unit: "", city: "Toronto", state: "ON", zip: "M5K 1A1" }, "not_us"],
+    [{ street: "1428 Maple Ave", unit: "", city: "Evanston", state: "IL", zip: "SW1A 1AA" }, "not_us"],
+    [{ street: "10 Downing Street, London SW1A 2AA", unit: "", city: "", state: "", zip: "" }, "no_state"],
+    [{ street: "12 Rue de Rivoli, Paris, France", unit: "", city: "", state: "", zip: "" }, "not_us"],
+    [{ street: "1428 Maple Ave", unit: "", city: "", state: "", zip: "" }, "no_state"],
+  ])("refuses an address outside the US: %o", async (address, code) => {
+    const services = stubOutbound({});
+
+    const response = await post("/api/submit", { ...SUBMISSION, address });
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: code });
+    expect(services.calls).toHaveLength(0);
+  });
+
+  it("accepts a typed address with a state code, a state name, or a territory", async () => {
+    for (const street of ["1428 Maple Ave, Evanston IL", "1428 maple ave, evanston, il 60201", "9 Main St, Burlington, Vermont", "Calle 5, San Juan, PR 00901"]) {
+      savingServices();
+      const response = await post("/api/submit", { ...SUBMISSION, address: { street, unit: "", city: "", state: "", zip: "" } });
+      expect(response.status, street).toBe(201);
+      vi.restoreAllMocks();
+    }
   });
 
   it("never shows addresses or the household note at the party", async () => {
@@ -503,6 +530,116 @@ describe("party", () => {
   });
 });
 
+describe("address", () => {
+  const NEW = { street: "77 Fifth Ave", unit: "", city: "New York", state: "NY", zip: "10003" };
+
+  // A family signs up with the fake Sheet, so its row holds the family id.
+  async function signUp(sheet = fakeSheet()) {
+    stubOutbound({ [TURNSTILE]: () => Response.json({ success: true }), [SHEET]: sheet.handler });
+    const family = (await (await post("/api/submit", SUBMISSION)).json()) as { id: string; token: string };
+    vi.restoreAllMocks();
+    return { ...family, sheet };
+  }
+
+  function sheetOnly(sheet: ReturnType<typeof fakeSheet>) {
+    return stubOutbound({ [SHEET]: sheet.handler });
+  }
+
+  it("reads the address on file with the family token, and never the household note", async () => {
+    const { id, token, sheet } = await signUp();
+    sheetOnly(sheet);
+
+    const response = await post("/api/address/read", { id, token });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      envelope: "The Garcia Family",
+      address: { street: "1428 Maple Ave", unit: "Apt 2B", city: "Evanston", state: "IL", zip: "02139" },
+    });
+  });
+
+  it("gives a null address when the Sheet has no row for the family", async () => {
+    const { id, token } = await signUp();
+    sheetOnly(fakeSheet());
+
+    expect(await (await post("/api/address/read", { id, token })).json()).toEqual({ envelope: "The Garcia Family", address: null });
+  });
+
+  it.each([
+    ["/api/address/read", {}],
+    ["/api/address/change", { envelope: "The Garcia Family", address: NEW }],
+  ])("%s rejects a wrong token, the token of another family, and an unknown family, and calls no service", async (path, extra) => {
+    const first = await signUp();
+    const second = await signUp(first.sheet);
+    const services = stubOutbound({});
+
+    expect((await post(path, { id: first.id, token: "not-the-token", ...extra })).status).toBe(403);
+    expect((await post(path, { id: first.id, token: second.token, ...extra })).status).toBe(403);
+    expect((await post(path, { id: crypto.randomUUID(), token: first.token, ...extra })).status).toBe(404);
+    expect((await post(path, { token: first.token, ...extra })).status).toBe(400);
+    expect(services.calls).toHaveLength(0);
+  });
+
+  it("changes the row in place, keeps who lives there, and renames the family at the party", async () => {
+    const { id, token, sheet } = await signUp();
+    sheetOnly(sheet);
+
+    const response = await post("/api/address/change", { id, token, envelope: "The Garcia-Lee Family", address: NEW });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, name: "The Garcia-Lee Family" });
+    expect(sheet.rows).toEqual([
+      { ...NEW, name: SUBMISSION.household, household: "The Garcia-Lee Family", family_id: id, updated_at: "now" },
+    ]);
+    expect((await getParty()).families.map((f) => f.name)).toEqual(["The Garcia-Lee Family"]);
+    const text = JSON.stringify(await getParty());
+    for (const secret of ["Fifth", "10003", "Maple", "Sofia"]) expect(text).not.toContain(secret);
+  });
+
+  it("adds a row with the family id when the Sheet has none", async () => {
+    const { id, token } = await signUp();
+    const sheet = fakeSheet();
+    sheetOnly(sheet);
+
+    await post("/api/address/change", { id, token, envelope: "The Garcia Family", address: NEW });
+
+    expect(sheet.rows).toEqual([{ ...NEW, name: SUBMISSION.household, household: "The Garcia Family", family_id: id, updated_at: "" }]);
+  });
+
+  it("refuses an address outside the US and calls no service", async () => {
+    const { id, token } = await signUp();
+    const services = stubOutbound({});
+
+    const response = await post("/api/address/change", { id, token, envelope: "The Garcia Family", address: { street: "55 King St W, Toronto ON, Canada" } });
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "not_us" });
+    expect(services.calls).toHaveLength(0);
+  });
+
+  it("keeps the old name at the party when the Sheet fails", async () => {
+    const { id, token } = await signUp();
+    stubOutbound({ [SHEET]: () => Response.json({ error: "down" }) });
+
+    const response = await post("/api/address/change", { id, token, envelope: "Someone Else", address: NEW });
+
+    expect(response.status).toBe(502);
+    expect((await getParty()).families[0].name).toBe("The Garcia Family");
+  });
+
+  it("slows down one IP that reads too often", async () => {
+    const { id, token, sheet } = await signUp();
+    sheetOnly(sheet);
+
+    const statuses = [];
+    for (let i = 0; i < 11; i++) statuses.push((await post("/api/address/read", { id, token }, "10.9.9.7")).status);
+
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(200));
+    expect(statuses[10]).toBe(429);
+  });
+});
+
 describe("places", () => {
   it("turns a picked suggestion into address fields", async () => {
     stubOutbound({
@@ -559,6 +696,25 @@ describe("places", () => {
 
     expect(response.status).toBe(status);
     expect(await response.json()).toEqual({ error: "places_failed" });
+  });
+
+  it("refuses a place outside the US", async () => {
+    stubOutbound({
+      [PLACES]: () =>
+        Response.json({
+          formattedAddress: "10 Downing St, London SW1A 2AA, UK",
+          addressComponents: [
+            { longText: "10", shortText: "10", types: ["street_number"] },
+            { longText: "Downing Street", shortText: "Downing St", types: ["route"] },
+            { longText: "United Kingdom", shortText: "GB", types: ["country", "political"] },
+          ],
+        }),
+    });
+
+    const response = await request("/api/place?id=ChIJuk&session=s1");
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "not_us" });
   });
 
   it("rejects a place id that could change the Google URL", async () => {

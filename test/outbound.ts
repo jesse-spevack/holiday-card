@@ -35,3 +35,28 @@ export const PLACES = "places.googleapis.com";
 export function llmReply(members: unknown[]): Response {
   return Response.json({ choices: [{ message: { content: JSON.stringify({ members }) } }] });
 }
+
+// A fake of the Apps Script on the contact Sheet (apps-script/Code.js), with its rows in memory.
+// It checks the secret, and it adds, reads, and updates rows by family_id as the real script does.
+export type SheetRow = Record<string, string>;
+export function fakeSheet(rows: SheetRow[] = []) {
+  const FIELDS = ["name", "household", "street", "unit", "city", "state", "zip"];
+  const pick = (body: Record<string, unknown>) => Object.fromEntries(FIELDS.map((f) => [f, String(body[f] ?? "")]));
+  const newest = (id: string) => rows.findLast((r) => r.family_id === id);
+  const handler = async (request: Request) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    if (body.secret !== "test-secret") return Response.json({ error: "forbidden" });
+    const action = (body.action as string) || "add";
+    const id = String(body.family_id ?? "");
+    if (action === "read") return Response.json({ ok: true, contact: newest(id) ? pick(newest(id)!) : null });
+    if (!body.name || !body.household || !body.street) return Response.json({ error: "missing_fields" });
+    const row = action === "update" ? newest(id) : undefined;
+    if (row) {
+      Object.assign(row, pick(body), { name: row.name, updated_at: "now" });
+      return Response.json({ ok: true, row: "updated" });
+    }
+    rows.push({ ...pick(body), family_id: id, updated_at: "" });
+    return Response.json({ ok: true, row: "added" });
+  };
+  return { rows, handler };
+}

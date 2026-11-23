@@ -6,6 +6,9 @@ const MAX_SUGGESTIONS = 5;
 type Suggestion = { id: string; main: string; secondary: string };
 type Address = { street: string; city: string; state: string; zip: string; formatted: string };
 
+// Places gives Puerto Rico and the other territories their own country codes. They get US mail.
+const US_MAIL = ["US", "PR", "VI", "GU", "AS", "MP"];
+
 type Prediction = {
   placePrediction?: {
     placeId: string;
@@ -47,9 +50,12 @@ export async function lookUpAddress(env: Env, placeId: string, sessionToken: str
   return toAddress(place.addressComponents ?? [], place.formattedAddress ?? "");
 }
 
+// We mail cards inside the US only. The suggestions are US only, so this stops only a place id from somewhere else.
 function toAddress(components: Component[], formatted: string): Address {
   const find = (type: string, form: "longText" | "shortText" = "longText") =>
     components.find((c) => c.types?.includes(type))?.[form] ?? "";
+  const country = find("country", "shortText");
+  if (country && !US_MAIL.includes(country)) throw new HttpError(422, "not_us");
   const street = [find("street_number"), find("route", "shortText") || find("route")].filter(Boolean).join(" ");
   return {
     street: street || formatted.split(",")[0] || "",

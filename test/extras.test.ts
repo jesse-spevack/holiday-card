@@ -2,7 +2,6 @@
 // The page reports each extra by its name (public/js/extras/index.js), and the Worker accepts only the names in EGGS.
 import { describe, expect, it } from "vitest";
 import { EGGS } from "../src/interactions";
-// @ts-expect-error The page modules are plain JavaScript with no types.
 import { EXTRAS } from "../public/js/extras/index.js";
 
 const names: string[] = (EXTRAS as { name: string }[]).map((e) => e.name);
