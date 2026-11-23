@@ -142,6 +142,32 @@ describe("the hosts speak on their own", { concurrency: true }, () => {
     assert.ok(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top, `the bubbles overlap: ${JSON.stringify(boxes)}`);
   });
 
+  test("a guest's own bubble waits while it would cover a host's line", async () => {
+    const party = { families: [{ ...PARTY.families[0], bubbles: ["Happy Hanukkah!", ""] }] };
+    const { page, hc } = await env.open({ viewport: { width: 400, height: 844 }, party, mine: [GARCIA], wait: "eggs" });
+    await waitForFamilies(page, { other1: 2 });
+    await hc.pause();
+    await hc.stillGuests();
+    await hc.stillHosts();
+    // Jesse stands right under the guest and talks. For two turns of the guest bubbles (3.5 seconds each), the guest waits.
+    await hc.place({ familyId: "other1", index: 0 }, 150, 130);
+    await hc.place({ host: true, name: "Jesse" }, 150, 132);
+    await hc.say({ host: true, name: "Jesse" }, "Happy holidays!", 60);
+    const shows = () => page.evaluate(() => new Promise((done) => {
+      const t0 = performance.now();
+      const look = () => {
+        if (window.__hc.sprite({ familyId: "other1", index: 0 }).bubble) return done(true);
+        if (performance.now() - t0 > 8000) return done(false);
+        requestAnimationFrame(look);
+      };
+      look();
+    }));
+    assert.equal(await shows(), false, "the guest's bubble covers Jesse's line");
+    // Jesse stops talking. The guest's bubble shows on its next turn.
+    await hc.say({ host: true, name: "Jesse" }, "");
+    assert.equal(await shows(), true);
+  });
+
   test("after the guest finds every extra, the hosts speak much less often, with the thanks only", async () => {
     const { page, hc } = await party();
     const { IDLE, HOST_LINES } = await hc.constants();
