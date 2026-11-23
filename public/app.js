@@ -296,6 +296,9 @@ function stepAddress() {
   const list = h("ul", { class: "choices", id: "choices" });
   const credit = h("p", { class: "credit", id: "credit", hidden: true }, "powered by Google");
   const manual = h("div", { id: "manual", hidden: true }, btn("Use what I typed", () => {
+    // A search that still runs must not write over the line that this tap shows.
+    clearTimeout(searchTimer);
+    searchSeq++;
     const v = $("f-address").value.trim();
     if (!v) return showError("We need something here.");
     const problem = usAddressProblem({ street: v });
