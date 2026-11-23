@@ -485,12 +485,43 @@ async function loadParty(first) {
   }
 }
 
-// A guest's bubble waits for its next turn while it would cover another bubble, such as a host's line.
-function cycleBubbles() {
-  const talkers = scene.sprites.filter((s) => s.bubble && !s.bubbleEl);
-  const s = talkers[Math.floor(Math.random() * talkers.length)];
-  if (s) scene.sayClear(s, s.bubble, 4);
+// The guests' own lines. After the thank-you tucks away, each line shows once in this visit, one line at a time.
+// A line that is new or changed (from the party poll, another tab, or the editor) shows once more.
+// A tap on a guest shows the line again at any time. The record of shown lines stays in memory, so a reload shows each line once.
+const shownLines = new Map();
+const lineKey = (s) => `${s.familyId}:${s.index}`;
+let lineTalker = null;
+function lineShown(s) {
+  shownLines.set(lineKey(s), s.bubble);
 }
+
+// One turn: the next guest whose line has not shown says it, unless a guest's line shows now.
+// A line waits for a later turn while its bubble would cover another bubble, such as a host's line.
+function cycleBubbles() {
+  if (!app.classList.contains("tucked") || lineTalker?.bubbleEl) return;
+  lineTalker = null;
+  for (const s of scene.sprites) {
+    if (s.host || !s.bubble || s.bubbleEl || shownLines.get(lineKey(s)) === s.bubble) continue;
+    if (scene.sayClear(s, s.bubble, 4)) {
+      lineShown(s);
+      lineTalker = s;
+      return;
+    }
+  }
+}
+
+// Another tab of this browser changed a line of this browser's own family. The new line shows once.
+addEventListener("storage", (e) => {
+  if (e.key !== SAVED) return;
+  let fresh = [];
+  try { fresh = JSON.parse(e.newValue) || []; } catch {}
+  for (const f of fresh) {
+    const saved = mineById(f.id);
+    if (!saved) continue;
+    saved.bubbles = f.bubbles || [];
+    scene.familySprites(f.id).forEach((s) => { s.bubble = saved.bubbles[s.index] || ""; });
+  }
+});
 
 const hostSprites = () => scene.sprites.filter((s) => s.host);
 
@@ -521,7 +552,10 @@ function onTap(sprite) {
   if (!saved) {
     const fam = scene.families.get(sprite.familyId);
     if (fam && fam.id !== "pending") scene.setTag(fam.id, fam.name, { seconds: 3 });
-    if (sprite.bubble) scene.say(sprite, sprite.bubble, 4);
+    if (sprite.bubble) {
+      scene.say(sprite, sprite.bubble, 4);
+      lineShown(sprite);
+    }
     return;
   }
   openEditor(sprite, saved, { quiet: !!pet });
@@ -538,6 +572,7 @@ function openEditor(sprite, saved, { quiet = false } = {}) {
     saveMine();
     scene.closePop();
     scene.say(sprite, text, 6);
+    lineShown(sprite);
     api.sprite({ id: saved.id, token: saved.token, index: sprite.index, bubble: text }).catch(() => sound.oops());
   };
   const wear = async (look) => {
@@ -608,6 +643,8 @@ if (new URLSearchParams(location.search).has("test")) {
     if (tuckTimer) tuckAway();
     return app.classList.contains("tucked");
   };
-  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter }); });
+  // lineTurn runs one turn of the guests' lines now, as the 3.5-second timer does. pollParty asks for the party now.
+  const lines = { lineTurn: cycleBubbles, pollParty: () => loadParty(false) };
+  import("./js/test-api.js").then(({ testApi }) => { window.__hc = testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter, lines }); });
 }
 start();

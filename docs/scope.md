@@ -19,6 +19,9 @@ The code map, the data rules, and the commands are in `AGENTS.md`.
    Audrey and Eddie walk together. Each host goes back home now and then. With reduced motion, the hosts stay at home.
 6. Surprise: tapping your own sprite lets you change its look or give it a chat bubble (about 40 characters, no filter).
    The browser remembers which sprites are yours.
+   Each guest's line shows once in a visit, after the thank-you tucks away. The lines take turns, one at a time, and a bubble never covers another bubble.
+   After a line shows once, it does not show again on its own, so the room stays clear. A tap on a guest shows their line again.
+   A new or changed line (from the party poll, another tab, or the editor) shows once. The record stays in memory, so a reload shows each line once again.
 
 ## Photo album (a hidden extra)
 

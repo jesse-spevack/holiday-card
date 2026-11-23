@@ -11,7 +11,7 @@ import { GLINT } from "./glint.js";
 import { IDLE } from "./idle.js";
 import { FLOOR, WINDOW } from "./room.js";
 
-export function testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter }) {
+export function testApi({ scene, sound, extras, found, tuckNow, glint, idle, counter, lines }) {
   // The sprites that match every field in `want`, for example { familyId: "other1", index: 0 } or { host: true, name: "Jesse" }.
   const find = (want = {}) => scene.sprites.filter((s) => Object.entries(want).every(([k, v]) => s[k] === v));
   const one = (want) => {
@@ -155,6 +155,10 @@ export function testApi({ scene, sound, extras, found, tuckNow, glint, idle, cou
     idle: () => idle.state(),
     // The counter: { shown, text, done, celebrations, found, total, missing, box }. missing is the names of the extras left.
     counter: () => counter.state(),
+    // One turn of the guests' own lines now, as the 3.5-second timer does (cycleBubbles in app.js).
+    lineTurn: () => lines.lineTurn(),
+    // Asks for the party now, as the 30-second poll does. The promise ends when the party is in the room.
+    pollParty: () => lines.pollParty(),
     // Says a line over a sprite for `seconds` of wall time, as a guest's bubble does. An empty text takes the bubble away.
     say: (want, text, seconds = 30) => scene.say(one(want), text, seconds),
 
