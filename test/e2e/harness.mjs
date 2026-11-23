@@ -111,8 +111,6 @@ function fakeApi({ party = PARTY, calls, onFile = ON_FILE }) {
       }
       case "/api/address/change":
         return reply({ ok: true, name: body.envelope });
-      case "/api/config":
-        return reply({ turnstileSiteKey: "" });
     }
     return reply({ error: "not found" }, 404);
   };

@@ -7,7 +7,6 @@ import { findInvite, openInvite, viewInvite } from "./invites";
 import { lookUpAddress, suggestAddresses } from "./places";
 import { BUBBLE_MAX, addFamily, checkToken, partyVersion, readParty, renameFamily, updateMember, type Member, type NewFamily } from "./party";
 import { addContact, confirmContact, readContact, updateContact, type Contact } from "./sheet";
-import { verifyTurnstile } from "./turnstile";
 
 const LOOK_ID = /^[a-z0-9-]{1,40}$/;
 const PARTY_CACHE_SECONDS = 60;
@@ -27,8 +26,6 @@ export default {
 async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   switch (`${request.method} ${url.pathname}`) {
-    case "GET /api/config":
-      return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY });
     case "POST /api/household":
       return household(request, env);
     case "GET /api/places":
@@ -83,6 +80,11 @@ function sessionToken(url: URL): string {
 async function submit(request: Request, env: Env): Promise<Response> {
   await rateLimit(env.WRITE_LIMIT, request);
   const body = await readJson(request);
+  // The bot trap: a person never fills `extra` (the hidden input in index.html). A bot gets a fake 201, and nothing is written.
+  if (typeof body.extra === "string" && body.extra.trim()) {
+    console.log("submit_trap");
+    return json({ id: crypto.randomUUID(), token: crypto.randomUUID() }, 201);
+  }
   const envelope = field(body, "envelope", { max: 120 });
   const householdNote = field(body, "household", { max: 400 });
   // The Sheet's name column holds who lives there, and its household column holds the envelope name.
@@ -91,7 +93,6 @@ async function submit(request: Request, env: Env): Promise<Response> {
 
   const inviteToken = field(body, "invite", { max: 100, required: false });
 
-  await verifyTurnstile(env, field(body, "turnstileToken", { max: 4096 }), request.headers.get("CF-Connecting-IP"));
   const family = { envelope, householdNote, members };
   if (inviteToken) return json(await confirmInvite(env, inviteToken, contact, family), 201);
 

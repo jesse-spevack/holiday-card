@@ -7,7 +7,7 @@
 // room.png at every scale. The canvas follows the camera, so it zooms and pans with the room.
 //
 // The art (roof or eave, moon, chimney) is chosen for the stage at rest: the stage after the dialog hides.
-// The dialog grows while the host types, and the Turnstile check mounts under it, so the live stage changes size.
+// The dialog grows while the host types, so the live stage changes size.
 // The art does not follow those changes. The canvas only covers the live bands, and the stage crops the rest.
 
 import { ROOM_W, ROOM_H } from "./room.js";

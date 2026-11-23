@@ -70,6 +70,8 @@ describe("my address", { concurrency: true }, () => {
     await page.getByRole("button", { name: "Done" }).click();
     await page.locator("#dialog").waitFor({ state: "hidden" });
     await page.getByRole("button", { name: "My family" }).waitFor();
+    // A stopped clock holds the sprite still, so the pointer stays on it on a slow machine.
+    await hc.pause();
     const at = await hc.pointOn({ familyId: GARCIA.id });
     await page.mouse.move(at.x, at.y);
     await page.locator(".tag", { hasText: "The Garcia-Lee Family" }).waitFor();

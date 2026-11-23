@@ -119,27 +119,6 @@ function saveMine() {
 }
 const mineById = (id) => state.mine.find((f) => f.id === id);
 
-// ---------- Turnstile: Cloudflare's check that a real browser sends the address ----------
-let turnstileWidget = null;
-
-function renderTurnstile(siteKey) {
-  if (!siteKey) return;
-  const render = () => {
-    turnstileWidget = window.turnstile.render("#turnstile", { sitekey: siteKey, appearance: "interaction-only" });
-  };
-  if (window.turnstile) render();
-  else window.addEventListener("load", () => window.turnstile && render(), { once: true });
-}
-
-function turnstileToken() {
-  if (turnstileWidget === null || !window.turnstile) return "";
-  return window.turnstile.getResponse(turnstileWidget) || "";
-}
-
-function resetTurnstile() {
-  if (turnstileWidget !== null) window.turnstile?.reset(turnstileWidget);
-}
-
 // ---------- host speech, typed out ----------
 let typing = null;
 function typeOut(el, text) {
@@ -214,8 +193,17 @@ function showError(text) {
   if (el) el.textContent = text;
   sound.oops();
 }
-// The host line for a failed call: the US-only lines for an address outside the US, else a retry.
-const failLine = (err) => US_LINES[err?.message] || "Something went wrong. Try again?";
+// The host line for each error code of a failed call. A code that is not here gets the retry line with its code,
+// so a guest's screenshot tells us what failed.
+const FAIL_LINES = {
+  ...US_LINES,
+  slow_down: "That's a lot of tries! Wait a minute and try again?",
+  sheet_failed: "We can't reach our address book right now. Try again in a minute?",
+  household_failed: "We couldn't read who lives at your house. Tap the button again?",
+  places_failed: "We can't look up addresses right now. Try again in a minute?",
+  network: "We can't reach our server. Check your connection and try again?",
+};
+const failLine = (err) => FAIL_LINES[err?.message] || `Something went wrong. Try again? (${String(err?.message || "error").slice(0, 40)})`;
 
 // ---------- steps ----------
 function go(step) {
@@ -279,19 +267,39 @@ function stepHousehold() {
 }
 
 // The LLM reads the household while the guest types the address.
+// It returns the promise of the members. A failed read is not kept, so the next call asks again.
 function readHousehold() {
-  if (state.householdAsked === state.household && state.membersPromise) return;
+  if (state.householdAsked === state.household && state.membersPromise) return state.membersPromise;
   state.householdAsked = state.household;
   state.members = null;
   scene.removeFamily("pending");
   const asked = state.household;
-  state.membersPromise = api.household(asked).then(async ({ members }) => {
-    if (asked !== state.household) return state.membersPromise;
+  const read = api.household(asked).then(async ({ members }) => {
+    if (asked !== state.household) return readHousehold();
     state.members = assignLooks(members);
     await showPending(state.members);
     return state.members;
   });
-  state.membersPromise.catch(() => {});
+  state.membersPromise = read;
+  read.catch(() => { if (state.membersPromise === read) state.membersPromise = null; });
+  return read;
+}
+
+// The bot trap in index.html. A person leaves it empty, so the page sends it only when something filled it.
+function honeypot() {
+  const value = $("hc-extra")?.value.trim();
+  return value ? { extra: value.slice(0, 100) } : {};
+}
+
+// The address is the point, so a household read that fails at the send never blocks the sign-up.
+// The page guesses instead: one adult for each name in the text, split on commas, "and", "&", and "+".
+const GUESS_MAX = 12;
+async function guessHousehold() {
+  const names = state.household.split(/,|&|\+|\band\b/i).map((n) => n.trim()).filter(Boolean);
+  const count = Math.min(Math.max(names.length, 1), GUESS_MAX);
+  state.members = assignLooks(Array.from({ length: count }, () => ({ type: "adult" })));
+  await showPending(state.members);
+  return state.members;
 }
 
 let searchTimer = null;
@@ -405,7 +413,9 @@ async function send() {
   button.disabled = true;
   $("error").textContent = "";
   try {
-    const members = state.members || (await state.membersPromise);
+    const members = state.members || (await readHousehold().catch(guessHousehold));
+    // The guest can tap "Fix it" while the page waits for the household. The send then stops, so an old address does not go.
+    if (!button.isConnected) return;
     const family = scene.families.get("pending");
     if (!family.entered) {
       family.entered = true;
@@ -415,7 +425,7 @@ async function send() {
     }
     const address = { ...state.address, unit: state.unit };
     const invite = state.invite ? { invite: state.invite } : {};
-    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, turnstileToken: turnstileToken(), ...invite });
+    const { id, token } = await api.submit({ envelope: state.envelope, household: state.household, members, address, ...invite, ...honeypot() });
     const saved = { id, token, name: state.envelope, members, bubbles: [] };
     state.mine.push(saved);
     saveMine();
@@ -424,10 +434,8 @@ async function send() {
       Object.assign(state, { invite: "", mode: "new" });
     }
     scene.renameFamily("pending", { id, name: saved.name, mine: true });
-    resetTurnstile();
     go("done");
   } catch (err) {
-    resetTurnstile();
     // The friend confirmed in another browser a moment ago. The link now opens the party as that family.
     if (err?.message === "invite_used") return location.reload();
     button.disabled = false;
@@ -930,8 +938,6 @@ async function start() {
   document.addEventListener("pointerdown", () => sound.wake(), { capture: true });
   document.addEventListener("keydown", () => sound.wake(), { capture: true });
 
-  // Demo mode signs nobody up, so it needs no Turnstile. On a preview, the widget would only show an error.
-  if (!DEMO) api.config().then(({ turnstileSiteKey }) => renderTurnstile(turnstileSiteKey)).catch(() => {});
   // A new guest gets the first question at once. So the dialog has its real height before the room shows,
   // and the room does not jump when the question appears.
   const invited = state.invite ? openInviteLink() : null;

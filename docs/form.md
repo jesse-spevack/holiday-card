@@ -64,7 +64,6 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 
 | Call | Request | Response |
 |---|---|---|
-| `GET /api/config` | | `{ "turnstileSiteKey": "..." }` |
 | `POST /api/household` | `{ "text": "Sofia, Dan, Mia, and Biscuit the corgi" }` | `{ "members": [{"type":"adult"}, ...] }` (types: adult, kid, baby, dog, cat; 1 to 12) |
 | `GET /api/places?q=...&session=<uuid>` | | `{ "suggestions": [{ "id", "main", "secondary" }] }` (US only, at most 5) |
 | `GET /api/place?id=<placeId>&session=<uuid>` | | `{ "address": { "street", "city", "state", "zip", "formatted" } }` |
@@ -85,15 +84,22 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
   "envelope": "The Garcia Family",
   "household": "Sofia, Dan, Mia, and Biscuit the corgi",
   "members": [{ "type": "adult", "look": "adult-03" }, { "type": "dog", "look": "dog-06" }],
-  "address": { "street": "1428 Maple Ave", "unit": "Apt 2B", "city": "Evanston", "state": "IL", "zip": "60201", "formatted": "..." },
-  "turnstileToken": "..."
+  "address": { "street": "1428 Maple Ave", "unit": "Apt 2B", "city": "Evanston", "state": "IL", "zip": "60201", "formatted": "..." }
 }
 ```
 
 A typed address with no match sends `street` as typed, with empty `city`, `state` and `zip`.
 A friend on an invite link also sends `"invite": "<token>"`. Then the Worker changes the invited Sheet row in place (`confirm`),
 the family takes the invite id, and its token is the link token. A used invite fails with `409 invite_used`, and the page opens the party.
-The Worker picks the family id, checks Turnstile, then writes the contact with the family id to the Sheet, then writes the family to D1.
+The Worker picks the family id, then writes the contact with the family id to the Sheet, then writes the family to D1.
+The only guard is the `WRITE_LIMIT` rate limit, and a bot trap: the page sends `"extra"` only when something filled the hidden
+`#hc-extra` input in `index.html`. A person never sees that input. The Worker answers a filled `extra` with a fake `201` and writes nothing.
+The Worker ignores other fields, so an old cached page that still sends `turnstileToken` signs up as usual.
+
+When a call fails, the page shows the host line for its error code (`FAIL_LINES` in `public/app.js`).
+A code with no line gets "Something went wrong. Try again? (code)", so a guest's screenshot names the cause.
+A call that never reaches the Worker gets the code `network`. If the household read fails at the send, the page asks again,
+and if it fails again, the page guesses one adult for each name in the text. The household never blocks the sign-up.
 
 We mail cards inside the US only (`public/js/us.js`). An address outside the US fails with `422` and one of these codes:
 

@@ -19,7 +19,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=Silkscreen&family=Inter:wght@400;500&display=swap">
 <link rel="stylesheet" href="/style.css">
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 <body>
 <main id="app">
@@ -37,8 +36,9 @@
     </div>
   </section>
   <section class="dialog" id="dialog" aria-live="polite"></section>
-  <div class="turnstile" id="turnstile"></div>
 </main>
+<!-- A trap for bots that fill every field. A person never sees it or tabs to it. The Worker drops a sign-up that fills it. -->
+<input class="trap" id="hc-extra" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other">
 <noscript><p class="noscript">This page needs JavaScript to collect your address.</p></noscript>
 <script type="module" src="/app.js"></script>
 </body>
