@@ -92,11 +92,13 @@ Python scripts with Pillow, and one Node script, run from the repo root. The doc
 - `apps-script/`: the Apps Script that adds a row to the contact Sheet. Deploy it with `clasp`, see `apps-script/README.md`.
 - `test/api.test.ts`: Worker tests in the Workers runtime, with fake outbound calls in `test/outbound.ts`.
   `test/extras.test.ts` checks that `EGGS` holds the name of each extra in `public/js/extras/index.js`, and no other name.
+  `test/sheet-dupes.test.ts` checks the address rules of `pnpm sheet:dupes` (`scripts/dupes.ts`) with made-up rows.
 - `test/e2e/`: the page in Google Chrome against a fake API. It needs no Cloudflare.
   `harness.mjs` holds the server, the fake API, the test looks, and the helpers. Each `*.test.mjs` file covers one feature.
   The tests read and drive the page's state only through `window.__hc`. After a change inside a page module, change `public/js/test-api.js`
   or the `test` of the extra, not the tests. A few checks also import the pure functions in `extras/pets.js`, `extras/hanukkah.js`, and `sound.js`.
-- `scripts/`: `preview.sh`, `deploy.sh`, and the deploy hook `no-direct-deploy.mjs`.
+- `scripts/`: `preview.sh`, `deploy.sh`, the deploy hook `no-direct-deploy.mjs`, `interactions.sh`,
+  and `sheet-dupes.mjs` with its pure rules in `dupes.ts`. Node runs `dupes.ts` as it is, with no build step.
 
 ## Commands
 
@@ -111,6 +113,7 @@ pnpm typecheck
 pnpm og            # make the link preview again from the page, see art/scripts/og.mjs
 pnpm preview        # upload this branch as a preview and print its URL
 pnpm interactions   # read only: the hidden extras that each family played with, from the production D1. Add --local for pnpm dev
+pnpm sheet:dupes    # read only: the guests with the same mailing address in the contact Sheet. Add --apply to delete the extra rows
 pnpm run deploy     # main only. See "Deploy".
 ```
 
@@ -214,6 +217,9 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
 ## Data rules
 
 - The Google Sheet holds only the contact list: name, household, and mailing address. Party data never goes to the Sheet.
+  Each household must show once, because Jesse sends the Sheet to the card printer. `pnpm sheet:dupes` finds the duplicates.
+  Only Jesse runs `--apply`. It writes a CSV backup of the deleted rows to `~/Documents/holiday-card/backups/`, outside the repo.
+  Never write a test row to the real Sheet. The tests use made-up rows.
 - D1 holds the party: families, members, looks, and chat bubbles. The party API never returns an address or the household text.
 - D1 also holds `interactions`: for each family and egg, a count, the first time, and the last time. It holds no IP and no user agent.
   The party API never returns it, and it has no `party_version` trigger, so a tap does not make each page fetch the party again. `pnpm interactions` reads it.
