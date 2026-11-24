@@ -59,6 +59,16 @@ describe("the error reports", { concurrency: true }, () => {
     env.errors.splice(0, env.errors.length, ...env.errors.filter((e) => !e.includes("report-test-boom")));
   });
 
+  test("the harmless ResizeObserver warning of iOS Safari is not reported", async () => {
+    const { page, calls } = await env.open();
+    await page.evaluate(() => {
+      window.dispatchEvent(new ErrorEvent("error", { message: "ResizeObserver loop completed with undelivered notifications." }));
+      window.dispatchEvent(new ErrorEvent("error", { message: "after-the-warning" }));
+    });
+    await until(() => reports(calls).some((r) => r.code === "after-the-warning"), "the report after the warning");
+    assert.deepEqual(reports(calls).map((r) => r.code), ["after-the-warning"]);
+  });
+
   test("the same failure reports once in 30 seconds", async () => {
     const { page, calls, hc } = await env.open({ wait: "room", routes: [["**/api/party", (r) => r.abort()]] });
     await hc.pollParty();

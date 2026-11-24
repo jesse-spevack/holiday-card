@@ -2,7 +2,7 @@ import { HttpError } from "./http";
 
 // The hidden photo album. art/scripts/album.py uploads the web copies and the page list to KV.
 // A photo's file name is a hash of its bytes, so a photo never changes under its name.
-const PHOTO = /^\/album\/([a-f0-9]{16}\.jpg)$/;
+export const PHOTO = /^\/album\/([a-f0-9]{16}\.jpg)$/;
 const LIST_SECONDS = 300;
 const PHOTO_SECONDS = 31536000;
 

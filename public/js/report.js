@@ -37,7 +37,12 @@ function where(err) {
 }
 
 // An error that nothing caught, and a promise that failed with no catch.
+// iOS Safari's "ResizeObserver loop completed with undelivered notifications" is harmless, so it is not reported.
+const HARMLESS = /ResizeObserver loop/;
 export function reportUncaught() {
-  window.addEventListener("error", (e) => report("uncaught", e.error || e.message));
+  window.addEventListener("error", (e) => {
+    if (HARMLESS.test(String(e.message || e.error?.message || ""))) return;
+    report("uncaught", e.error || e.message);
+  });
   window.addEventListener("unhandledrejection", (e) => report("rejection", e.reason));
 }
