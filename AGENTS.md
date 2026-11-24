@@ -153,7 +153,9 @@ What the registry does for an extra:
 - Tracking: the registry records each tap of a spot, and each `tapSprite` or `look` that returns true.
   For a thing with no tap, such as a car that drives past, the extra calls `ctx.found()` itself.
   A record goes to `POST /api/interaction` for the family that this browser signed up last (`found.js`).
-  A browser with no family sends nothing. The page sends at most one call for each extra in 5 seconds. A failed call stays silent.
+  A browser with no family sends nothing at the tap. The extras that it finds before the sign-up stay in the found list,
+  and a sign-up or an invite confirm sends one call for each of them for the new family (`signedUp` in `found.js`).
+  The page sends at most one call for each extra in 5 seconds. A failed call stays silent. Demo mode sends none.
 - Hints: each `{ host, text }` in `hints` becomes a line of that host (`HOST_LINES` in `hosts.js`).
   A host stops a hint after this browser finds the extra. `fits(ctx)` can hide the hints for a guest, for example with no pet at the party.
 - Layers: the `layer` from `setup` goes on the scene. Its hooks are in `Scene.addLayer` in `scene.js`.
