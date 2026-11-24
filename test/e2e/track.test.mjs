@@ -1,7 +1,7 @@
 // The record of the hidden extras: each tap from a browser with a family tells the Worker, and a fast tapper sends few calls.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { e2e, GARCIA, tuckNow, tapRoom, until, interactions } from "./harness.mjs";
+import { e2e, GARCIA, tuckNow, tapRoom, until, interactions, said } from "./harness.mjs";
 
 const env = await e2e();
 const EARLIER = { ...GARCIA, id: "fam00001", token: "old", name: "The Garcias, 2025" };
@@ -46,6 +46,36 @@ describe("the record of the hidden extras", { concurrency: true }, () => {
     await page.waitForFunction(() => window.__hc.eggs().star);
     assert.equal(await hc.interactionsSent(), 0);
     assert.deepEqual(await interactions(page, calls), []);
+  });
+
+  test("the extras found on the form go to the record at the sign-up, one call each, for the new family", async () => {
+    const { page, hc, calls, tap } = await room({});
+    await said(page, "Whose name goes on the envelope?");
+    await tap("lamp");
+    assert.equal((await hc.eggs()).lampOn, false);
+    await tap("window");
+    await page.waitForFunction(() => window.__hc.eggs().star);
+    assert.equal(await hc.interactionsSent(), 0);
+
+    await page.getByLabel("Name on the envelope").fill("The Early Family");
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByLabel("Who lives at your house").fill("Ann and Bo");
+    await page.getByLabel("Who lives at your house").press("Enter");
+    await said(page, "Where should we mail your card?");
+    await page.getByLabel("Street address").fill("1428 Maple");
+    await page.getByRole("button", { name: /1428 Maple Avenue/ }).click();
+    await said(page, "Apartment or unit?");
+    await page.getByRole("button", { name: "Skip" }).click();
+    // The fake API fails the first submit. A failed sign-up sends no interaction.
+    await page.getByRole("button", { name: /Yes, send it/ }).click();
+    await page.getByRole("alert").filter({ hasText: "(server)" }).waitFor();
+    assert.equal(await hc.interactionsSent(), 0);
+    await page.getByRole("button", { name: /Yes, send it/ }).click();
+    await said(page, "Thank you.");
+
+    const sent = await interactions(page, calls);
+    assert.deepEqual(sent.map((c) => c.egg).sort(), ["lamp", "star"]);
+    assert.ok(sent.every((c) => c.id === "fam12345" && c.token === "tok"), "each call is for the new family");
   });
 
   test("a failed call does not stop the extra and shows no error", async () => {

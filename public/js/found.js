@@ -1,6 +1,8 @@
 // The hidden extras that this browser found, and the record of each interaction with them.
 // The registry (registry.js) calls mark(name) on each interaction with an extra, not only the first.
 // mark tells the Worker (POST /api/interaction), and the hosts stop a hint after the guest finds its extra.
+// A guest can find extras on the form, before there is a family. Those finds wait in the found list, and
+// signedUp() sends one call for each of them for the new family, so the record keeps them.
 // The found list stays in local storage for the next visit, except in demo mode (demo.js).
 
 import { api } from "./api.js";
@@ -35,7 +37,14 @@ export function createFound({ family }) {
     try { localStorage.setItem(KEY, JSON.stringify([...seen])); } catch {}
   }
 
-  return { seen, tracking, mark, has: (egg) => seen.has(egg) };
+  // A new sign-up, or a confirmed invite: one call for each extra in the found list, for the new family.
+  // The gap still holds for each extra. Demo mode sends nothing.
+  function signedUp() {
+    if (DEMO) return;
+    for (const egg of seen) track(egg);
+  }
+
+  return { seen, tracking, mark, signedUp, has: (egg) => seen.has(egg) };
 }
 
 // Demo mode starts with nothing found and keeps its finds in memory, so the browser's own list stays as it was.

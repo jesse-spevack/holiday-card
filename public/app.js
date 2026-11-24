@@ -439,6 +439,8 @@ async function send() {
     const saved = { id, token, name: state.envelope, members, bubbles: [] };
     state.mine.push(saved);
     saveMine();
+    // The extras that the guest found on the form go to the record now, for the new family.
+    found.signedUp();
     if (state.invite) {
       dropInviteHash();
       Object.assign(state, { invite: "", mode: "new" });
