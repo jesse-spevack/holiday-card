@@ -74,6 +74,7 @@ JSON calls under `/api/`, and the album under `/album/`. `src/worker.ts` handles
 | `POST /api/address/read` | `{ "id", "token" }` | `{ "envelope", "address": { "street", "unit", "city", "state", "zip" } }`, or `"address": null` with no Sheet row |
 | `POST /api/address/change` | `{ "id", "token", "envelope", "address": { "street", "unit", "city", "state", "zip" } }` | `{ "ok": true, "name" }` |
 | `GET /api/party` | | `{ "families": [{ "id", "name", "members": [{"type","look"}], "bubbles": ["..."] }] }` |
+| `GET /api/config` | | `{}`. Only the old Turnstile check used it. A page from before its removal still asks for it |
 | `POST /api/log` | `{ "step", "code", "where"?, "online"?, "family"? }` (at most 2 KB; other fields are dropped) | `204` with no body. A row in the D1 `errors` table (`pnpm errors`) |
 | `GET /album/list` | | The album pages and captions, from KV |
 | `GET /album/<hash>.jpg` | | One album photo, from KV |

@@ -262,6 +262,8 @@ To apply a new migration after its PR merges, run `pnpm db:migrate` on main, bef
   It never holds an address, a name, the household text, a bubble, a token, or an IP. Keep it so: log codes, field names, and booleans only.
   `POST /api/log` keeps only its allowed fields, and a test proves that a submit with an address leaves no trace of it.
   `src/log.ts` deletes rows older than 30 days and keeps at most 5000. `pnpm errors` reads it. Workers Logs has the same lines.
+  Two kinds of noise go to Workers Logs only, with no row: a 404 on a GET to a path that no route serves (a web scanner),
+  and the harmless iOS Safari warning "ResizeObserver loop completed with undelivered notifications". The page does not report that warning.
 - KV (`ALBUM`) holds the photo album: web copies of the photos and the page list.
 - Photos and captions NEVER go in git. The repo is public, and the original photos hold GPS data.
   The originals and `captions.json` stay in `~/Pictures/holiday-card-album/`. `python3 art/scripts/album.py` strips the metadata and uploads them.

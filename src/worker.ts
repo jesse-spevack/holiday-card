@@ -1,5 +1,5 @@
 import { readAddress } from "./address";
-import { albumList, albumPhoto } from "./album";
+import { PHOTO, albumList, albumPhoto } from "./album";
 import { HttpError, field, json, rateLimit, readJson } from "./http";
 import { KINDS, MAX_MEMBERS, parseHousehold, type Kind } from "./household";
 import { readEgg, recordInteraction } from "./interactions";
@@ -15,6 +15,11 @@ const PARTY_CACHE_SECONDS = 60;
 const LOG_ROUTE = "POST /api/log";
 const LOG_BODY_MAX = 2048;
 const WORD = /^[\w:./-]{1,40}$/;
+// The paths that a GET can ask for. A 404 on a GET to any other path is a web scanner (/.git/config, /api/.env),
+// so it goes to Workers Logs only, not to the D1 table.
+const KNOWN_GETS = ["/api/places", "/api/place", "/api/party", "/api/config", "/album/list"];
+// The iOS Safari warning "ResizeObserver loop completed with undelivered notifications" is harmless. It stays out of the table.
+const HARMLESS_PAGE_ERROR = /ResizeObserver loop/;
 
 export default {
   async fetch(request, env, ctx): Promise<Response> {
@@ -27,12 +32,20 @@ export default {
       // A 5xx that is not ours (a bug, a D1 error) logs its message and stack.
       const detail = http ? http.detail : err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
       const name = routeName(request);
-      // A failed page report goes to Workers Logs only, so a flood of bad reports cannot fill the table.
-      await logError(env, request, { source: "worker", route: name, code, status, detail }, { store: name !== LOG_ROUTE });
+      // A failed page report and a scanner probe go to Workers Logs only, so they cannot fill the table.
+      const store = name !== LOG_ROUTE && !(status === 404 && code === "not_found" && probe(request));
+      await logError(env, request, { source: "worker", route: name, code, status, detail }, { store });
       return json({ error: code }, status);
     }
   },
 } satisfies ExportedHandler<Env>;
+
+// A GET or HEAD to a path that no route serves.
+function probe(request: Request): boolean {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  const path = new URL(request.url).pathname;
+  return !KNOWN_GETS.includes(path) && !PHOTO.test(path);
+}
 
 // The method and path of a request. The path never holds guest data: the search text of /api/places is in the query.
 function routeName(request: Request): string {
@@ -42,6 +55,9 @@ function routeName(request: Request): string {
 async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   switch (`${request.method} ${url.pathname}`) {
+    // Only the Turnstile check used this. A page from before its removal still asks for it at load, so it gets an empty reply.
+    case "GET /api/config":
+      return json({});
     case "POST /api/household":
       return household(request, env);
     case "GET /api/places":
@@ -247,13 +263,14 @@ async function pageLog(request: Request, env: Env): Promise<Response> {
   const word = (v: unknown) => (typeof v === "string" && WORD.test(v) ? v : "");
   const text = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max) : "");
   const detail = JSON.stringify({ where: text(body.where, 80), online: body.online === true ? true : body.online === false ? false : undefined });
+  const code = text(body.code, 120) || "unknown";
   await logError(env, request, {
     source: "page",
     route: word(body.step) || "unknown",
-    code: text(body.code, 120) || "unknown",
+    code,
     status: typeof body.status === "number" && Number.isInteger(body.status) ? body.status : null,
     detail,
     familyId: isFamilyId(body.family) ? body.family : null,
-  });
+  }, { store: !HARMLESS_PAGE_ERROR.test(code) });
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }

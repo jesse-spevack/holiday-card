@@ -60,7 +60,6 @@ afterEach(() => {
 describe("routes", () => {
   it.each([
     ["GET", "/api/nope"],
-    ["GET", "/api/config"],
     ["GET", "/api/submit"],
     ["POST", "/api/party"],
     ["POST", "/album/list"],
@@ -1045,5 +1044,56 @@ describe("uaClass", () => {
     ["", ""],
   ])("%s is %s", (ua, want) => {
     expect(uaClass(ua)).toBe(want);
+  });
+});
+
+describe("error log filter", () => {
+  it("gives an old page an empty config", async () => {
+    const response = await request("/api/config");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({});
+  });
+
+  it.each(["/api/.env", "/api/config.bak", "/album/wp-config.bak", "/album/.git/config"])(
+    "keeps a scanner probe GET %s in Workers Logs only",
+    async (path) => {
+      const log = vi.spyOn(console, "log");
+
+      const response = await request(path);
+
+      expect(response.status).toBe(404);
+      expect(await errorRows()).toHaveLength(0);
+      expect(log.mock.calls.flat().join("\n")).toContain(`GET ${path}`);
+    },
+  );
+
+  it("writes a row for a missing album photo, a known route", async () => {
+    const response = await request("/album/00000000000000ff.jpg");
+
+    expect(response.status).toBe(404);
+    expect(await errorRows()).toMatchObject([{ route: "GET /album/00000000000000ff.jpg", code: "not_found" }]);
+  });
+
+  it("writes a row for a 404 on a POST", async () => {
+    await post("/api/nope", {});
+
+    expect(await errorRows()).toMatchObject([{ route: "POST /api/nope", code: "not_found", status: 404 }]);
+  });
+
+  it("keeps the ResizeObserver loop warning in Workers Logs only", async () => {
+    const log = vi.spyOn(console, "log");
+
+    const response = await post("/api/log", { step: "uncaught", code: "ResizeObserver loop completed with undelivered notifications." });
+
+    expect(response.status).toBe(204);
+    expect(await errorRows()).toHaveLength(0);
+    expect(log.mock.calls.flat().join("\n")).toContain("ResizeObserver loop");
+  });
+
+  it("still writes other page errors", async () => {
+    await post("/api/log", { step: "uncaught", code: "TypeError: x is undefined" });
+
+    expect(await errorRows()).toHaveLength(1);
   });
 });
